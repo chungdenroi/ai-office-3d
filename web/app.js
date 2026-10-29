@@ -683,11 +683,25 @@ document.addEventListener('DOMContentLoaded', boot);
  * camera chuyển cảnh không bao giờ xoá khung hình, mất context WebGL thì
  * chuyển sang dạng 2D thay vì trang trắng, canvas chỉ tạo một lần và
  * không bị vẽ lại khi dữ liệu đổi. */
+/* Bảng màu cảnh 3D theo giao diện (?theme=...): chỉ đổi ánh sáng và màu
+ * vật liệu của cảnh, không đổi hình học hay hành vi. 'default' giữ nguyên
+ * y hệt các màu cũ — không tham số theme thì cảnh không đổi một chút nào. */
+const SCENE_PALETTES = {
+  default: { bg: 0xdfe9f2, hemiSky: 0xffffff, hemiGround: 0x9db3c8, hemiInt: 1.15, sun: 0xffffff, sunInt: 1.6, floor: 0xe8ddc9, wall: 0xf6f3ec, wall2: 0xeef1f4, rug: 0x4c6e8c, table: 0x8a5a33, tableLeg: 0x5b3b22, chair: 0x2f6f4f, shelf: 0x7a5230, pot: 0xb4632a, bush: 0x3d7a4d, glass: 0xbfd9e8, boardFrame: 0x24425c, deskTop: 0x9c6b3f, deskLeg: 0x5b3b22, screen: 0x1d2b3a },
+  dark: { bg: 0x0e1622, hemiSky: 0x8fb4dd, hemiGround: 0x1a2233, hemiInt: 1.0, sun: 0xffd9a0, sunInt: 1.15, floor: 0x4a3826, wall: 0x1c2735, wall2: 0x202e42, rug: 0x274b63, table: 0x6b4a2a, tableLeg: 0x3d2a18, chair: 0x2f5c46, shelf: 0x5a3d22, pot: 0x8a5a2b, bush: 0x2f6b3f, glass: 0x7fa8c8, boardFrame: 0x101c2c, deskTop: 0x7a5230, deskLeg: 0x3d2a18, screen: 0x0d1620 },
+  light: { bg: 0xe8f1f8, hemiSky: 0xffffff, hemiGround: 0xbcd3e6, hemiInt: 1.25, sun: 0xffffff, sunInt: 1.7, floor: 0xefe7d6, wall: 0xffffff, wall2: 0xf4f7fa, rug: 0x5b8ab5, table: 0x9c6b3f, tableLeg: 0x6b4a2a, chair: 0x3f7d5a, shelf: 0x8a5a33, pot: 0xc06a30, bush: 0x4da35f, glass: 0xcfe8f5, boardFrame: 0x2c4a66, deskTop: 0xb0814e, deskLeg: 0x6b4a2a, screen: 0x22384e },
+  warm: { bg: 0xf3e9d2, hemiSky: 0xfff2d8, hemiGround: 0xd8b98a, hemiInt: 1.15, sun: 0xffdf9e, sunInt: 1.5, floor: 0xc9a06a, wall: 0xf7ecd7, wall2: 0xefe3cc, rug: 0x7a4a3a, table: 0x7a4a22, tableLeg: 0x4a2e15, chair: 0x3d6b45, shelf: 0x6b4423, pot: 0xa85a2a, bush: 0x4a7d3a, glass: 0xe8d9b0, boardFrame: 0x3a2e1e, deskTop: 0x8a5a2b, deskLeg: 0x4a2e15, screen: 0x2a3a2e },
+};
 const Office3D = {
   ready: false, mount: null, three: null, renderer: null, scene: null, camera: null,
   chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
   orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
   _raf: 0, _ro: null, _handlers: [], _builtIds: '', _builtScene: null, _initGen: 0,
+  /* Bảng màu cảnh theo giao diện đang chọn (?theme=...). */
+  pal() {
+    const t = (typeof window !== 'undefined' && window.__THEME) || 'default';
+    return SCENE_PALETTES[t] || SCENE_PALETTES.default;
+  },
   THREE_URLS: [
     new URL('vendor/three.module.js', SCRIPT_BASE).href,
     'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
@@ -759,15 +773,16 @@ const Office3D = {
     this.renderer = renderer;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdfe9f2);
-    scene.fog = new THREE.Fog(0xdfe9f2, 18, 34);
+    const P = this.pal();
+    scene.background = new THREE.Color(P.bg);
+    scene.fog = new THREE.Fog(P.bg, 18, 34);
     this.scene = scene;
     const camera = new THREE.PerspectiveCamera(46, w / h, 0.1, 100);
     this.camera = camera;
     this.applyCamera(0);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9db3c8, 1.15));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    scene.add(new THREE.HemisphereLight(P.hemiSky, P.hemiGround, P.hemiInt));
+    const sun = new THREE.DirectionalLight(P.sun, P.sunInt);
     sun.position.set(6, 10, 6); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     scene.add(sun);
@@ -827,47 +842,47 @@ const Office3D = {
   },
 
   buildRoom() {
-    const T = this.three, scene = this.scene;
-    const floorMat = new T.MeshStandardMaterial({ color: 0xe8ddc9, roughness: 0.95 });
+    const T = this.three, scene = this.scene, P = this.pal();
+    const floorMat = new T.MeshStandardMaterial({ color: P.floor, roughness: 0.95 });
     const floor = new T.Mesh(new T.PlaneGeometry(16, 11), floorMat);
     floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1.4); floor.receiveShadow = true;
     scene.add(floor);
-    const wallMat = new T.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.9 });
+    const wallMat = new T.MeshStandardMaterial({ color: P.wall, roughness: 0.9 });
     const back = new T.Mesh(new T.PlaneGeometry(16, 4.2), wallMat);
     back.position.set(0, 2.1, -6.9); back.receiveShadow = true; scene.add(back);
-    const left = new T.Mesh(new T.PlaneGeometry(11, 4.2), new T.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.9 }));
+    const left = new T.Mesh(new T.PlaneGeometry(11, 4.2), new T.MeshStandardMaterial({ color: P.wall2, roughness: 0.9 }));
     left.rotation.y = Math.PI / 2; left.position.set(-8, 2.1, -1.4); scene.add(left);
     const right = left.clone(); right.rotation.y = -Math.PI / 2; right.position.x = 8; scene.add(right);
-    const rug = new T.Mesh(new T.CircleGeometry(2.6, 40), new T.MeshStandardMaterial({ color: 0x4c6e8c, roughness: 1 }));
+    const rug = new T.Mesh(new T.CircleGeometry(2.6, 40), new T.MeshStandardMaterial({ color: P.rug, roughness: 1 }));
     rug.rotation.x = -Math.PI / 2; rug.position.set(0.5, 0.02, -0.6); rug.receiveShadow = true; scene.add(rug);
     // Bàn họp + ghế
-    const table = new T.Mesh(new T.CylinderGeometry(1.5, 1.5, 0.12, 36), new T.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.7 }));
+    const table = new T.Mesh(new T.CylinderGeometry(1.5, 1.5, 0.12, 36), new T.MeshStandardMaterial({ color: P.table, roughness: 0.7 }));
     table.position.set(0.5, 0.78, -0.6); table.castShadow = true; scene.add(table);
-    const leg = new T.Mesh(new T.CylinderGeometry(0.16, 0.22, 0.78, 16), new T.MeshStandardMaterial({ color: 0x5b3b22 }));
+    const leg = new T.Mesh(new T.CylinderGeometry(0.16, 0.22, 0.78, 16), new T.MeshStandardMaterial({ color: P.tableLeg }));
     leg.position.set(0.5, 0.39, -0.6); scene.add(leg);
     this.seats = [];
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + 0.5;
       const p = { x: 0.5 + Math.cos(a) * 2.2, z: -0.6 + Math.sin(a) * 2.2, angle: a + Math.PI };
       this.seats.push(p);
-      const chair = new T.Mesh(new T.BoxGeometry(0.55, 0.5, 0.55), new T.MeshStandardMaterial({ color: 0x2f6f4f, roughness: 0.8 }));
+      const chair = new T.Mesh(new T.BoxGeometry(0.55, 0.5, 0.55), new T.MeshStandardMaterial({ color: P.chair, roughness: 0.8 }));
       chair.position.set(p.x, 0.25, p.z); chair.castShadow = true; scene.add(chair);
     }
     // Kệ + cây cảnh góc
-    const shelf = new T.Mesh(new T.BoxGeometry(2.6, 1.8, 0.4), new T.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.8 }));
+    const shelf = new T.Mesh(new T.BoxGeometry(2.6, 1.8, 0.4), new T.MeshStandardMaterial({ color: P.shelf, roughness: 0.8 }));
     shelf.position.set(-6.4, 0.9, -6.6); scene.add(shelf);
-    const pot = new T.Mesh(new T.CylinderGeometry(0.32, 0.26, 0.5, 16), new T.MeshStandardMaterial({ color: 0xb4632a }));
+    const pot = new T.Mesh(new T.CylinderGeometry(0.32, 0.26, 0.5, 16), new T.MeshStandardMaterial({ color: P.pot }));
     pot.position.set(6.9, 0.25, -6.1); scene.add(pot);
-    const bush = new T.Mesh(new T.SphereGeometry(0.55, 16, 12), new T.MeshStandardMaterial({ color: 0x3d7a4d, roughness: 1 }));
+    const bush = new T.Mesh(new T.SphereGeometry(0.55, 16, 12), new T.MeshStandardMaterial({ color: P.bush, roughness: 1 }));
     bush.position.set(6.9, 0.95, -6.1); scene.add(bush);
     // Phòng Giám đốc: vách kính mờ phía trái
-    const glass = new T.Mesh(new T.PlaneGeometry(3.6, 3.0), new T.MeshStandardMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.35, roughness: 0.2 }));
+    const glass = new T.Mesh(new T.PlaneGeometry(3.6, 3.0), new T.MeshStandardMaterial({ color: P.glass, transparent: true, opacity: 0.35, roughness: 0.2 }));
     glass.position.set(-5.9, 1.5, -3.4); glass.rotation.y = Math.PI / 2; scene.add(glass);
   },
 
   buildBoard() {
-    const T = this.three, scene = this.scene;
-    const frame = new T.Mesh(new T.BoxGeometry(4.6, 2.2, 0.08), new T.MeshStandardMaterial({ color: 0x24425c, roughness: 0.6 }));
+    const T = this.three, scene = this.scene, P = this.pal();
+    const frame = new T.Mesh(new T.BoxGeometry(4.6, 2.2, 0.08), new T.MeshStandardMaterial({ color: P.boardFrame, roughness: 0.6 }));
     frame.position.set(1.2, 1.7, -6.82); scene.add(frame);
     const cols = ['#f2c14e', '#4aa3df', '#e67e22', '#35d07f'];
     cols.forEach((c, i) => {
@@ -883,16 +898,16 @@ const Office3D = {
     return { x: -1.3 + (i % 5) * 2.35, z: -4.7 + Math.floor(i / 5) * 1.6, angle: 0 };
   },
   buildDesk(p, color) {
-    const T = this.three;
+    const T = this.three, P = this.pal();
     const g = new T.Group();
-    const top = new T.Mesh(new T.BoxGeometry(1.7, 0.08, 0.85), new T.MeshStandardMaterial({ color: 0x9c6b3f, roughness: 0.7 }));
+    const top = new T.Mesh(new T.BoxGeometry(1.7, 0.08, 0.85), new T.MeshStandardMaterial({ color: P.deskTop, roughness: 0.7 }));
     top.position.y = 0.74; top.castShadow = true; g.add(top);
-    const legM = new T.MeshStandardMaterial({ color: 0x5b3b22 });
+    const legM = new T.MeshStandardMaterial({ color: P.deskLeg });
     [[-0.75, -0.32], [0.75, -0.32], [-0.75, 0.32], [0.75, 0.32]].forEach(([x, z]) => {
       const leg = new T.Mesh(new T.BoxGeometry(0.08, 0.74, 0.08), legM);
       leg.position.set(x, 0.37, z); g.add(leg);
     });
-    const screen = new T.Mesh(new T.BoxGeometry(0.7, 0.45, 0.04), new T.MeshStandardMaterial({ color: 0x1d2b3a, roughness: 0.3, metalness: 0.4 }));
+    const screen = new T.Mesh(new T.BoxGeometry(0.7, 0.45, 0.04), new T.MeshStandardMaterial({ color: P.screen, roughness: 0.3, metalness: 0.4 }));
     screen.position.set(0, 1.02, -0.28); g.add(screen);
     const chair = new T.Mesh(new T.BoxGeometry(0.6, 0.55, 0.6), new T.MeshStandardMaterial({ color, roughness: 0.85 }));
     chair.position.set(0, 0.28, 0.85); chair.castShadow = true; g.add(chair);
