@@ -1,0 +1,6 @@
+node_modules/
+server/data/
+server/backups/
+server/alerts/
+server/.env
+.DS_Store
