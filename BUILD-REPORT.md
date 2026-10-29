@@ -98,7 +98,7 @@ trong web qua `GET /api/kit/:file` (cần đăng nhập).
 |---|---|---|---|
 | W1 | Nút camera đang chọn trắng tinh, mất nhãn | Xung đột độ ưu tiên CSS: `.stage .camrow button` (nền trắng) thắng rule toàn cục `button[aria-pressed="true"]` (chữ trắng) → chữ trắng trên nền trắng | Rule trạng thái chọn đặt CẢ nền + chữ trong cùng rule có độ ưu tiên cao nhất, cho mọi control (`style.css`). Kiểm chứng: bấm nhanh 5 vòng 4 nút camera, đo tương phản thực tế của nút đang chọn (tỷ lệ > 3) — PASS. |
 | W2 | Bấm thêm thì trắng tinh cả khung nhìn | Bản cũ vẽ lại vùng quanh sân + không xử lý mất context WebGL / lỗi JS | Canvas tạo một lần, dữ liệu đổi chỉ cập nhật panel + đồng bộ 3D (không vẽ lại sân); `webglcontextlost` → chuyển dạng 2D + thông báo; `window.onerror` → banner chữ thường, không trắng trang. Kiểm chứng: bấm camera nhanh + xoay màn hình, sân không trống, 0 lỗi JS — PASS. |
-| W3 | Nhãn tên/chức vụ trên nhân vật quá nhỏ, không đọc được | Sprite nhãn cũ 256×96 co về 1.5 đơn vị thế giới | Sprite 448×152, chữ tên 52px/chức vụ 34px, nền trắng đặc viền đậm, scale 2.6×0.88, `depthTest:false`. Chưa kiểm chứng trực quan (CDN bị chặn — xem UNTESTED). |
+| W3 | Nhãn tên/chức vụ trên nhân vật quá nhỏ, không đọc được | Sprite nhãn cũ 256×96 co về 1.5 đơn vị thế giới | Sprite 448×152, chữ tên 52px/chức vụ 34px, nền trắng đặc viền đậm, scale 2.6×0.88, `depthTest:false`. Đã kiểm chứng trực quan 30/10 (xem §2.4, ảnh `shot-office-3d-*.png`). |
 | W4 | Panel hồ sơ: bảng 2 cột lệch, chữ cắt ở mép | Dùng bảng 2 cột trên mobile | Hàng định nghĩa xếp chồng (nhãn trên, giá trị dưới, `.kv`), không bảng. Kiểm chứng: mọi `dd` không tràn ở 390px — PASS. |
 | W5 | Trông như landing page, không giống trung tâm điều phối | Trang dài trình bày phác thảo, không có vỏ ứng dụng | Vỏ app thật: topbar tối + trạng thái trực tuyến + huy hiệu chờ duyệt đỏ, sidebar/bottom nav, màn hình làm việc dày đặc có tổ chức, KPI. Ảnh chụp kiểm chứng ở `docs/screenshots-390px/`. |
 | W6 | Menu mobile không cố định dưới | Không có bottom nav | Bottom nav `position:fixed` đáy viewport, ≥52px/mục, mục đang chọn nền tối + nhãn rõ, nội dung đệm đáy 110px. Kiểm chứng: cuộn tới cuối trang, nav vẫn dính đáy — PASS. |
@@ -113,6 +113,14 @@ trong web qua `GET /api/kit/:file` (cần đăng nhập).
 | W10 | Nút camera/nhãn menu dưới "Văn phòng" bị ngắt dòng, chữ "phòng" cắt ở mép dưới khi mục đang chọn (phát hiện khi xem ảnh chụp kiểm thử) | `.bn-label` không ngắt dòng, cỡ 11px. |
 | W11 | Nhật ký hoạt động ghi trùng lặp "Cảnh 3D không tải được" khi vào lại màn Văn phòng | `feedAdd` bỏ qua trùng lặp liên tiếp. |
 | W12 | Mỗi lần nhân viên đăng nhập web bằng luồng đổi MK lần đầu, web thăm dò `/api/audit` để biết loại phiên → máy chủ ghi cảnh báo bảo mật giả vào hộp thư (3 cảnh báo trong lúc kiểm thử) | Web đọc `kind` từ `/api/context` (xem S13). Kiểm chứng: chạy lại luồng đăng nhập nhân viên, hộp thư cảnh báo không ghi thêm gì. |
+
+### 2.4. Lỗi 3D fatal trên bản live (phát hiện khi kiểm chứng trình duyệt thật, 30/10 05:21–05:24 +07 — SAU khi rebuild xong)
+
+| # | Lỗi | Nguyên nhân gốc (đã tái hiện và xác nhận) | Sửa + kiểm chứng |
+|---|---|---|---|
+| W13 | Màn Văn phòng 3D chết hẳn trên bản live: sau ~8 giây "Đang tải cảnh 3D…" toàn bộ màn hình bị thay bằng "Không tải được màn hình này / THREE is not defined" (tái hiện ổn định 3/3 lần). Dạng 2D không bật lên. | `buildRoom()` và `buildBoard()` trong `Office3D` dùng biến trần `THREE.*` trong khi chỉ khai báo `const T = this.three` — `THREE` chỉ tồn tại dưới dạng binding cục bộ trong `init()`, còn hai method kia ở ngoài phạm vi nên ném `ReferenceError`. Khi CDN bị chặn (môi trường thử nghiệm) thì `import()` thất bại trước, rơi về 2D nên lỗi bị che — chỉ khi CDN tải được (trình duyệt live) thì import thành công rồi `buildRoom()` mới ném lỗi, leo lên thành màn hình fatal. | (1) `buildRoom`/`buildBoard`: 39 chỗ `THREE.` → `T.`; sau sửa, grep còn `THREE.` chỉ trong `init()`/`buildStage()` nơi `THREE` là tham số/binding cục bộ. (2) Tách `buildStage()` khỏi `init()`: mọi lỗi dựng cảnh rơi vào catch của `init()` → trả `{ok:false}` → dạng 2D, không bao giờ leo lên màn hình fatal; vòng lặp vẽ có try/catch riêng → lỗi giữa chừng cũng chuyển 2D. (3) `renderOffice` bọc `await Office3D.init()` trong try/catch → 2D. (4) Thư viện Three.js r160 đưa vào repo: `web/vendor/three.module.js` (1.272.972 byte, MIT, md5 `a762b8588c6abf23cb87624360d014c4`) — loader thử file cùng nguồn trước, rồi jsDelivr → unpkg → cdnjs, mỗi lần thử trần 10 giây; importmap trỏ về file vendor. Kiểm chứng: tái hiện lỗi trước sửa bằng CDP + Fetch.fulfillRequest (CDN trả three thật) → đúng màn hình fatal "THREE is not defined"; sau sửa chạy lại 15/15 PASS (xem §3 Cổng 6). |
+| W14 | Dòng "Đang tải cảnh 3D…" nằm lại trên đầu khung vẽ sau khi cảnh dựng xong, bị nút camera che một phần (thấy trên ảnh chụp kiểm thử desktop + 390px). | `buildStage` thêm canvas vào `#stage-box` mà không xoá đoạn `<p>` tải trang đã ghi trước đó. | `box.innerHTML = ''` trước `appendChild(canvas)`. Kiểm chứng: `loadingP === false` sau dựng cảnh. |
+| W15 | Dòng gợi ý "Kéo để xoay…" (desktop) bị nút camera "Theo người" che một phần (ghi trong báo cáo kiểm chứng live). | `.stage-help` đặt tuyệt đối góc trên-phải, chồng lên `.camrow` khi hàng nút dài. | `.stage-help` + `.stage-credit` chuyển sang luồng thường dưới khung vẽ; đo rect: không còn chồng lấn (`helpOverlapCam === false`) ở cả desktop và 390px. |
 
 ## 3. Kiểm thử — bằng chứng theo cổng
 
@@ -185,6 +193,15 @@ Hai phiên song song (Giám đốc + nhân viên mới), viewport 390×844, gồ
 
 - `bash kit/install.sh --dry-run` → đạt (Node v24 OK, không ghi file).
 
+### Cổng 6 — Sửa lỗi 3D live (30/10, script `/tmp/verify-3d-fix.mjs` + `/tmp/verify-3d-fix2.mjs` + `/tmp/verify-bottomnav.mjs`, máy chủ thật + DB tạm, chrome-headless-shell qua CDP, WebGL phần mềm SwiftShader): 15/15 PASS + 8/9 PASS (1 FAIL là phép đo sai của script, xem ghi chú)
+
+- Tái hiện trước sửa: Fetch.fulfillRequest trả three.module.js thật cho request jsDelivr → màn hình fatal "THREE is not defined", `Office3D.hasThree=true, hasRenderer=true, chars=0` (xem §2.4 W13).
+- Sau sửa, GĐ A (chặn mọi CDN, chỉ file vendor cùng nguồn): canvas 3D dựng được, đủ 5 nhân vật, `ready=true`, không fatal, không "THREE is not defined", không ở dạng 2D; bấm nhanh 5 vòng 4 nút camera + đổi 390px: canvas còn nguyên, nút đang chọn đọc được, dòng gợi ý không chồng nút camera; 0 lỗi JS.
+- GĐ B (chặn cả vendor lẫn CDN): dạng 2D đầy đủ thao tác, không fatal, không "THREE is not defined", không canvas dở dang.
+- Kiểm chứng lần 2 (sau sửa W14): dòng "Đang tải" không còn trong khung vẽ; không tràn ngang ở 1280px (`scrollWidth 1265 ≤ innerWidth 1280`) và ở cửa sổ 390px thật (`scrollWidth 375 ≤ innerWidth 390`, khung 3D nằm trong viewport); menu dưới `position:fixed`, `bottom == innerHeight`, hiển thị đúng ở 390px.
+- Ghi chú phép đo: ở lượt chạy `/tmp/verify-3d-fix2.mjs`, 1/9 FAIL (C9) do script so nhầm `bottom` (toạ độ Y) với `innerWidth` (chiều rộng) và do `Emulation.setDeviceMetricsOverride` trong headless-shell báo viewport 721px thay vì 390px; đã kiểm tra lại đúng bằng cửa sổ 390px thật (`/tmp/verify-bottomnav.mjs`): nav dính đáy đúng.
+- Ảnh chụp: `docs/screenshots-390px/shot-office-3d-390.png` (390px, cảnh 3D + menu dưới), `docs/screenshots-390px/shot-office-3d-desktop.png` (desktop, cảnh 3D + nhãn đọc được).
+
 ## 4. Sự cố trong lúc kiểm thử (đã xử lý, ghi để tránh lặp lại)
 
 ### 4.1. Kiểm thử đã ghi nhầm vào DB thật — ĐÃ DỌN SẠCH
@@ -210,13 +227,13 @@ thử tự diệt tiến trình con khi crash. Không ảnh hưởng code sản 
 
 ## 5. UNTESTED (ghi thật, không PASS)
 
-1. **Render 3D trực quan** (nhân vật, bàn, phòng họp, nhãn sprite, đi bộ, nhảy ăn
-   mừng, camera theo người): **UNTESTED** — môi trường thử nghiệm chặn CDN
-   jsDelivr (`ERR_TUNNEL_CONNECTION_FAILED`), `import('three')` thất bại nên app
-   rơi về dạng 2D (đã kiểm chứng đầy đủ). Code cảnh 3D giữ lại từ bản trước, đã
-   sửa nhãn to/tương phản + chống trắng trang + mất context, nhưng CHƯA được nhìn
-   thấy chạy. **Phải kiểm chứng trên trình duyệt thật có mạng trước khi báo xong
-   với Giám đốc** (theo lệnh "test kỹ trước khi deploy").
+1. **Render 3D trực quan trên trình duyệt thật có mạng + điện thoại thật** (Safari
+   iPhone, cảm ứng kéo/chụm, hiệu ứng đi bộ/nhảy ăn mừng theo thời gian, khung
+   camera theo người về mặt thị giác): **CHƯA KIỂM CHỨNG HẾT** — cảnh 3D đã được
+   nhìn thấy chạy và chụp ảnh trong chrome-headless-shell với WebGL phần mềm
+   (SwiftShader) dùng file vendor cùng nguồn (xem §3 Cổng 6 + ảnh
+   `shot-office-3d-*.png`), nhưng chưa chạy trên trình duyệt thật của Giám đốc.
+   **Cổng kiểm chứng live sau deploy vẫn bắt buộc** trước khi báo xong với Giám đốc.
 2. **Đường cài kit đầy đủ + `install.bat` trên Windows thật**: UNTESTED (chỉ có
    `--dry-run` trên Linux). Bridge đã kiểm chứng vòng tròn xin duyệt qua API.
 3. **Chạy 24/7 trên máy điều phối** (systemd, watchdog, sao lưu 15 phút): UNTESTED.
@@ -245,10 +262,11 @@ Nhân viên đăng nhập web bằng tài khoản Giám đốc tạo (`POST /api
 ## 7. File thay đổi trong rebuild này
 
 - `web/index.html`, `web/app.js`, `web/style.css` — viết mới hoàn toàn (vỏ ứng dụng).
+- `web/vendor/three.module.js` (MỚI, 30/10) — Three.js r160 đi kèm cùng nguồn (MIT), loader thử file này trước rồi mới tới CDN; sửa lỗi fatal W13 (§2.4).
 - `server/server.js` — sửa 12 điểm (§2.1) + ghi chú scrypt/cài đặt lần đầu.
 - `README.md` — cập nhật chạy thật, scrypt, cài đặt lần đầu, bảng API, quyết định đã chốt.
 - `docs/HUONG-DAN-CAI-DAT.md` — bổ sung mục rebuild 30/10.
-- `docs/screenshots-390px/` — 2 ảnh chụp kiểm chứng 390px (MỚI).
+- `docs/screenshots-390px/` — 4 ảnh chụp kiểm chứng (2 ảnh 390px bản rebuild + 2 ảnh cảnh 3D sau sửa lỗi live: `shot-office-3d-390.png`, `shot-office-3d-desktop.png`).
 - `PROGRESS.md` — cập nhật trạng thái rebuild.
 - Không đổi: `server/bridge.js`, `server/healthcheck.js`, `kit/*`, `LICENSE`,
   `.gitignore`, `server/office.service.example`, `~/workspace/ai-company/**`.
