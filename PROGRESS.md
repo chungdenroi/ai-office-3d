@@ -1,8 +1,25 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — SỬA KHUNG NHÃN 3D + RESIZE XONG (CHƯA DEPLOY), CHỜ DEPLOY + KIỂM CHỨNG TRÊN TRÌNH DUYỆT/ĐIỆN THOẠI THẬT
+## TRẠNG THÁI — 3 PHƯƠNG ÁN GIAO DIỆN XONG (CHƯA DEPLOY), CHỜ GIÁM ĐỐC NHÌN VÀ CHỌN
 
-## (0) MỚI NHẤT 30/10 — Sửa khung nhãn 3D (lỗi live 04:36 +07)
+## (0) MỚI NHẤT 30/10 — 3 phương án giao diện (Giám đốc chê "xấu" 06:41 +07)
+
+- Làm 3 hướng nhìn thật trên ứng dụng thật, chọn bằng `?theme=dark|light|warm`:
+  (1) dark "Phòng điều hành tối", (2) light "Sáng sạch hiện đại",
+  (3) warm "Gỗ ấm văn phòng" (tiêu đề serif). Chỉ đổi lớp hình ảnh + bảng màu
+  cảnh 3D; cấu trúc, màn hình, máy chủ không đổi. Không tham số = giữ nguyên
+  giao diện hiện tại (đã kiểm chứng).
+- 12 ảnh chụp thật (mỗi bản × văn phòng/chat × 1440/390px) tại
+  `docs/theme-options/<theme>/`, đã xem từng ảnh: đọc được, không tràn ngang,
+  menu dưới cố định hiện ở 390px, không lỗi JS. Chi tiết + file chờ deploy:
+  `BUILD-REPORT.md` §8. Sửa 1 điểm sau khi xem ảnh (bản dark tối quá nửa phải
+  cảnh). Nhãn 3D góc tổng vẫn chồng dòng phụ như bản hiện tại — không do theme.
+- CHƯA DEPLOY: agent cha push bằng gh-api put-file (KHÔNG git local) các file
+  ở `BUILD-REPORT.md` §8.1, rồi kiểm chứng live `?theme=...` trước khi đưa
+  Giám đốc chọn. Sau khi chọn: bản đó thành mặc định, kiểm chứng live lại.
+- Các đợt sửa trước (khung nhãn 3D, lỗi THREE) vẫn CHƯA DEPLOY — push chung.
+
+## (0b) Sửa khung nhãn 3D (lỗi live 04:36 +07)
 
 - Lỗi A (Phòng họp: nhãn vượt mép trên), lỗi B (Theo người: nhãn khổng lồ
   che nút), lỗi C (vào lần đầu thiếu nhân vật): ĐÃ SỬA + ĐÃ KIỂM CHỨNG
@@ -21,7 +38,7 @@
   3D + nhãn 4 góc + menu dưới cố định ở 390px thật.
 
 
-Cập nhật lần cuối: ~06:40, 30/10/2026 (giờ Sài Gòn).
+Cập nhật lần cuối: ~07:00, 30/10/2026 (giờ Sài Gòn).
 
 ## (1) Chuyện gì đã xảy ra
 
