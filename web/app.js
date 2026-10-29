@@ -16,6 +16,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':
 const uid = () => 'id-' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 const fmtNum = (n) => n == null ? '—' : Number(n).toLocaleString('vi-VN');
 const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }); } catch { return iso || ''; } };
+/* Thư mục chứa app.js — để tính đường dẫn tuyệt đối tới thư viện 3D đi kèm
+ * (vendor/) dù trang được mở ở / hay /web/ (GitHub Pages). */
+const SCRIPT_BASE = (() => { try { const cs = document.currentScript; if (cs && cs.src) return cs.src; } catch { /* rơi xuống location */ } return location.href; })();
 const STATUS_META = {
   working: { label: 'Đang làm', cls: 'working', dot: 'green', ring: 0x35d07f },
   waiting: { label: 'Đang chờ', cls: 'waiting', dot: 'yellow', ring: 0xd69e00 },
@@ -682,15 +685,49 @@ const Office3D = {
   chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
   orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
   _raf: 0, _ro: null, _handlers: [], _builtIds: '',
-  THREE_URL: 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  THREE_URLS: [
+    new URL('vendor/three.module.js', SCRIPT_BASE).href,
+    'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+    'https://unpkg.com/three@0.160.0/build/three.module.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js',
+  ],
+
+  /* Thử từng nguồn thư viện 3D theo thứ tự: file đi kèm cùng nguồn trước
+   * (không phụ thuộc mạng/CDN), rồi các CDN. Mỗi lần thử có trần 10 giây —
+   * CDN treo không được giữ màn hình ở "Đang tải" mãi. Trả về null nếu tất
+   * cả đều thất bại; bên gọi phải chuyển sang dạng 2D, không bao giờ ném lỗi. */
+  async loadThree() {
+    for (const url of this.THREE_URLS) {
+      try {
+        const mod = await Promise.race([
+          import(url),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
+        ]);
+        if (mod && mod.Scene && mod.WebGLRenderer) return mod;
+      } catch { /* thử nguồn tiếp theo */ }
+    }
+    return null;
+  },
 
   async init(mount) {
     this.dispose();
     this.mount = mount;
-    let THREE;
-    try { THREE = await import(this.THREE_URL); }
-    catch (e) { return { ok: false, reason: 'Không tải được thư viện 3D (mạng hoặc CDN bị chặn). Dạng 2D vẫn làm việc đầy đủ.' }; }
+    const THREE = await this.loadThree();
+    if (!THREE) return { ok: false, reason: 'Không tải được thư viện 3D (file đi kèm và các CDN đều không tới được). Dạng 2D vẫn làm việc đầy đủ.' };
     this.three = THREE;
+    try {
+      return this.buildStage(mount, THREE);
+    } catch (e) {
+      this.dispose();
+      return { ok: false, reason: 'Không dựng được cảnh 3D (' + (e.message || 'lỗi không rõ') + '). Dạng 2D vẫn làm việc đầy đủ.' };
+    }
+  },
+
+  /* Dựng khung vẽ + cảnh. Tách riêng khỏi init() để mọi lỗi dựng cảnh đều
+   * rơi vào catch của init() và chuyển sang dạng 2D — không bao giờ để lỗi
+   * dựng cảnh leo lên thành màn hình lỗi fatal (bài học live 30/10:
+   * buildRoom dùng biến THREE ngoài phạm vi nên "THREE is not defined"). */
+  buildStage(mount, THREE) {
     const box = mount;
     const w = Math.max(200, box.clientWidth), h = Math.max(240, box.clientHeight);
     let renderer;
@@ -702,6 +739,7 @@ const Office3D = {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    box.innerHTML = ''; // Xoá dòng "Đang tải cảnh 3D…" — nếu không nó nằm lại trên đầu khung vẽ, bị nút camera che một phần.
     box.appendChild(renderer.domElement);
     this.renderer = renderer;
 
@@ -747,10 +785,21 @@ const Office3D = {
     const clock = new THREE.Clock();
     const tick = () => {
       this._raf = requestAnimationFrame(tick);
-      const dt = Math.min(clock.getDelta(), 0.05);
-      this.animate(dt);
-      if (this.mode === 'follow') this.applyCamera(dt);
-      renderer.render(scene, camera);
+      try {
+        const dt = Math.min(clock.getDelta(), 0.05);
+        this.animate(dt);
+        if (this.mode === 'follow') this.applyCamera(dt);
+        renderer.render(scene, camera);
+      } catch (e) {
+        /* Lỗi trong vòng lặp vẽ (VD: mất context WebGL giữa chừng) không
+         * được để thành trang trắng hay màn hình lỗi: dừng vòng lặp, dọn
+         * khung vẽ và chuyển sang dạng 2D đầy đủ thao tác. */
+        if (this._raf) cancelAnimationFrame(this._raf);
+        this._raf = 0;
+        this.showStageError('Khung vẽ 3D gặp sự cố khi đang chạy. Đã chuyển sang dạng 2D — dữ liệu không mất.');
+        this.dispose();
+        renderOfficeFallback();
+      }
     };
     tick();
     this.ready = true;
@@ -759,50 +808,50 @@ const Office3D = {
 
   buildRoom() {
     const T = this.three, scene = this.scene;
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0xe8ddc9, roughness: 0.95 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 11), floorMat);
+    const floorMat = new T.MeshStandardMaterial({ color: 0xe8ddc9, roughness: 0.95 });
+    const floor = new T.Mesh(new T.PlaneGeometry(16, 11), floorMat);
     floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1.4); floor.receiveShadow = true;
     scene.add(floor);
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.9 });
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(16, 4.2), wallMat);
+    const wallMat = new T.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.9 });
+    const back = new T.Mesh(new T.PlaneGeometry(16, 4.2), wallMat);
     back.position.set(0, 2.1, -6.9); back.receiveShadow = true; scene.add(back);
-    const left = new THREE.Mesh(new THREE.PlaneGeometry(11, 4.2), new THREE.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.9 }));
+    const left = new T.Mesh(new T.PlaneGeometry(11, 4.2), new T.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.9 }));
     left.rotation.y = Math.PI / 2; left.position.set(-8, 2.1, -1.4); scene.add(left);
     const right = left.clone(); right.rotation.y = -Math.PI / 2; right.position.x = 8; scene.add(right);
-    const rug = new THREE.Mesh(new THREE.CircleGeometry(2.6, 40), new THREE.MeshStandardMaterial({ color: 0x4c6e8c, roughness: 1 }));
+    const rug = new T.Mesh(new T.CircleGeometry(2.6, 40), new T.MeshStandardMaterial({ color: 0x4c6e8c, roughness: 1 }));
     rug.rotation.x = -Math.PI / 2; rug.position.set(0.5, 0.02, -0.6); rug.receiveShadow = true; scene.add(rug);
     // Bàn họp + ghế
-    const table = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.12, 36), new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.7 }));
+    const table = new T.Mesh(new T.CylinderGeometry(1.5, 1.5, 0.12, 36), new T.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.7 }));
     table.position.set(0.5, 0.78, -0.6); table.castShadow = true; scene.add(table);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.78, 16), new THREE.MeshStandardMaterial({ color: 0x5b3b22 }));
+    const leg = new T.Mesh(new T.CylinderGeometry(0.16, 0.22, 0.78, 16), new T.MeshStandardMaterial({ color: 0x5b3b22 }));
     leg.position.set(0.5, 0.39, -0.6); scene.add(leg);
     this.seats = [];
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 + 0.5;
       const p = { x: 0.5 + Math.cos(a) * 2.2, z: -0.6 + Math.sin(a) * 2.2, angle: a + Math.PI };
       this.seats.push(p);
-      const chair = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.55), new THREE.MeshStandardMaterial({ color: 0x2f6f4f, roughness: 0.8 }));
+      const chair = new T.Mesh(new T.BoxGeometry(0.55, 0.5, 0.55), new T.MeshStandardMaterial({ color: 0x2f6f4f, roughness: 0.8 }));
       chair.position.set(p.x, 0.25, p.z); chair.castShadow = true; scene.add(chair);
     }
     // Kệ + cây cảnh góc
-    const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 0.4), new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.8 }));
+    const shelf = new T.Mesh(new T.BoxGeometry(2.6, 1.8, 0.4), new T.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.8 }));
     shelf.position.set(-6.4, 0.9, -6.6); scene.add(shelf);
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0xb4632a }));
+    const pot = new T.Mesh(new T.CylinderGeometry(0.32, 0.26, 0.5, 16), new T.MeshStandardMaterial({ color: 0xb4632a }));
     pot.position.set(6.9, 0.25, -6.1); scene.add(pot);
-    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), new THREE.MeshStandardMaterial({ color: 0x3d7a4d, roughness: 1 }));
+    const bush = new T.Mesh(new T.SphereGeometry(0.55, 16, 12), new T.MeshStandardMaterial({ color: 0x3d7a4d, roughness: 1 }));
     bush.position.set(6.9, 0.95, -6.1); scene.add(bush);
     // Phòng Giám đốc: vách kính mờ phía trái
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.0), new THREE.MeshStandardMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.35, roughness: 0.2 }));
+    const glass = new T.Mesh(new T.PlaneGeometry(3.6, 3.0), new T.MeshStandardMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.35, roughness: 0.2 }));
     glass.position.set(-5.9, 1.5, -3.4); glass.rotation.y = Math.PI / 2; scene.add(glass);
   },
 
   buildBoard() {
     const T = this.three, scene = this.scene;
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.2, 0.08), new THREE.MeshStandardMaterial({ color: 0x24425c, roughness: 0.6 }));
+    const frame = new T.Mesh(new T.BoxGeometry(4.6, 2.2, 0.08), new T.MeshStandardMaterial({ color: 0x24425c, roughness: 0.6 }));
     frame.position.set(1.2, 1.7, -6.82); scene.add(frame);
     const cols = ['#f2c14e', '#4aa3df', '#e67e22', '#35d07f'];
     cols.forEach((c, i) => {
-      const col = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.8, 0.05), new THREE.MeshStandardMaterial({ color: new T.Color(c), roughness: 0.8 }));
+      const col = new T.Mesh(new T.BoxGeometry(1.0, 1.8, 0.05), new T.MeshStandardMaterial({ color: new T.Color(c), roughness: 0.8 }));
       col.position.set(-0.55 + i * 1.16, 1.7, -6.76); scene.add(col);
     });
   },
@@ -1209,8 +1258,10 @@ async function renderOffice(screen) {
   renderMeetingBox();
   if (use2D) { renderOfficeFallback(); return; }
   const box = $('#stage-box');
-  box.innerHTML = '<p class="hint" style="padding:16px">Đang tải cảnh 3D… Nếu mạng chặn thư viện 3D, hệ thống tự chuyển sang dạng danh sách 2D đầy đủ thao tác.</p>';
-  const res = await Office3D.init(box);
+  box.innerHTML = '<p class="hint" style="padding:16px">Đang tải cảnh 3D… Nếu thư viện 3D không tải được, hệ thống tự chuyển sang dạng danh sách 2D đầy đủ thao tác.</p>';
+  let res;
+  try { res = await Office3D.init(box); }
+  catch (e) { res = { ok: false, reason: 'Không dựng được cảnh 3D. Dạng 2D vẫn làm việc đầy đủ.' }; }
   if (!res.ok) {
     S.office2D = true;
     try { sessionStorage.setItem('office.force2d', '1'); } catch { /* bỏ qua */ }
