@@ -1,0 +1,56 @@
+/* GIAO DIỆN 3 — "GỖ ẤM VĂN PHÒNG" (warm editorial office).
+ * Kem + gỗ ấm, xanh lá đậm làm điểm nhấn, tiêu đề màn hình dùng chữ serif
+ * trang trọng — cảm giác văn phòng cao cấp, bình tĩnh. Chữ nội dung vẫn
+ * dùng sans để đọc lâu không mỏi. Mọi trạng thái "đang chọn" giữ nền tối
+ * + chữ trắng như bản hiện tại. */
+:root{
+  --bg:#f6f1e7; --panel:#fffdf7; --ink:#3b2f23; --text:#2e2620; --muted:#7d6f5f;
+  --line:#e7dcc9; --line2:#d8c9ac; --accent:#1d5c3f; --accent-d:#14452e;
+  --navy:#2f4636; --navy2:#3a5542; --danger:#a33b2e; --danger-bg:#fbeee9;
+  --ok:#2e6b45; --ok-bg:#e9f3ea; --warn:#8a5a13; --warn-bg:#fbf3df;
+  --chip:#efe8d8; --radius:10px;
+  --green:#3d8a52; --yellow:#c99a1e; --red:#c04536; --rest:#9aa08e;
+  --field:#fffdf7; --soft:#f1e9da; --track:#e7dcc9; --mine:#e6efe7;
+  --stage-bg:#efe6d4; --camrow-bg:rgba(255,253,247,.97);
+}
+/* Tiêu đề hiển thị serif; chữ nội dung giữ sans. */
+h1,h2,.login-brand,.topbar .brand,.kpi .kpi-num{
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+}
+h1{font-size:23px;letter-spacing:.01em}
+h2{font-size:19px}
+.login-brand{letter-spacing:.03em;font-size:19px}
+.topbar .brand{letter-spacing:.03em}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+input,select,textarea{background:var(--field);border-color:var(--line2);color:var(--text)}
+input:focus,select:focus,textarea:focus{outline-color:var(--accent);border-color:var(--accent)}
+.btn{background:var(--panel)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-d)}
+.btn:hover{border-color:var(--ink)}
+.tab{background:var(--panel)}
+.topbar-status{color:#cfe0d2}
+.topbar-user .btn{color:#fdfbf5;border-color:#5c7462}
+.stage{background:var(--stage-bg)}
+.stage .stage-help,.stage .stage-credit{background:var(--panel)}
+.stage .stage-fallback{background:var(--soft)}
+.stage .camrow button{background:var(--camrow-bg)}
+.kcol{background:var(--soft)}
+.jobcard{background:var(--panel);border-left-color:var(--accent)}
+.log li{background:var(--panel)}
+.msg{background:var(--panel)}
+.msg.mine{background:var(--mine);border-color:#c2d8c6}
+.conv-item{background:var(--panel)}
+.fallback-item{background:var(--panel)}
+.modal{background:var(--panel)}
+.bottomnav{background:var(--panel);border-top-color:var(--line2)}
+.more-sheet{background:var(--panel);border-top-color:var(--line2)}
+.progress,.budgetbar{background:var(--track)}
+.progress i{background:var(--green)}
+.pill.working{background:#e9f3ea;color:#2e6b45}
+.pill.waiting{background:#fbf3df;color:#8a5a13}
+.pill.approval{background:#fbeee9;color:#a33b2e}
+.pill.resting{background:#efe8d8;color:#6f675a}
+.msg .msg-tag{background:#fbeee9;color:#a33b2e}
+.docs th{background:var(--chip)}
+.login-card{box-shadow:0 10px 30px rgba(59,47,35,.12)}
