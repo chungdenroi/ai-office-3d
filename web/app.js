@@ -668,8 +668,11 @@ async function enterApp() {
   await refreshHealth();
   connectSSE();
   startPolling();
+  /* Chỉ gọi renderScreen() trực tiếp khi hash đã đúng — nếu vừa gán hash
+   * mới thì sự kiện hashchange sẽ tự gọi renderScreen(); gọi thêm ở đây
+   * sẽ thành hai lần renderOffice chồng nhau (đua init 3D, Bug C). */
   if (!location.hash) location.hash = '#/office';
-  await renderScreen();
+  else await renderScreen();
   feedAdd('Đã đăng nhập: ' + Session.me.name + ' (' + myRole().name + ')' + (Session.demo ? ' — bản DEMO ngoại tuyến.' : ''));
 }
 document.addEventListener('DOMContentLoaded', boot);
@@ -684,7 +687,7 @@ const Office3D = {
   ready: false, mount: null, three: null, renderer: null, scene: null, camera: null,
   chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
   orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
-  _raf: 0, _ro: null, _handlers: [], _builtIds: '',
+  _raf: 0, _ro: null, _handlers: [], _builtIds: '', _builtScene: null, _initGen: 0,
   THREE_URLS: [
     new URL('vendor/three.module.js', SCRIPT_BASE).href,
     'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
@@ -712,7 +715,15 @@ const Office3D = {
   async init(mount) {
     this.dispose();
     this.mount = mount;
+    /* Chống hai lần init() chạy chồng nhau (bài học live 30/10, Bug C):
+     * enterApp vừa gán location.hash vừa gọi renderScreen() nên
+     * renderOffice chạy hai lần; lần init trước có thể dựng cảnh xong
+     * sau khi lần sau đã dọn, hoặc ngược lại. Mỗi lần init lấy một số
+     * thế hệ; sau mỗi lần chờ (await), nếu đã có thế hệ mới hơn thì lần
+     * này là lần cũ — dừng lại, không dựng cảnh, không đụng vào DOM. */
+    const gen = ++this._initGen;
     const THREE = await this.loadThree();
+    if (gen !== this._initGen || this.mount !== mount) return { ok: false, aborted: true };
     if (!THREE) return { ok: false, reason: 'Không tải được thư viện 3D (file đi kèm và các CDN đều không tới được). Dạng 2D vẫn làm việc đầy đủ.' };
     this.three = THREE;
     try {
@@ -735,7 +746,11 @@ const Office3D = {
       renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
     } catch (e) { return { ok: false, reason: 'Trình duyệt không tạo được khung vẽ WebGL. Dạng 2D vẫn làm việc đầy đủ.' }; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(w, h);
+    /* updateStyle=false: cỡ hiển thị do CSS (.stage canvas width/height
+     * 100%) quyết — setSize chỉ đổi bộ đệm vẽ + tỉ lệ. Để three.js ghi
+     * style inline (679px) thì canvas giữ cột lưới ở cỡ cũ, trang
+     * không thu hẹp được khi resize/xoay (tràn ngang 390px, 30/10). */
+    renderer.setSize(w, h, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -778,17 +793,22 @@ const Office3D = {
       if (!this.renderer || !this.mount) return;
       const nw = Math.max(200, this.mount.clientWidth), nh = Math.max(240, this.mount.clientHeight);
       this.camera.aspect = nw / nh; this.camera.updateProjectionMatrix();
-      this.renderer.setSize(nw, nh);
+      this.renderer.setSize(nw, nh, false);
     });
     this._ro.observe(box);
 
     const clock = new THREE.Clock();
     const tick = () => {
+      /* Vòng lặp của lần init cũ (đã bị lần init mới thay thế) phải dừng
+       * ngay, không vẽ lên khung vẽ đã bị dọn — nếu không hai vòng lặp
+       * cùng chạy, khung hình của cảnh cũ đè lên cảnh mới. */
+      if (this.renderer !== renderer) return;
       this._raf = requestAnimationFrame(tick);
       try {
         const dt = Math.min(clock.getDelta(), 0.05);
         this.animate(dt);
         if (this.mode === 'follow') this.applyCamera(dt);
+        this.fitLabels();
         renderer.render(scene, camera);
       } catch (e) {
         /* Lỗi trong vòng lặp vẽ (VD: mất context WebGL giữa chừng) không
@@ -882,16 +902,28 @@ const Office3D = {
   makeLabel(name, roleName, statusLabel) {
     const T = this.three;
     const canvas = document.createElement('canvas');
-    canvas.width = 448; canvas.height = 152;
+    canvas.width = 400; canvas.height = 152;
     const ctx = canvas.getContext('2d');
     const round = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
-    ctx.clearRect(0, 0, 448, 152);
-    round(4, 6, 440, 140, 26); ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.fill();
+    ctx.clearRect(0, 0, 400, 152);
+    round(4, 6, 392, 140, 26); ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.fill();
     ctx.lineWidth = 5; ctx.strokeStyle = '#111827'; ctx.stroke();
-    ctx.fillStyle = '#111827'; ctx.font = '800 52px system-ui, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(name, 224, 68);
-    ctx.fillStyle = '#374151'; ctx.font = '600 34px system-ui, sans-serif';
-    ctx.fillText(roleName + (statusLabel ? ' · ' + statusLabel : ''), 224, 118);
+    /* Co chữ vừa khung: tên/chức vụ dài (VD: "Đang nghỉ (ngân sách)")
+     * không được vẽ tràn ra ngoài hộp — đo rồi hạ cỡ chữ tới khi vừa. */
+    const fitFont = (text, start, min, weight) => {
+      let size = start;
+      ctx.font = weight + ' ' + size + 'px system-ui, sans-serif';
+      while (size > min && ctx.measureText(text).width > 368) { size -= 2; ctx.font = weight + ' ' + size + 'px system-ui, sans-serif'; }
+      return size;
+    };
+    ctx.fillStyle = '#111827'; ctx.textAlign = 'center';
+    const nameSize = fitFont(name, 56, 32, '800');
+    ctx.font = '800 ' + nameSize + 'px system-ui, sans-serif';
+    ctx.fillText(name, 200, 68);
+    const sub = roleName + (statusLabel ? ' · ' + statusLabel : '');
+    const subSize = fitFont(sub, 36, 22, '600');
+    ctx.fillStyle = '#374151'; ctx.font = '600 ' + subSize + 'px system-ui, sans-serif';
+    ctx.fillText(sub, 200, 118);
     const tex = new T.CanvasTexture(canvas);
     tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
     const mat = new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
@@ -935,7 +967,13 @@ const Office3D = {
   sync() {
     if (!this.scene || !this.three) return;
     const ids = S.staff.map((s) => s.id).join(',');
-    if (ids !== this._builtIds) {
+    /* Dựng lại khi tập nhân vật đổi HOẶC khi cảnh hiện tại không phải cảnh
+     * mà nhân vật đã dựng (hai lần init chồng nhau: lần init sau dựng cảnh
+     * mới nhưng sync() thấy ids không đổi nên không dựng lại — nhân vật
+     * nằm lại trong cảnh cũ đã bị tháo, cảnh mới chỉ có sàn + bàn họp).
+     * Trường hợp nhân vật chưa có mà danh sách đã có (dữ liệu tới muộn)
+     * cũng dựng lại — không bao giờ để cảnh trống âm thầm. */
+    if (ids !== this._builtIds || this._builtScene !== this.scene || (S.staff.length && this.chars.size === 0)) {
       // Tập nhân vật đổi: dựng lại (canvas giữ nguyên — không xoá khung vẽ).
       for (const [, ch] of this.chars) { this.scene.remove(ch); }
       for (const [, dk] of this.desks) { this.scene.remove(dk); }
@@ -951,6 +989,7 @@ const Office3D = {
         this.refreshLabel(ch, st);
       }
       this._builtIds = ids;
+      this._builtScene = this.scene;
       if (S.selectedStaffId && this.chars.has(S.selectedStaffId)) this.focusStaff(S.selectedStaffId, true);
     } else {
       for (const st of S.staff) {
@@ -1020,15 +1059,21 @@ const Office3D = {
     const T = this.three, cam = this.camera;
     if (!cam) return;
     const o = this.orbit;
-    if (this.mode === 'overview') { cam.position.set(5.2, 7.2, 9.8); cam.lookAt(0, 0.4, -1.2); return; }
+    if (this.mode === 'overview') { cam.position.set(1.2, 7.6, 11.2); cam.lookAt(0.8, 0.5, -1.4); return; }
     if (this.mode === 'top') { cam.position.set(0, 13.5, 0.6); cam.lookAt(0, 0, -1.2); return; }
-    if (this.mode === 'meeting') { cam.position.set(0.5, 3.6, 5.0); cam.lookAt(0.5, 0.4, -0.8); return; }
+    /* Góc Phòng họp: lùi ra + nâng điểm nhìn lên (từ 0.4 lên 1.0) để
+     * hàng ghế sau và nhãn tên còn trong khung — bản cũ nhìn thấp nên
+     * nhãn vượt lên mép trên khung cảnh, chỉ còn thấy một dải dưới. */
+    if (this.mode === 'meeting') { cam.position.set(0.5, 4.3, 6.0); cam.lookAt(0.5, 1.0, -0.8); return; }
     if (this.mode === 'follow') {
       const ch = this.chars.get(S.selectedStaffId);
       if (ch) {
         const p = ch.position;
-        cam.position.set(p.x + 2.3, 2.6, p.z + 3.4);
-        cam.lookAt(p.x, 1.4, p.z);
+        /* Góc Theo người: lùi xa hơn + nâng điểm nhìn (1.4 lên 1.6) để
+         * nhãn của người đang theo không phóng to và không bị cắt ở mép
+         * trên; fitLabels() giữ kích thước nhãn ổn định theo khoảng cách. */
+        cam.position.set(p.x + 2.9, 3.2, p.z + 4.4);
+        cam.lookAt(p.x, 1.6, p.z);
       }
       return;
     }
@@ -1036,6 +1081,226 @@ const Office3D = {
     const cx = 0, cz = -1.2;
     cam.position.set(cx + Math.sin(o.yaw) * Math.cos(o.pitch) * o.dist, 0.6 + Math.sin(o.pitch) * o.dist, cz + Math.cos(o.yaw) * Math.cos(o.pitch) * o.dist);
     cam.lookAt(cx, 0.8, cz);
+  },
+  /* Giữ nhãn tên LUÔN đọc được ở mọi góc nhìn — chạy mỗi khung hình, tính
+   * lại từ đầu (không cộng dồn) nên không bao giờ trôi vị trí:
+   * 1) Kích thước theo khoảng cách: nhãn xa thu nhỏ theo đúng tỉ lệ phối
+   *    cảnh để chiều cao trên màn hình gần như không đổi (~46px ở khung
+   *    480px) — góc gần (Theo người) không còn phóng to, góc xa (Góc
+   *    tổng) không còn tí hon. Kẹp trong khoảng để không quá nhỏ/to.
+   * 2) Kẹp mép trên: nhãn không bao giờ vượt lên vùng hàng nút camera
+   *    (đo chiều cao thật của .camrow, vì nó xuống hai hàng ở màn hẹp)
+   *    — nếu chiếu lên quá cao thì hạ nhãn xuống, tối thiểu ngang đầu.
+   * 3) Tách nhãn chồng nhau: nhãn nào chiếu lên đè nhau thì đẩy cái dưới
+   *    xuống / cái trên lên trong khoảng cho phép, rồi kẹp lại mép trên.
+   * Ở góc Theo người, nhãn của người khác mờ + nhỏ đi để không đè lên
+   * nhãn người đang theo. Nhãn sau camera thì giữ nguyên, không chạm. */
+  fitLabels() {
+    const cam = this.camera, T = this.three;
+    if (!cam || !this.scene || !this.chars.size) return;
+    const mount = this.mount;
+    const H = Math.max(240, mount ? mount.clientHeight : 480);
+    const W = Math.max(200, mount ? mount.clientWidth : 640);
+    let marginPx = 64;
+    try {
+      const stage = mount ? mount.closest('.stage') : null;
+      const row = stage ? stage.querySelector('.camrow') : null;
+      if (row && mount) marginPx = Math.max(56, row.getBoundingClientRect().bottom - mount.getBoundingClientRect().top + 8);
+    } catch { /* giữ mặc định */ }
+    const topLimit = 1 - (2 * (marginPx + 4)) / H; // NDC y tối đa của MÉP TRÊN nhãn
+    const tanHalf = Math.tan((cam.fov * Math.PI) / 360);
+    const aspect = cam.aspect || W / H;
+    const targetPx = Math.max(32, Math.min(46, H * 0.084));
+    const followed = this.mode === 'follow' ? this.chars.get(S.selectedStaffId) : null;
+    const v = new T.Vector3();
+    cam.updateMatrixWorld();
+    const BASE_Y = 2.85, MIN_Y = 2.3, MAX_Y = 3.35;
+    const items = [];
+    for (const [, ch] of this.chars) {
+      const lab = ch.userData.label;
+      if (!lab) continue;
+      lab.position.set(0, BASE_Y, 0);
+      lab.getWorldPosition(v);
+      const dist = Math.max(1, cam.position.distanceTo(v));
+      /* Nhãn quá gần mặt phẳng camera hoặc sau camera thì phép chiếu
+       * cho ra toạ độ gương/khổng lồ — chạm vào sẽ tính ra độ dịch
+       * điên rồ và quăng nhãn đi xa (lỗi góc Theo người). Bỏ qua hẳn:
+       * nhãn đó vốn đã ngoài khung nhìn, three.js tự loại khỏi khung vẽ. */
+      const viewZ = v.clone().applyMatrix4(cam.matrixWorldInverse).z;
+      if (viewZ > -0.5 || dist > 40) continue;
+      const p = v.clone().project(cam);
+      const dim = followed && ch !== followed;
+      const worldH = Math.max(0.3, Math.min(1.05, ((targetPx * (dim ? 0.78 : 1)) / H) * 2 * dist * tanHalf));
+      const worldW = worldH * (400 / 152);
+      lab.scale.set(worldW, worldH, 1);
+      if (lab.material) lab.material.opacity = dim ? 0.8 : 1;
+      items.push({ ch, lab, dist, y: BASE_Y, shift: 0, shiftY: 0, dim, worldH, worldW });
+    }
+    if (!items.length) return;
+    // Đo vị trí chiếu lên màn hình với y/hiện tại (đặt vị trí rồi mới đo).
+    // QUAN TRỌNG: khoảng cách + kích thước nhãn tính lại từ VỊ TRÍ THẬT
+    // sau khi dịch ngang — độ dịch có thể kéo nhãn lại gần/xa camera
+    // rất nhiều (góc Theo người: 4,98 → 2,64), dùng khoảng cách lúc
+    // chưa dịch sẽ đánh giá sai kích thước trên màn hình tới 2 lần và
+    // tách chồng tính sai (lỗi đo được 30/10: hh 17px trong khi thật 32px).
+    const measure = (it) => {
+      applyShift(it);
+      it.lab.getWorldPosition(v);
+      // Nhãn trôi tới gần/sau mặt phẳng camera trong lúc chỉnh: dừng
+      // ngay, không đo tiếp bằng phép chiếu gương.
+      if (v.clone().applyMatrix4(cam.matrixWorldInverse).z > -0.5) { it.dead = true; return; }
+      it.dead = false;
+      it.dist = Math.max(1, cam.position.distanceTo(v));
+      it.worldH = Math.max(0.3, Math.min(1.05, ((targetPx * (it.dim ? 0.78 : 1)) / H) * 2 * it.dist * tanHalf));
+      it.worldW = it.worldH * (400 / 152);
+      it.lab.scale.set(it.worldW, it.worldH, 1);
+      const p = v.clone().project(cam);
+      const halfH = it.worldH / 2 / (it.dist * tanHalf);
+      const halfW = it.worldW / 2 / (it.dist * tanHalf * aspect);
+      it.ndcX = p.x; it.ndcY = p.y; it.halfH = halfH; it.halfW = halfW;
+      it.cx = ((p.x + 1) / 2) * W; it.cy = ((1 - p.y) / 2) * H;
+      it.hw = halfW * (W / 2); it.hh = halfH * (H / 2);
+    };
+    // Dịch ngang theo hướng phải của camera (đổi ra hệ toạ độ của nhóm
+    // nhân vật, vì nhãn là con của nhóm có thể đã xoay) — dùng để kéo
+    // nhãn khỏi mép trái/phải khung cảnh.
+    const right = new T.Vector3();
+    const quat = new T.Quaternion();
+    const fwd = new T.Vector3();
+    const applyShift = (it) => {
+      cam.getWorldQuaternion(quat);
+      fwd.set(0, 0, -1).applyQuaternion(quat); // hướng camera đang nhìn
+      right.crossVectors(fwd, cam.up);
+      if (right.lengthSq() < 0.0001) right.set(1, 0, 0); else right.normalize();
+      // Hướng "xuống màn hình" trong không gian thế giới: dùng khi hạ
+      // độ cao y đã chạm sàn mà nhãn vẫn vượt mép trên (góc Từ trên/
+      // Phòng họp ở màn hẹp — hạ y gần như không đổi vị trí chiếu
+      // khi nhìn gần thẳng đứng). Độ dịch dọc shiftY dịch nhãn xuống
+      // màn hình mà không cần đổi độ cao.
+      const down = new T.Vector3().crossVectors(right, fwd).normalize().negate();
+      const wx = right.x * it.shift + down.x * it.shiftY;
+      const wy = right.y * it.shift + down.y * it.shiftY;
+      const wz = right.z * it.shift + down.z * it.shiftY;
+      const local = new T.Vector3(wx, wy, wz).applyAxisAngle(new T.Vector3(0, 1, 0), -it.ch.rotation.y);
+      it.lab.position.set(local.x, it.y + local.y, local.z);
+    };
+    // Dịch nhãn dọc màn hình một lượng px (dương = xuống dưới): ưu
+    // tiên đổi độ cao y trong [MIN_Y, MAX_Y]; phần vượt thì dịch dọc
+    // shiftY (hướng xuống màn hình trong không gian thế giới). BẮT
+    // BUỘC ở góc nhìn gần thẳng đứng, nơi đổi y gần như không đổi
+    // vị trí chiếu của nhãn (chỉ thu nhỏ) — tách dọc bằng y thuần
+    // không bao giờ tách được (lỗi Từ trên/Phòng họp 390px, 30/10).
+    const pushScreenY = (it, pxDown) => {
+      const world = (pxDown / (H / 2)) * it.dist * tanHalf;
+      const yTarget = it.y - world;
+      if (yTarget >= MIN_Y && yTarget <= MAX_Y) { it.y = yTarget; return; }
+      if (yTarget < MIN_Y) {
+        it.shiftY = Math.max(-4, Math.min(4, it.shiftY + (MIN_Y - yTarget)));
+        it.y = MIN_Y;
+      } else {
+        it.shiftY = Math.max(-4, Math.min(4, it.shiftY - (yTarget - MAX_Y)));
+        it.y = MAX_Y;
+      }
+    };
+    const clampTop = (it) => {
+      measure(it);
+      if (it.dead) return;
+      const over = it.ndcY + it.halfH - topLimit;
+      if (over > 0) pushScreenY(it, over * (H / 2));
+    };
+    items.forEach(clampTop);
+    // Kẹp mép trái/phải TRƯỚC khi tách chồng: độ dịch ngang đổi hẳn vị
+    // trí chiếu của nhãn — tách chồng phải đo trên vị trí đã dịch, nếu
+    // không nhãn bị kéo ngang vào nhau sau khi tách xong mà không ai
+    // tách lại (lỗi góc Theo người: nhãn Muse bị kéo từ mép phải về
+    // đè lên nhãn Chung).
+    // Độ dịch kẹp trong 4 đơn vị thế giới — vượt quá là số liệu chiếu
+    // hỏng, không được quăng nhãn đi xa. (Chắn dưới này chỉ chặn số
+    // liệu hỏng: chắn gần mặt phẳng camera ở trên đã loại phép chiếu
+    // gương, và độ dịch tính lại từ 0 mỗi khung hình nên không cộng dồn.)
+    items.forEach(measure);
+    for (const it of items) {
+      if (it.dead) continue;
+      const overR = it.cx + it.hw - (W - 4);
+      const overL = 4 - (it.cx - it.hw);
+      if (overR > 0) it.shift -= (overR / (W / 2)) * it.dist * tanHalf * aspect;
+      else if (overL > 0) it.shift += (overL / (W / 2)) * it.dist * tanHalf * aspect;
+      it.shift = Math.max(-4, Math.min(4, it.shift));
+    }
+    // Tách nhãn chồng nhau: duyệt từ trên xuống, nhãn nào đè lên nhãn
+    // đã đặt (trùng cả ngang lẫn dọc) thì hạ xuống cho tới khi đủ hở —
+    // chỉ hạ xuống, không đẩy lên, để không triệt tiêu lẫn nhau như
+    // kiểu đẩy hai chiều. Tối đa hai lượt đo lại.
+    for (let round = 0; round < 2; round++) {
+      items.forEach(measure);
+      const sorted = [...items].filter((it) => !it.dead).sort((a, b) => a.cy - b.cy);
+      const placed = [];
+      for (const it of sorted) {
+        let floorPx = -Infinity;
+        for (const prev of placed) {
+          const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 0.85;
+          if (overlapX) floorPx = Math.max(floorPx, prev.cy + prev.hh + 3);
+        }
+        const top = it.cy - it.hh;
+        if (floorPx > -Infinity && top < floorPx) {
+          pushScreenY(it, floorPx - top);
+          measure(it);
+        }
+        placed.push(it);
+      }
+    }
+    // Lượt 2: nếu vẫn đè nhau (thường do nhãn dưới đã chạm sàn
+    // MIN_Y), nhích nhãn trên lên tới MAX_Y — kẹp mép trên ở cuối sẽ
+    // giữ nó không vượt lên vùng nút camera.
+    items.forEach(measure);
+    const sorted2 = [...items].filter((it) => !it.dead).sort((a, b) => a.cy - b.cy);
+    const placed2 = [];
+    for (const it of sorted2) {
+      for (const prev of placed2) {
+        const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 0.85;
+        const overlapY = Math.abs(it.cy - prev.cy) < (it.hh + prev.hh) * 0.85;
+        if (overlapX && overlapY) {
+          const need = (prev.hh + it.hh) * 0.85 - Math.abs(it.cy - prev.cy);
+          pushScreenY(prev, -need);
+          measure(prev);
+        }
+      }
+      placed2.push(it);
+    }
+    // Tách ngang — BẮT BUỘC cho góc Từ trên: khi nhìn gần như thẳng
+    // đứng, hạ độ cao y gần như không đổi vị trí chiếu của nhãn (chỉ
+    // thu nhỏ), nên tách dọc không tách được hai nhãn cùng một cột.
+    // Dịch ngang dọc theo hướng phải của camera, mỗi bên tối đa một
+    // lượt, và chỉ giữ lại độ dịch nào không đẩy nhãn ra ngoài khung.
+    items.forEach(measure);
+    const sortedX = [...items].filter((it) => !it.dead).sort((a, b) => a.cx - b.cx);
+    for (let i = 0; i < sortedX.length; i++) {
+      for (let j = i + 1; j < sortedX.length; j++) {
+        const A = sortedX[i], B = sortedX[j];
+        const overlapX = Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 0.85;
+        const overlapY = Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 0.85;
+        if (!overlapX || !overlapY) continue;
+        const needPx = (A.hw + B.hw) * 0.85 - Math.abs(A.cx - B.cx);
+        const toWorld = (px, it) => (px / (W / 2)) * it.dist * tanHalf * aspect;
+        const inBounds = (it) => it.cx - it.hw >= 4 && it.cx + it.hw <= W - 4;
+        // Thử đẩy B sang phải trước.
+        const oldB = B.shift;
+        B.shift = Math.max(-4, Math.min(4, B.shift + toWorld(needPx, B)));
+        measure(B);
+        if (!inBounds(B)) { B.shift = oldB; measure(B); }
+        // Nếu B không đi được (chạm mép), đẩy A sang trái.
+        measure(A); measure(B);
+        if (Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 0.85 && Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 0.85) {
+          const oldA = A.shift;
+          A.shift = Math.max(-4, Math.min(4, A.shift - toWorld(needPx, A)));
+          measure(A);
+          if (!inBounds(A)) { A.shift = oldA; measure(A); }
+        }
+      }
+    }
+    // Kẹp lại mép trên sau khi tách/dịch (hạ y có thể đổi vị trí chiếu).
+    items.forEach(clampTop);
+    items.forEach((it) => { if (!it.dead) { it.lab.position.y = it.y; applyShift(it); } });
   },
   setMode(mode) {
     this.mode = mode;
@@ -1115,6 +1380,9 @@ const Office3D = {
   },
   hideStageError() { const el = $('#stage-error'); if (el) el.hidden = true; },
   dispose() {
+    /* Tăng số thế hệ để mọi lần init() đang chờ (await loadThree) biết
+     * mình đã cũ và dừng lại, không dựng cảnh đè lên cảnh mới. */
+    this._initGen++;
     if (this._raf) cancelAnimationFrame(this._raf);
     this._raf = 0;
     if (this._ro) { this._ro.disconnect(); this._ro = null; }
@@ -1126,7 +1394,7 @@ const Office3D = {
       if (this.renderer.domElement && this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }
     this.renderer = null; this.scene = null; this.camera = null; this.three = null;
-    this.chars.clear(); this.desks.clear(); this._builtIds = ''; this.ready = false; this.mount = null;
+    this.chars.clear(); this.desks.clear(); this._builtIds = ''; this._builtScene = null; this.ready = false; this.mount = null;
   },
 };
 
@@ -1262,6 +1530,13 @@ async function renderOffice(screen) {
   let res;
   try { res = await Office3D.init(box); }
   catch (e) { res = { ok: false, reason: 'Không dựng được cảnh 3D. Dạng 2D vẫn làm việc đầy đủ.' }; }
+  if (res.aborted) {
+    /* Lần init cũ bị lần init mới hơn thay thế (hai lần renderOffice
+     * chồng nhau): không làm gì cả — lần mới đang sở hữu màn hình.
+     * TUYỆT ĐỐI không ép sang 2D ở đây, nếu không lần cũ sẽ phá cảnh
+     * của lần mới. */
+    return;
+  }
   if (!res.ok) {
     S.office2D = true;
     try { sessionStorage.setItem('office.force2d', '1'); } catch { /* bỏ qua */ }
