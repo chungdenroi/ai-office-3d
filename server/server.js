@@ -24,8 +24,15 @@
  *  OFFICE_DATA_DIR              thư mục dữ liệu (mặc định ./data)
  *  OFFICE_BACKUP_DIR            thư mục sao lưu (mặc định ./backups)
  *  OFFICE_BACKUP_INTERVAL_MS    chu kỳ sao lưu (mặc định 900000 = 15 phút)
- *  OFFICE_DIRECTOR_PASSWORD_HASH  sha256 hex của mật khẩu Giám đốc
+ *  OFFICE_DIRECTOR_PASSWORD_HASH  chuỗi băm scrypt "salt:hash" của mật khẩu
+ *    Giám đốc (cùng định dạng với mật khẩu nhân viên; chuỗi hex SHA-256 cũ
+ *    vẫn chấp nhận kèm cảnh báo). Nếu không đặt, dùng Cài đặt lần đầu.
  *  OFFICE_DIRECTOR_TOTP_SECRET    secret base32 cho mã TOTP của Giám đốc
+ * CÀI ĐẶT LẦN ĐẦU: nếu chưa có tài khoản Giám đốc ở đâu cả, GET
+ *  /api/setup/status trả needsSetup=true và POST /api/setup (một lần duy
+ *  nhất) tạo mật khẩu scrypt + secret TOTP, trả secret về MỘT LẦN.
+ *  Web (thư mục web/) được phục vụ cùng nguồn với API — mở URL máy chủ là
+ *  có đủ hệ thống thật kèm đăng nhập.
  *  OFFICE_SESSION_TTL_MS        thời hạn phiên (mặc định 12 giờ)
  *  OFFICE_ALERT_OUTBOX          file hộp thư cảnh báo (mặc định
  *    ./alerts/outbox.jsonl, một JSON mỗi dòng). Cảnh báo chạm ngân sách và
@@ -97,11 +104,23 @@ function totpCode(secret, counter) {
   return String(code % 1000000).padStart(6, '0');
 }
 function verifyTotp(secret, code) {
+  // Mã sai định dạng (không đúng 6 chữ số) trả về false — không bao giờ để
+  // timingSafeEqual nổ 500 vì lệch độ dài (lỗi đã gặp ở bản cũ).
+  const clean = String(code).replace(/\s/g, '');
+  if (!/^\d{6}$/.test(clean)) return false;
   const step = Math.floor(Date.now() / 30000);
   for (const d of [-1, 0, 1]) {
-    if (crypto.timingSafeEqual(Buffer.from(totpCode(secret, step + d)), Buffer.from(String(code).padStart(6, '0')))) return true;
+    const expected = totpCode(secret, step + d);
+    if (expected.length === 6 && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(clean))) return true;
   }
   return false;
+}
+function base32Encode(buf) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0, value = 0, out = '';
+  for (const byte of buf) { value = (value << 8) | byte; bits += 8; while (bits >= 5) { out += alphabet[(value >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += alphabet[(value << (5 - bits)) & 31];
+  return out;
 }
 
 /* --------------------- Mật khẩu nhân viên (scrypt, có muối) --------------
@@ -164,6 +183,41 @@ function createStore() {
   }
 }
 const store = createStore();
+
+/* ---- Tài khoản Giám đốc: mật khẩu băm scrypt (định dạng "salt:hash",
+ * giống hệt mật khẩu nhân viên). Biến môi trường OFFICE_DIRECTOR_PASSWORD_HASH
+ * giữ nguyên tên nhưng phải chứa chuỗi scrypt; chuỗi hex SHA-256 (64 ký tự)
+ * của bản cũ vẫn được chấp nhận kèm cảnh báo chuyển đổi — không khuyến khích.
+ * Nếu không có biến môi trường, tài khoản Giám đốc được tạo ở màn hình Cài đặt
+ * lần đầu (POST /api/setup) và lưu trong store — không có mật khẩu mặc định. */
+function verifyScryptFormat(password, stored) {
+  const parts = String(stored || '').split(':');
+  if (parts.length !== 2 || !/^[0-9a-f]+$/.test(parts[0]) || !/^[0-9a-f]+$/.test(parts[1])) return false;
+  const hash = crypto.scryptSync(password, parts[0], 64).toString('hex');
+  if (hash.length !== parts[1].length) return false;
+  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(parts[1]));
+}
+function directorCredentialFromEnv() {
+  const h = process.env.OFFICE_DIRECTOR_PASSWORD_HASH;
+  const s = process.env.OFFICE_DIRECTOR_TOTP_SECRET;
+  if (!h || !s) return null;
+  const legacy = /^[0-9a-f]{64}$/i.test(h);
+  if (legacy) console.log('[office] CẢNH BÁO: mật khẩu Giám đốc đang dùng hàm băm SHA-256 cũ — hãy chuyển sang scrypt (xem README, mục Cài đặt lần đầu).');
+  return { passwordHash: h, totpSecret: s, legacy, source: 'env' };
+}
+function getDirectorCredential() {
+  return directorCredentialFromEnv() || store.get('director', 'credential') || null;
+}
+function directorNeedsSetup() { return !getDirectorCredential(); }
+function verifyDirectorPassword(password, cred) {
+  if (!cred) return false;
+  if (/^[0-9a-f]{64}$/i.test(cred.passwordHash)) {
+    const h = sha256(String(password));
+    if (h.length !== cred.passwordHash.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(h), Buffer.from(cred.passwordHash));
+  }
+  return verifyScryptFormat(password, cred.passwordHash);
+}
 
 /* Hạt giống: chức vụ + nhân viên là DỮ LIỆU (đổi được qua API Giám đốc).
  * Quyền nằm ở dữ liệu chức vụ, không ghi cứng theo tên người. Token của
@@ -236,7 +290,11 @@ async function authenticate(req, url) {
     const kind = session.kind || 'director';
     return { type: kind === 'staff' ? 'staff' : 'director', id: st.id, staff: st, role: roleOfStaff(st), sessionId: session.id, viaSession: true, mustChange: !!(st.login && st.login.mustChangePassword) };
   }
-  const staff = store.list('staff').find((s) => s.tokenHash && crypto.timingSafeEqual(Buffer.from(s.tokenHash), Buffer.from(hash)));
+  const staff = store.list('staff').find((s) => {
+    // timingSafeEqual nổ lỗi nếu lệch độ dài — kiểm tra độ dài trước.
+    if (!s.tokenHash || s.tokenHash.length !== hash.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(s.tokenHash), Buffer.from(hash));
+  });
   if (staff) {
     if (staff.login && staff.login.disabled) throw new HttpError(401, 'Tài khoản đã bị khoá.');
     return { type: 'staff', id: staff.id, staff, role: roleOfStaff(staff), sessionId: null, viaSession: false, mustChange: false };
@@ -326,19 +384,42 @@ route('GET', '/api/health', async () => ({
   counts: { staff: store.list('staff').length, jobs: store.list('jobs').length, pendingApprovals: store.list('approvals').filter((a) => a.status === 'pending').length },
 }));
 
-/* --- Giám đốc đăng nhập (mật khẩu + TOTP; không có mặc định) --- */
+/* --- Cài đặt lần đầu: chỉ chạy MỘT LẦN duy nhất, khi chưa có tài khoản
+ * Giám đốc ở bất cứ đâu (biến môi trường hoặc store). Tạo mật khẩu băm
+ * scrypt + secret TOTP ngẫu nhiên; secret chỉ trả về MỘT LẦN để quét vào
+ * ứng dụng xác thực, không ghi vào nhật ký, không có giá trị mặc định. --- */
+route('GET', '/api/setup/status', async () => ({ needsSetup: directorNeedsSetup() }));
+route('POST', '/api/setup', async (req) => {
+  if (!directorNeedsSetup()) throw new HttpError(403, 'Hệ thống đã có tài khoản Giám đốc — cài đặt lần đầu chỉ chạy một lần duy nhất.');
+  const b = await readBody(req);
+  if (!b.password || String(b.password).length < 10) throw new HttpError(400, 'Mật khẩu Giám đốc phải từ 10 ký tự.');
+  if (b.password !== b.confirmPassword) throw new HttpError(400, 'Mật khẩu nhập lại không khớp.');
+  const secret = base32Encode(crypto.randomBytes(20));
+  store.put('director', { id: 'credential', passwordHash: hashPassword(String(b.password)), totpSecret: secret, source: 'setup', createdAt: nowIso() });
+  if (!store.list('staff').some((s) => roleOfStaff(s).canManage)) {
+    store.put('staff', { id: 's-chung', name: 'Chung', account: 'teddyssk559@gmail.com', roleId: 'r-giamdoc', status: 'waiting', budget: null, used: 0, resting: false, restedFully: false });
+  }
+  audit('director-setup', null, 'setup', 'ok');
+  const issuer = 'Enteesee Office';
+  return {
+    ok: true,
+    totpSecret: secret,
+    otpauthUrl: `otpauth://totp/${encodeURIComponent(issuer)}:Giám đốc?secret=${secret}&issuer=${encodeURIComponent(issuer)}`,
+    warning: 'Ghi lại secret / quét mã QR vào ứng dụng xác thực NGAY — secret này chỉ hiện một lần duy nhất và không hiện lại.',
+  };
+});
+
+/* --- Giám đốc đăng nhập (mật khẩu scrypt + TOTP; không có mặc định) --- */
 route('POST', '/api/director/login', async (req) => {
-  const hash = process.env.OFFICE_DIRECTOR_PASSWORD_HASH;
-  const secret = process.env.OFFICE_DIRECTOR_TOTP_SECRET;
-  if (!hash || !secret) throw new HttpError(503, 'Đăng nhập Giám đốc chưa được cấu hình trên máy chủ này (thiếu OFFICE_DIRECTOR_PASSWORD_HASH / OFFICE_DIRECTOR_TOTP_SECRET). Không có mật khẩu mặc định.');
+  const cred = getDirectorCredential();
+  if (!cred) throw new HttpError(503, 'Chưa có tài khoản Giám đốc trên máy chủ này — mở trang web và làm theo màn hình Cài đặt lần đầu. Không có mật khẩu mặc định.');
   const body = await readBody(req);
   if (!body.password || !body.totp) throw new HttpError(400, 'Thiếu mật khẩu hoặc mã xác thực.');
-  const pwHash = sha256(String(body.password));
-  if (!crypto.timingSafeEqual(Buffer.from(pwHash), Buffer.from(hash))) {
+  if (!verifyDirectorPassword(String(body.password), cred)) {
     audit('director-login-failed', null, 'login', 'failed', { reason: 'Sai mật khẩu.' });
     throw new HttpError(401, 'Sai mật khẩu hoặc mã xác thực.');
   }
-  if (!verifyTotp(secret, String(body.totp))) {
+  if (!verifyTotp(cred.totpSecret, String(body.totp))) {
     audit('director-login-failed', null, 'login', 'failed', { reason: 'Sai mã TOTP.' });
     throw new HttpError(401, 'Sai mật khẩu hoặc mã xác thực.');
   }
@@ -399,9 +480,25 @@ route('POST', '/api/roles', async (req, res, idn) => {
 });
 route('DELETE', '/api/roles/:id', async (req, res, idn, p) => {
   requireDirector(idn, 'delete-role');
+  const role = store.get('roles', p.id); if (!role) throw new HttpError(404, 'Không tìm thấy chức vụ.');
+  if (role.canManage && !store.list('roles').some((r) => r.id !== p.id && r.canManage)) throw new HttpError(400, 'Không xoá được chức vụ quản trị cuối cùng.');
   if (store.list('staff').some((s) => s.roleId === p.id)) throw new HttpError(400, 'Còn nhân viên đang giữ chức vụ này.');
   store.del('roles', p.id); audit('role-delete', idn, p.id, 'ok'); broadcast('org', { change: 'role-delete', id: p.id });
   return { ok: true };
+});
+route('PATCH', '/api/roles/:id', async (req, res, idn, p) => {
+  requireDirector(idn, 'update-role');
+  const role = store.get('roles', p.id); if (!role) throw new HttpError(404, 'Không tìm thấy chức vụ.');
+  const b = await readBody(req);
+  const next = { ...role };
+  if (b.name) next.name = b.name;
+  if (b.level !== undefined) next.level = Number(b.level);
+  if (b.canApprove !== undefined) next.canApprove = !!b.canApprove;
+  if (b.canManage !== undefined) next.canManage = !!b.canManage;
+  // Không được gỡ quyền quản trị khỏi chức vụ quản trị cuối cùng.
+  if (!next.canManage && !store.list('roles').some((r) => r.id !== p.id && r.canManage)) throw new HttpError(400, 'Phải còn ít nhất một chức vụ có quyền quản trị.');
+  store.put('roles', next); audit('role-update', idn, next.id, 'ok'); broadcast('org', { change: 'role-update', role: next });
+  return next;
 });
 route('GET', '/api/staff', async (req, res, idn) => store.list('staff').map(sanitizeStaff));
 route('POST', '/api/staff', async (req, res, idn) => {
@@ -491,6 +588,12 @@ route('POST', '/api/rules', async (req, res, idn) => {
   const rule = { id: uid(), text: b.text }; store.put('rules', rule);
   audit('rule-create', idn, rule.id, 'ok'); return rule;
 });
+route('DELETE', '/api/rules/:id', async (req, res, idn, p) => {
+  requireDirector(idn, 'delete-rule');
+  if (!store.get('rules', p.id)) throw new HttpError(404, 'Không tìm thấy rule.');
+  store.del('rules', p.id); audit('rule-delete', idn, p.id, 'ok');
+  return { ok: true };
+});
 
 /* --- Việc --- */
 route('GET', '/api/jobs', async (req, res, idn) => store.list('jobs'));
@@ -499,7 +602,8 @@ route('POST', '/api/jobs', async (req, res, idn) => {
   const b = await readBody(req);
   if (!b.name || !b.assigneeId || !b.reviewerId) throw new HttpError(400, 'Thiếu tên việc, người phụ trách hoặc người kiểm tra.');
   if (!store.get('staff', b.assigneeId) || !store.get('staff', b.reviewerId)) throw new HttpError(400, 'Người phụ trách hoặc người kiểm tra không tồn tại.');
-  const job = { id: uid(), name: b.name, desc: b.desc || '', ruleId: b.ruleId || null, assigneeId: b.assigneeId, reviewerId: b.reviewerId, status: 'Chờ nhận', progress: 0, claimedBy: null, createdAt: nowIso(), createdBy: idn.id };
+  const links = Array.isArray(b.links) ? b.links.filter((l) => l && /^https?:\/\//.test(l.url)).map((l) => ({ url: l.url, title: l.title || l.url, by: idn.id, at: nowIso() })) : [];
+  const job = { id: uid(), name: b.name, desc: b.desc || '', ruleId: b.ruleId || null, assigneeId: b.assigneeId, reviewerId: b.reviewerId, status: 'Chờ nhận', progress: 0, claimedBy: null, links, createdAt: nowIso(), createdBy: idn.id };
   store.put('jobs', job); audit('job-create', idn, job.id, 'ok');
   broadcast('job', { change: 'created', job });
   return job;
@@ -514,6 +618,30 @@ route('POST', '/api/jobs/:id/claim', async (req, res, idn, p) => {
   if (st.resting) throw new HttpError(403, 'Nhân viên đang nghỉ do chạm ngân sách — không nhận việc mới.');
   job.claimedBy = idn.id; job.status = 'Đang làm'; store.put('jobs', job);
   audit('job-claim', idn, job.id, 'ok'); broadcast('job', { change: 'claimed', job });
+  return job;
+});
+route('POST', '/api/jobs/:id/submit', async (req, res, idn, p) => {
+  // Chuyển Đang làm -> Chờ duyệt. Không có endpoint này ở bản cũ nên việc
+  // không bao giờ lên được cột Chờ duyệt qua API (lỗi đã sửa).
+  const job = store.get('jobs', p.id); if (!job) throw new HttpError(404, 'Không tìm thấy việc.');
+  if (idn.id !== job.assigneeId) throw new HttpError(403, 'Chỉ người phụ trách mới trình việc lên kiểm tra.');
+  if (job.status !== 'Đang làm') throw new HttpError(409, 'Việc chưa ở trạng thái Đang làm.');
+  const b = await readBody(req);
+  job.status = 'Chờ duyệt'; job.submittedAt = nowIso(); if (b.note) job.submitNote = b.note;
+  store.put('jobs', job);
+  audit('job-submit', idn, job.id, 'ok'); broadcast('job', { change: 'submitted', job });
+  return job;
+});
+route('POST', '/api/jobs/:id/links', async (req, res, idn, p) => {
+  const job = store.get('jobs', p.id); if (!job) throw new HttpError(404, 'Không tìm thấy việc.');
+  const allowed = idn.type === 'director' || idn.id === job.assigneeId || idn.id === job.reviewerId;
+  if (!allowed) throw new HttpError(403, 'Chỉ Giám đốc, người phụ trách hoặc người kiểm tra mới gắn link cho việc này.');
+  const b = await readBody(req);
+  if (!b.url || !/^https?:\/\//.test(b.url)) throw new HttpError(400, 'Link phải bắt đầu bằng http(s)://.');
+  job.links = job.links || [];
+  job.links.push({ url: b.url, title: b.title || b.url, by: idn.id, at: nowIso() });
+  store.put('jobs', job);
+  audit('job-link-add', idn, job.id, 'ok'); broadcast('job', { change: 'link-added', job });
   return job;
 });
 route('POST', '/api/jobs/:id/approve', async (req, res, idn, p) => {
@@ -578,6 +706,8 @@ route('PATCH', '/api/budgets/:id', async (req, res, idn, p) => {
   const st = store.get('staff', p.id); if (!st) throw new HttpError(404, 'Không tìm thấy nhân viên.');
   const b = await readBody(req);
   if (b.budget !== undefined) st.budget = b.budget == null ? null : Math.max(0, Number(b.budget));
+  // Giám đốc ghi nhận mức đã dùng (khi chưa có cầu nối đẩy số liệu) — có ghi nhật ký.
+  if (b.used !== undefined) st.used = Math.max(0, Number(b.used));
   store.put('staff', st); audit('budget-set', idn, st.id, 'ok');
   checkBudgetAndRest(st);
   return { staffId: st.id, budget: st.budget, used: st.used };
@@ -612,26 +742,55 @@ route('POST', '/api/heartbeat', async (req, res, idn) => {
   broadcast('heartbeat', { staffId: st.id, status: st.status, progress: b.progress ?? null, blocked: b.blocked || null });
   return { ok: true, status: st.status };
 });
+/* --- Phòng chat: phòng chung ('room') + nhắn trực tiếp + gắn vào việc.
+ * Mọi tin đều mang danh tính người gửi đã xác thực — không có tin nặc danh.
+ * @tag: [ASK:Tên] hoặc @Tên trong nội dung -> taggedIds, người được nhắc
+ * nhận thông báo ngay qua SSE và thấy tin trong mục "Nhắc tên tôi". */
+function taggedIdsFor(text) {
+  const ids = new Set();
+  const staff = store.list('staff');
+  const names = [
+    ...String(text).matchAll(/\[ASK:([^\]]+)\]/g),
+    ...String(text).matchAll(/@([A-Za-zÀ-ỹ]+)/g),
+  ].map((m) => m[1].trim().toLowerCase());
+  for (const name of names) {
+    const hit = staff.find((s) => s.name.toLowerCase() === name);
+    if (hit) ids.add(hit.id);
+  }
+  return [...ids];
+}
 route('POST', '/api/messages', async (req, res, idn) => {
   const b = await readBody(req);
   if (!b.to || !b.text) throw new HttpError(400, 'Thiếu người nhận hoặc nội dung.');
-  if (!store.get('staff', b.to)) throw new HttpError(400, 'Người nhận không tồn tại.');
-  const msg = { id: uid(), fromId: idn.id, toId: b.to, jobId: b.jobId || null, text: b.text, at: nowIso() };
+  if (b.to !== 'room' && !store.get('staff', b.to)) throw new HttpError(400, 'Người nhận không tồn tại.');
+  if (b.jobId && !store.get('jobs', b.jobId)) throw new HttpError(400, 'Việc đính kèm không tồn tại.');
+  let link = null;
+  if (b.link) {
+    if (!b.link.url || !/^https?:\/\//.test(b.link.url)) throw new HttpError(400, 'Link đính kèm phải bắt đầu bằng http(s)://.');
+    link = { url: b.link.url, title: b.link.title || b.link.url };
+  }
+  const msg = { id: uid(), fromId: idn.id, toId: b.to, jobId: b.jobId || null, text: b.text, link, taggedIds: taggedIdsFor(b.text), at: nowIso() };
   store.put('messages', msg); audit('message', idn, msg.id, 'ok');
   broadcast('message', { message: msg });
   return msg;
 });
 route('GET', '/api/messages', async (req, res, idn, p, url) => {
   const jobId = url.searchParams.get('jobId');
+  const to = url.searchParams.get('to');
   const all = store.list('messages');
-  return jobId ? all.filter((m) => m.jobId === jobId) : all.slice(-50);
+  let out = all;
+  if (jobId) out = out.filter((m) => m.jobId === jobId);
+  else if (to === 'room') out = out.filter((m) => m.toId === 'room');
+  else if (to) out = out.filter((m) => (m.fromId === idn.id && m.toId === to) || (m.fromId === to && m.toId === idn.id));
+  else out = out.filter((m) => m.toId === 'room' || m.fromId === idn.id || m.toId === idn.id);
+  return out.slice(-100);
 });
 route('GET', '/api/context', async (req, res, idn) => {
   // Gói ngữ cảnh NÉN (Module E): tóm tắt lăn + phần liên quan, không nạp toàn bộ lịch sử.
   const jobs = store.list('jobs').filter((j) => j.assigneeId === idn.id || j.reviewerId === idn.id);
   const decisions = store.list('approvals').filter((a) => a.status !== 'pending').slice(-5);
   const recent = store.list('audit').slice(-10).map((a) => ({ at: a.at, action: a.action, result: a.result }));
-  return { staff: { id: idn.id, name: idn.staff.name, role: idn.role.name }, myJobs: jobs, recentDecisions: decisions, rollingSummary: recent, openDecisions: 0 };
+  return { kind: idn.type, staff: { id: idn.id, name: idn.staff.name, role: idn.role.name }, myJobs: jobs, recentDecisions: decisions, rollingSummary: recent, openDecisions: store.list('approvals').filter((a) => a.status === 'pending').length };
 });
 route('GET', '/api/audit', async (req, res, idn) => {
   requireDirector(idn, 'read-audit');
@@ -657,6 +816,35 @@ route('POST', '/api/backup', async (req, res, idn) => {
   const r = runBackup('manual');
   audit('backup', idn, 'backup', r.ok ? 'ok' : 'failed');
   return r;
+});
+
+/* --- Họp team: gọi họp, biên bản, việc phát sinh từ biên bản (tạo ở màn Việc) --- */
+route('GET', '/api/meetings', async () => store.list('meetings').slice(-20));
+route('POST', '/api/meetings', async (req, res, idn) => {
+  if (idn.type !== 'director' && !idn.role.canApprove) throw new HttpError(403, 'Chỉ Giám đốc hoặc Leader mới gọi họp.');
+  const b = await readBody(req);
+  const mt = { id: uid(), title: b.title || 'Họp team', calledBy: idn.id, at: nowIso(), attendees: store.list('staff').map((s) => s.id), minutes: '', status: 'open' };
+  store.put('meetings', mt); audit('meeting-call', idn, mt.id, 'ok'); broadcast('meeting', { change: 'called', meeting: mt });
+  return mt;
+});
+route('PATCH', '/api/meetings/:id', async (req, res, idn, p) => {
+  const mt = store.get('meetings', p.id); if (!mt) throw new HttpError(404, 'Không tìm thấy cuộc họp.');
+  if (idn.type !== 'director' && !idn.role.canApprove && idn.id !== mt.calledBy) throw new HttpError(403, 'Chỉ Giám đốc, Leader hoặc người gọi họp mới sửa biên bản.');
+  const b = await readBody(req);
+  if (typeof b.minutes === 'string') mt.minutes = b.minutes;
+  if (b.status) mt.status = b.status;
+  store.put('meetings', mt); audit('meeting-minutes', idn, mt.id, 'ok'); broadcast('meeting', { change: 'minutes', meeting: mt });
+  return mt;
+});
+
+/* --- Tải bộ kit cài cầu nối (cần đăng nhập; file trong thư mục kit/) --- */
+const KIT_FILES = { 'bridge.js': 'bridge.js', 'install.sh': 'install.sh', 'install.bat': 'install.bat', 'config.example.json': 'config.example.json', 'README.md': 'README.md' };
+route('GET', '/api/kit/:file', async (req, res, idn, p) => {
+  const name = KIT_FILES[p.file]; if (!name) throw new HttpError(404, 'Không có file kit này.');
+  const file = path.join(__dirname, '..', 'kit', name);
+  const data = fs.readFileSync(file);
+  res.writeHead(200, { 'Content-Type': name.endsWith('.md') ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}"`, 'Content-Length': data.length });
+  res.end(data);
 });
 
 /* --- Kênh sự kiện SSE --- */
@@ -686,6 +874,7 @@ function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (req.method === 'GET' && url.pathname === '/favicon.ico') { res.writeHead(204); res.end(); return; }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
       if (serveStatic(req, res, url.pathname)) return;
       sendJson(res, 404, { error: 'Không tìm thấy.' });
@@ -693,7 +882,7 @@ const server = http.createServer(async (req, res) => {
     }
     const m = matchRoute(req.method, url.pathname);
     if (!m) { sendJson(res, 404, { error: 'API không tồn tại.' }); return; }
-    const isPublic = (req.method === 'GET' && url.pathname === '/api/health') || url.pathname === '/api/director/login' || url.pathname === '/api/staff/login';
+    const isPublic = (req.method === 'GET' && url.pathname === '/api/health') || url.pathname === '/api/director/login' || url.pathname === '/api/staff/login' || url.pathname === '/api/setup/status' || url.pathname === '/api/setup';
     const identity = isPublic ? null : await authenticate(req, url);
     // Nhân viên đăng nhập bằng mật khẩu ban đầu BẮT BUỘC đổi mật khẩu trước
     // khi làm bất cứ việc gì khác (trừ đổi mật khẩu và đăng xuất).
@@ -716,8 +905,8 @@ server.listen(PORT, () => {
   console.log(`[office] Kiểm tra sức khoẻ: curl http://localhost:${PORT}/api/health`);
   console.log(`[office] Hộp thư cảnh báo (WhatsApp qua lịch giao việc của Muse): ${ALERT_OUTBOX}`);
   console.log('[office] Điểm kiểm tra độc lập: chạy server/healthcheck.js trên một tiến trình/máy khác để phát hiện máy chủ ngừng.');
-  if (!process.env.OFFICE_DIRECTOR_PASSWORD_HASH || !process.env.OFFICE_DIRECTOR_TOTP_SECRET) {
-    console.log('[office] CẢNH BÁO: chưa cấu hình OFFICE_DIRECTOR_PASSWORD_HASH / OFFICE_DIRECTOR_TOTP_SECRET — đăng nhập Giám đốc sẽ trả 503 cho tới khi cấu hình xong. Không có mật khẩu mặc định.');
+  if (directorNeedsSetup()) {
+    console.log('[office] CHƯA CÓ TÀI KHOẢN GIÁM ĐỐC — mở trang web và làm theo màn hình Cài đặt lần đầu (đặt mật khẩu + quét mã TOTP). Không có mật khẩu mặc định. Hoặc đặt OFFICE_DIRECTOR_PASSWORD_HASH (scrypt) + OFFICE_DIRECTOR_TOTP_SECRET.');
   }
   console.log('[office] Tự khởi động lại: xem server/office.service.example (systemd) hoặc chạy cùng tài khoản. Watchdog: cầu nối tự hồi phục có lùi dần (server/bridge.js).');
 });
