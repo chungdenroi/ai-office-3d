@@ -1,0 +1,27 @@
+# Ví dụ unit systemd — máy chủ tự khởi động lại cùng máy/tài khoản (Mục 7, lớp 1)
+# Cách dùng (trên máy của tài khoản Muse điều phối):
+#   1. Sửa User/WorkingDirectory/Environment cho đúng máy thật.
+#   2. sudo cp office.service.example /etc/systemd/system/ai-office.service
+#   3. sudo systemctl daemon-reload && sudo systemctl enable --now ai-office.service
+# KHÔNG ghi mật khẩu hay secret vào file này — đặt qua EnvironmentFile.
+[Unit]
+Description=AI Office 3D - Trung tam dieu hanh AI nhan vien (Enteesee)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGEME
+WorkingDirectory=/home/CHANGEME/ai-office-3d/server
+EnvironmentFile=/home/CHANGEME/ai-office-3d/server/.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+# Lùi dần ở tầng systemd: sau nhiều lần sập liên tiếp, systemd tự giãn nhịp.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
