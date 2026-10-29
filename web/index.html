@@ -5,6 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trung tâm điều phối — Hệ thống AI nhân viên</title>
 <link rel="stylesheet" href="style.css">
+<script>
+/* Giao diện (?theme=dark|light|warm): chỉ đổi lớp hình ảnh — màu, chữ,
+ * mặt phẳng, bảng màu cảnh 3D. Không đổi cấu trúc, màn hình hay hành vi.
+ * Không có tham số thì giữ nguyên giao diện hiện tại. */
+(function () {
+  var t = null;
+  try { t = new URLSearchParams(location.search).get('theme'); } catch (e) { t = null; }
+  if (t !== 'dark' && t !== 'light' && t !== 'warm') t = 'default';
+  window.__THEME = t;
+  if (t !== 'default') {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = 'themes/theme-' + t + '.css';
+    document.head.appendChild(l);
+  }
+})();
+</script>
 <script type="importmap">
 {"imports":{"three":"./vendor/three.module.js"}}
 </script>
