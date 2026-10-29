@@ -21,47 +21,49 @@ bổ trợ: Outworked, Pixel Agents, Generative Agents, AI Town.
 
 | Đường dẫn | Vai trò |
 |---|---|
-| `web/index.html` + `web/app.js` + `web/style.css` | Trang trung tâm điều hành (bản tĩnh). Three.js qua CDN, không cần build. Dữ liệu lưu ở localStorage, xuất/nhập được JSON. |
+| `web/index.html` + `web/app.js` + `web/style.css` | **Vỏ ứng dụng thật**: màn hình đăng nhập trước, rồi trung tâm điều phối (văn phòng 3D, phòng chat, việc, phê duyệt, nhân sự, ngân sách, nhật ký, cài đặt). Nói chuyện với API máy chủ cùng nguồn; chỉ khi không nối được máy chủ mới có bản dùng thử ngoại tuyến ghi nhãn DEMO rõ ràng. Three.js qua CDN, không cần build. |
 | `server/server.js` | Máy chủ trung tâm: Node thuần, **không dependency**. REST + SSE, SQLite (`node:sqlite`) với fallback file JSON, sao lưu định kỳ, phân quyền kiểm ở máy chủ. Đồng thời phục vụ luôn thư mục `web/`. |
 | `server/bridge.js` | Cầu nối mỏng cho mỗi tài khoản Muse: giữ SSE, đẩy heartbeat bằng API thuần, watchdog tự hồi phục có lùi dần, tự dừng khi chạm ngân sách. Không chứa logic nghiệp vụ. Bản cài đặt được: xem `kit/`. |
 | `server/healthcheck.js` | Điểm kiểm tra độc lập (chạy ngoài máy chủ): gọi `/api/health`, mất tín hiệu đủ ngưỡng thì ghi cảnh báo vào hộp thư `server/alerts/outbox.jsonl` để chuyển tới WhatsApp của Giám đốc. |
 | `kit/` | Bộ kit cài đặt cầu nối cho nhân viên: `bridge.js`, `config.example.json`, `install.sh`, `install.bat`, `README.md`. |
 | `docs/HUONG-DAN-CAI-DAT.md` | Hướng dẫn cài đặt & vận hành (tiếng Việt): phía Giám đốc + phía nhân viên. |
 
-## Chạy bản web tĩnh (demo trên trình duyệt)
+## Chạy hệ thống thật (máy chủ + web cùng nguồn)
 
-Bản tĩnh chạy được ngay không cần máy chủ — nhưng **khóa Giám đốc ở bản tĩnh chỉ
-là khóa demo** để lái thử luồng, không phải xác thực thật. Xác thực thật chỉ có
-ở `server/`.
-
-```sh
-# Cách 1: mở trực tiếp bằng trình duyệt qua máy chủ tĩnh bất kỳ, ví dụ:
-python3 -m http.server 8080 --directory web
-# mở http://localhost:8080/
-
-# Cách 2: máy chủ server/ cũng phục vụ luôn web/ ở cổng 3101 (xem dưới).
-```
-
-## Chạy máy chủ (Giai đoạn 1 — xương sống)
-
-Yêu cầu: Node.js ≥ 22. Không cần `npm install` (không dependency).
+Yêu cầu: Node.js ≥ 22. Không cần `npm install` (không dependency). Mở URL máy
+chủ là có đủ hệ thống thật kèm đăng nhập — không có bản tĩnh tách rời.
 
 ```sh
 cd server
-
-# 1. Đặt mật khẩu + secret TOTP của Giám đốc (KHÔNG ghi vào code, KHÔNG commit):
-#    - OFFICE_DIRECTOR_PASSWORD_HASH: sha256 hex của mật khẩu Giám đốc
-#      (tính bằng: printf '%s' 'MAT-KHAU' | sha256sum)
-#    - OFFICE_DIRECTOR_TOTP_SECRET: secret base32 của ứng dụng xác thực
-#      (tạo bằng ứng dụng authenticator, ví dụ: JBSWY3DPEHPK3PXP)
-export OFFICE_DIRECTOR_PASSWORD_HASH="$(printf '%s' 'MAT-KHAU-GIAM-DOC' | sha256sum | cut -d' ' -f1)"
-export OFFICE_DIRECTOR_TOTP_SECRET="JBSWY3DPEHPK3PXP"
-
-# 2. Chạy:
 node server.js
 # -> http://localhost:3101  (web + API + SSE)
 # -> kiểm tra sức khoẻ: curl http://localhost:3101/api/health
 ```
+
+**Cài đặt lần đầu (không có mật khẩu mặc định):** nếu máy chủ chưa có tài khoản
+Giám đốc ở đâu cả, mở trang web sẽ thấy màn hình Cài đặt lần đầu: đặt mật khẩu
+Giám đốc (từ 10 ký tự) và quét mã TOTP — secret chỉ hiện một lần duy nhất.
+Cách khác: đặt biến môi trường trước khi chạy (xem dưới).
+
+**Bản dùng thử ngoại tuyến (DEMO):** nếu trình duyệt không nối được máy chủ,
+màn hình đăng nhập cho vào bản demo chạy hoàn toàn trên trình duyệt, dữ liệu
+mẫu lưu ở localStorage của máy đó, mọi màn hình ghi rõ “DEMO”. Bản demo chỉ để
+lái thử luồng — không phải hệ thống thật.
+
+## Cấu hình Giám đốc (scrypt + TOTP)
+
+Mật khẩu Giám đốc băm **scrypt** (định dạng `"salt:hash"`, giống hệt mật khẩu
+nhân viên). Tính chuỗi băm bằng Node:
+
+```sh
+node -e "const c=require('node:crypto');const s=c.randomBytes(16).toString('hex');console.log(s+':'+c.scryptSync('MAT-KHAU-GIAM-DOC',s,64).toString('hex'))"
+export OFFICE_DIRECTOR_PASSWORD_HASH="<chuỗi scrypt vừa in>"
+export OFFICE_DIRECTOR_TOTP_SECRET="<secret base32 của ứng dụng xác thực>"
+```
+
+Chuỗi hex SHA-256 của bản cũ vẫn được chấp nhận kèm cảnh báo chuyển đổi — hãy
+chuyển sang scrypt. Thư mục dữ liệu: `OFFICE_DATA_DIR` (mặc định `./data`).
+Sao lưu: xem cuối file.
 
 Đăng nhập Giám đốc: `POST /api/director/login` với `{ "password": "...", "totp": "123456" }`
 → nhận `token` (phiên 12 giờ, thu hồi được qua `POST /api/sessions/:id/revoke`).
@@ -125,48 +127,47 @@ tiếp trong hệ thống này.
 
 | Phương thức | Đường dẫn | Ai được gọi |
 |---|---|---|
-| `POST /api/director/login` | Mật khẩu + TOTP → phiên Giám đốc | Công khai (đã cấu hình) |
-| `GET /api/roles`, `POST /api/roles`, `DELETE /api/roles/:id` | Chức vụ (dữ liệu) | Phiên Giám đốc |
+| `GET /api/setup/status`, `POST /api/setup` | Cài đặt lần đầu (một lần duy nhất): đặt mật khẩu Giám đốc + nhận secret TOTP | Công khai, chỉ khi chưa có tài khoản Giám đốc |
+| `POST /api/director/login` | Mật khẩu (scrypt) + TOTP → phiên Giám đốc | Công khai (đã cấu hình hoặc đã cài đặt lần đầu) |
+| `GET /api/roles`, `POST /api/roles`, `PATCH /api/roles/:id`, `DELETE /api/roles/:id` | Chức vụ (dữ liệu) | Phiên Giám đốc |
 | `GET/POST/PATCH/DELETE /api/staff`, `POST /api/staff/:id/rotate-token` | Nhân viên + token API | Phiên Giám đốc |
-| `GET/POST /api/jobs`, `POST /api/jobs/:id/claim|approve|return` | Việc; khoá nhận việc nguyên tử; cấm tự duyệt | Giám đốc/Leader tạo việc; người phụ trách nhận việc |
+| `GET/POST /api/jobs`, `POST /api/jobs/:id/claim|submit|approve|return`, `POST /api/jobs/:id/links` | Việc; khoá nhận việc nguyên tử; trình duyệt; cấm tự duyệt; link đính kèm | Giám đốc/Leader tạo việc; người phụ trách nhận/trình việc |
 | `GET/POST /api/approvals`, `GET /api/approvals/:id`, `POST /api/approvals/:id/decide` | Hộp phê duyệt (lý do bắt buộc) — nhận MỌI yêu cầu quyền của MỌI tài khoản Muse (đăng nhập, tải file, cài đặt chương trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ liệu, đổi cài đặt, truy cập ngoài phạm vi, chi tiêu), kèm đối tượng/tài nguyên + bối cảnh | Tạo: mọi danh tính; đọc kết quả: người yêu cầu + cấp duyệt; quyết định: Giám đốc/Leader, cấm tự duyệt |
 | `GET/PATCH /api/budgets`, `POST /api/budgets/:id/topup` | Ngân sách token | Phiên Giám đốc |
 | `POST /api/heartbeat` | Heartbeat cấu trúc (sự kiện là chính) | Token nhân viên |
 | `GET /api/events` | Kênh SSE (token qua `?token=`) | Mọi danh tính |
-| `POST/GET /api/messages` | Bus `[ASK:Tên]` | Mọi danh tính |
+| `POST/GET /api/messages` | Phòng chat: phòng chung + nhắn trực tiếp + gắn vào việc, nhắc tên `[ASK:Tên]`/`@Tên`, link đính kèm | Mọi danh tính (tin nào cũng mang danh tính người gửi) |
+| `GET/POST /api/meetings`, `PATCH /api/meetings/:id` | Gọi họp + biên bản | Gọi: Giám đốc/Leader; sửa biên bản: người gọi/Leader/Giám đốc |
+| `GET /api/kit/:file` | Tải file bộ kit cầu nối | Mọi danh tính đã đăng nhập |
 | `GET /api/context` | Gói ngữ cảnh nén (Module E) | Mọi danh tính |
 | `GET /api/audit`, `GET /api/alerts`, `GET /api/sessions` | Nhật ký / cảnh báo / phiên | Phiên Giám đốc |
 
 Token nhân viên gọi API cấp Giám đốc → **403 + ghi nhật ký cảnh báo + bản ghi báo
 Giám đốc** (đúng §9).
 
-## Demo hay thật?
+## Thật hay demo?
 
-| Phần | Trạng thái |
+| Phần | Trạng thái (sau rebuild 30/10/2026) |
 |---|---|
-| Văn phòng 3D, tổ chức, Kanban, phê duyệt, ngân sách trên bản tĩnh | **Chạy thật trên trình duyệt**, dữ liệu localStorage. Chưa nối máy chủ — nối API là bước tiếp theo của Giai đoạn 2/3. |
-| Số "đã dùng" trong Mục 5 | **Số mô phỏng**, ghi rõ trong giao diện. Chỉ mức 5.000.000.000 token của tài khoản điều phối là mức thật đã cấp. |
-| Khóa Giám đốc trên bản tĩnh | **Khóa demo.** Xác thực thật (mật khẩu + TOTP) chỉ ở máy chủ. |
-| Máy chủ: lưu trữ, phân quyền, SSE, heartbeat, ngân sách, sao lưu | **Code thật**, đã kiểm tra bằng lệnh (xem BUILD-REPORT.md). Chưa chạy 24/7 trên máy điều phối. |
-| Cầu nối bridge.js | **Code thật**, chưa chạy dài hạn với tài khoản thật. |
+| Vỏ ứng dụng web (đăng nhập, văn phòng, chat, việc, phê duyệt, nhân sự, ngân sách, nhật ký, cài đặt) | **Hệ thống thật**: nói chuyện với API máy chủ cùng nguồn, dữ liệu trên máy chủ. Chỉ khi không nối được máy chủ mới rơi về bản dùng thử ngoại tuyến ghi nhãn DEMO rõ ràng. |
+| Văn phòng 3D | **Code thật** (Three.js CDN). Nếu CDN không tải được, tự chuyển sang dạng danh sách 2D đầy đủ thao tác. Render 3D trực quan trên trình duyệt thật chưa kiểm chứng trong môi trường thử nghiệm (CDN bị chặn) — xem BUILD-REPORT.md. |
+| Số "đã dùng" | **Số thật** khi cầu nối đẩy lên; Giám đốc cũng có thể ghi nhận thủ công có nhật ký. Chỉ mức 5.000.000.000 token của tài khoản điều phối là mức thật đã cấp. |
+| Xác thực Giám đốc | **Thật**: mật khẩu scrypt + TOTP, có cài đặt lần đầu, không mật khẩu mặc định. |
+| Máy chủ: lưu trữ, phân quyền, SSE, heartbeat, ngân sách, sao lưu | **Code thật**, đã kiểm tra bằng hợp đồng API tự động 70/70 + trình duyệt thật 28/28 (xem BUILD-REPORT.md). Chưa chạy 24/7 trên máy điều phối. |
+| Cầu nối bridge.js | **Code thật**, đã kiểm tra vòng tròn xin duyệt → quyết định qua API. Chưa chạy dài hạn với tài khoản thật. |
 | Giai đoạn 4 (bộ việc kiểm thử đo chất lượng) | **Chưa làm.** |
 
-## 3 quyết định còn mở (chờ Giám đốc — hệ thống không tự quyết thay)
+## 3 quyết định ĐÃ CHỐT (29/10/2026 23:23, kèm phụ lục 23:26/23:27)
 
-1. Mức ngân sách token mặc định cho các nhân viên còn lại (ngoài mức 5 tỷ của tài
-   khoản điều phối) — đặt theo người hay một mức chung?
-2. Danh mục hành động phải qua phê duyệt (đề xuất mặc định: gửi tin ra ngoài
-   nhóm, xoá dữ liệu, đổi cài đặt tài khoản/bảo mật, cài thêm chương trình, mọi
-   chi tiêu).
-3. Kênh báo khẩn cho Giám đốc khi máy chủ ngừng hoặc có nhân viên chạm ngân sách
-   (tin nhắn vào nhóm / thông báo trên điện thoại)?
+1. **Ngân sách token:** Giám đốc tự đặt/điều chỉnh cho từng người, không có mức chung cố định. Tài khoản điều phối được cấp thật 5.000.000.000 token.
+2. **Hộp phê duyệt:** nhận MỌI yêu cầu cấp quyền của MỌI tài khoản Muse — cả đăng nhập, tải file, cài ứng dụng — quyết định ngay trên web, không cần mở ứng dụng Muse.
+3. **Báo khẩn:** qua WhatsApp + biểu ngữ nổi bật trong trung tâm điều hành.
+4. **Tài khoản + kit:** mỗi tài khoản Muse là một nhân viên có tên đăng nhập + mật khẩu riêng; mỗi tài khoản cài một cầu nối mỏng; tài liệu trao đổi qua link công khai của Muse.
 
 ## Deploy free
 
-- **Web tĩnh:** GitHub Pages phục vụ thư mục `web/` (Settings → Pages → deploy
-  from branch, thư mục `/web`). Không cần build.
-- **Máy chủ:** chạy trên máy sẵn có của tài khoản Muse điều phối (quyết định đã
-  chốt, Mục 7) — 0 đồng, không thuê host ngoài. Xem `server/office.service.example`.
+- **Hệ thống thật:** chạy máy chủ trên máy sẵn có của tài khoản Muse điều phối (quyết định đã chốt, Mục 7) — 0 đồng, không thuê host ngoài. Xem `server/office.service.example`. Mở URL máy chủ là có đủ web + API.
+- **GitHub Pages (chỉ xem trước):** phục vụ thư mục `web/` thì chỉ thấy màn hình đăng nhập + bản dùng thử ngoại tuyến (không có máy chủ thật phía sau). Không cần build.
 
 ## Giấy phép
 
