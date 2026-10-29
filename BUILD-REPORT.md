@@ -356,3 +356,52 @@ dòng 1094–1299), camera (`applyCamera`, dòng 1062–1083), `makeLabel` (dòn
 - Điện thoại thật (Safari iOS, cảm ứng kéo/chụm, xoay máy thật): kiểm chứng resize sống chỉ mới qua giả lập CDP — cổng kiểm chứng live sau deploy vẫn bắt buộc.
 - Khung hình camera Theo người về mặt thị giác (có theo đúng người, có mượt khi đi bộ): chỉ kiểm chứng nhãn không lỗi, chưa xem chuyển động theo thời gian.
 - Số nhân viên khác 5–6 người (đông hơn có thể lại chồng nhãn ở màn hẹp): chưa thử.
+
+## 8. Ba phương án giao diện 30/10 (Giám đốc chê bản hiện tại "xấu" — chọn bằng mắt)
+
+- Bối cảnh: 30/10/2026 06:41 +07, Giám đốc chê thẳng giao diện hiện tại. Không hỏi
+  thuật ngữ thiết kế — làm 3 hướng nhìn thật trên ứng dụng thật, để Giám đốc
+  chỉ tay chọn. Chỉ đổi lớp hình ảnh (màu, chữ, mặt phẳng, bảng màu cảnh 3D);
+  cấu trúc vỏ, 9 màn hình, logic và `server/` KHÔNG đổi.
+- Cơ chế chọn: tham số `?theme=dark|light|warm` (xem `web/index.html`, script
+  nhỏ trong `<head>` — đặt `window.__THEME` + gắn stylesheet tương ứng SAU
+  `style.css`). Không tham số = giữ nguyên y hệt hôm nay (đã kiểm chứng: nền
+  `#f4f6f8`, chữ `#111827`, cảnh 3D mặc định). Bảng màu cảnh 3D: `SCENE_PALETTES`
+  trong `web/app.js` + phương thức `Office3D.pal()`; bản `default` giữ nguyên
+  từng giá trị màu cũ — `buildStage`/`buildRoom`/`buildBoard`/`buildDesk` chỉ
+  đọc qua `P.*`, không còn literal màu cảnh rải rác.
+- File: `web/themes/theme-dark.css`, `web/themes/theme-light.css`,
+  `web/themes/theme-warm.css` (+ `web/index.html`, `web/app.js` sửa nhỏ).
+  Không fork `app.js` thành 3 bản. Huy hiệu chờ duyệt đỏ giữ nguyên cả 3 bản.
+- Ảnh chụp (12 ảnh, ứng dụng thật chạy chế độ DEMO, chrome-headless-shell qua
+  CDP + SwiftShader, đã xem từng ảnh):
+  `docs/theme-options/{dark,light,warm}/{office,chat}-{1440,390}.png`.
+  Kiểm chứng kèm mỗi ảnh: không tràn ngang (scrollW = innerW), menu dưới cố
+  định hiện ở 390px (đáy = chiều cao viewport), canvas 3D hiện, không lỗi JS
+  (chỉ nhiễu 404 của `/api/health` trên máy chủ tĩnh tạm — dự kiến, vì chế độ
+  DEMO yêu cầu không nối được máy chủ; máy chủ thật đã chạy riêng trên DB tạm
+  và trả `/api/health` 200, 5 nhân sự, 0 việc).
+- 1. DARK "Phòng điều hành tối": navy/đen, chữ sáng tương phản mạnh, trạng
+  thái chọn nền sáng + chữ tối (rule riêng — không để chữ trắng trên nền
+  trắng). Cảnh 3D: hoàng hôn, sàn gỗ tối, đèn ấm. Lúc xem ảnh đã sửa: tăng
+  sáng bán cầu 0.85 → 1.0 và tường phải 0x182130 → 0x202e42 vì nửa phải cảnh
+  tối quá, gần như đen.
+- 2. LIGHT "Sáng sạch hiện đại": trắng/xám nhạt, một màu nhấn xanh, thẻ bo
+  tròn 16px, thanh trên trắng (tên hệ thống màu nhấn). Cảnh 3D: ban ngày sáng.
+- 3. WARM "Gỗ ấm văn phòng": kem + gỗ, xanh lá đậm, tiêu đề màn hình serif
+  Georgia (chữ nội dung vẫn sans). Cảnh 3D: nắng chiều ấm, sàn gỗ sáng.
+- Đã sửa sau khi xem ảnh: chỉ có điểm tối của bản dark (nêu trên). Nhãn 3D ở
+  góc tổng vẫn chồng nhau một phần ở dòng phụ (hành vi có sẵn của bản hiện
+  tại, giống nhau cả 3 bản — không phải do theme). Không sửa gì khác.
+- UNTESTED: điện thoại thật (Safari iOS, cảm ứng), chuyển động theo thời
+  gian, nhân viên > 6 người. Sau khi Giám đốc chọn, bản được chọn phải thành
+  mặc định (bỏ tham số) rồi kiểm chứng live lại trước khi coi là xong.
+
+### 8.1. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/index.html`, `web/app.js`, `web/themes/theme-dark.css`,
+`web/themes/theme-light.css`, `web/themes/theme-warm.css`,
+`docs/theme-options/dark/*.png`, `docs/theme-options/light/*.png`,
+`docs/theme-options/warm/*.png`, `BUILD-REPORT.md`, `PROGRESS.md`
+(+ các file đợt trước nếu chưa push). Sau deploy, kiểm chứng live bằng
+`?theme=dark|light|warm` trên trang thật rồi mới đưa Giám đốc chọn.
