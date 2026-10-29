@@ -1,8 +1,8 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — REBUILD XONG, CHỜ DEPLOY + KIỂM CHỨNG 3D TRÊN TRÌNH DUYỆT THẬT
+## TRẠNG THÁI — SỬA LỖI 3D LIVE XONG (CHƯA DEPLOY), CHỜ DEPLOY + KIỂM CHỨNG TRÊN TRÌNH DUYỆT/ĐIỆN THOẠI THẬT
 
-Cập nhật lần cuối: ~06:30, 30/10/2026 (giờ Sài Gòn).
+Cập nhật lần cuối: ~06:40, 30/10/2026 (giờ Sài Gòn).
 
 ## (1) Chuyện gì đã xảy ra
 
@@ -15,6 +15,19 @@ Cập nhật lần cuối: ~06:30, 30/10/2026 (giờ Sài Gòn).
   `healthcheck.js`. Không động vào phòng họp cũ `~/workspace/ai-company/`.
 - Kiểm tra: hợp đồng API 70/70 + trình duyệt thật 28/28 (mobile 390px). Chi tiết +
   danh sách lỗi đã sửa + UNTESTED trong `BUILD-REPORT.md` (thay bản cũ).
+- **Sửa lỗi 3D live 30/10/2026 (sau kiểm chứng trình duyệt thật 05:21–05:24 +07):**
+  màn Văn phòng 3D chết hẳn với "THREE is not defined" vì `buildRoom`/`buildBoard`
+  dùng biến `THREE` ngoài phạm vi — lỗi chỉ lộ khi CDN tải được (môi trường thử
+  nghiệm chặn CDN nên rơi về 2D và che mất lỗi). Đã sửa: `THREE.` → `T.` trong
+  hai method, tách `buildStage()` có catch → 2D, bọc `init()` ở `renderOffice`,
+  đưa Three.js r160 vào repo (`web/vendor/three.module.js`, loader thử file
+  cùng nguồn trước rồi mới tới CDN), sửa dòng "Đang tải" còn sót và dòng gợi ý
+  bị nút camera che. Kiểm chứng: tái hiện lỗi trước sửa, sau sửa 15/15 + 8/9
+  (1 phép đo sai của script, đã kiểm tra lại đúng) — chi tiết `BUILD-REPORT.md`
+  §2.4 + §3 Cổng 6. File đổi thêm: `web/vendor/three.module.js` (MỚI),
+  `web/index.html` (importmap), `web/app.js`, `web/style.css`, `README.md`,
+  `docs/HUONG-DAN-CAI-DAT.md`, 2 ảnh chụp 3D mới. CHƯA DEPLOY — cha (parent
+  agent) push + kiểm chứng live.
 
 ## (2) DONE (rebuild)
 
@@ -43,21 +56,26 @@ deploy, kiểm chứng trên site thật + trình duyệt thật có mạng.
 
 1. Push các file đã đổi lên repo (KHÔNG push bằng git local — dùng gh-api put-file
    như lần trước; file workflow Pages vẫn chỉ có ở local vì token thiếu quyền
-   `workflow`, Pages đang chạy chế độ legacy từ `/`).
+   `workflow`, Pages đang chạy chế độ legacy từ `/`). File MỚI/đổi trong đợt sửa
+   lỗi 3D: `web/vendor/three.module.js`, `web/index.html`, `web/app.js`,
+   `web/style.css`, `README.md`, `docs/HUONG-DAN-CAI-DAT.md`, `BUILD-REPORT.md`,
+   `PROGRESS.md`, `docs/screenshots-390px/shot-office-3d-390.png`,
+   `docs/screenshots-390px/shot-office-3d-desktop.png`.
 2. Kiểm tra lại trên site thật + trình duyệt thật có mạng, ƯU TIÊN: render 3D trực
-   quan (5 nhân vật, nhãn đọc được, camera, gọi họp, đi bộ/ăn mừng), vì đây là
-   phần UNTESTED duy nhất còn lại trong môi trường thử nghiệm (CDN bị chặn).
+   quan (5 nhân vật, nhãn đọc được, camera, gọi họp, đi bộ/ăn mừng) và menu dưới
+   cố định ở 390px thật, vì đây là phần còn UNTESTED trên thiết bị thật.
 3. Kiểm tra `install.bat` + đường cài kit đầy đủ trên Windows thật.
 4. Chạy máy chủ 24/7 trên máy điều phối (systemd `server/office.service.example`).
 5. Giai đoạn 4 (bộ việc kiểm thử đo chất lượng) — chưa làm.
 
 ## (5) BLOCKERS / UNTESTED
 
-- Render 3D trực quan: UNTESTED (CDN jsDelivr bị chặn trong sandbox). Dạng 2D đã
-  kiểm chứng đầy đủ và tự bật khi 3D lỗi — hệ thống không bao giờ trắng trang.
+- Render 3D trên trình duyệt/điện thoại thật của Giám đốc: CHƯA KIỂM CHỨNG HẾT
+  (đã kiểm chứng trong headless-shell + WebGL phần mềm với file vendor, xem
+  BUILD-REPORT.md §3 Cổng 6). Dạng 2D đã kiểm chứng đầy đủ và tự bật khi 3D lỗi.
 - Kit đầy đủ + Windows thật: UNTESTED (chỉ `--dry-run` Linux + vòng tròn bridge qua API).
 - Chạy 24/7 + hiệu năng đa phiên lớn: UNTESTED.
 
 ## (6) Cập nhật lần cuối
 
-~06:30, 30/10/2026 (Asia/Saigon) — rebuild xong, chờ deploy + kiểm chứng 3D thật.
+~06:40, 30/10/2026 (Asia/Saigon) — sửa lỗi 3D live xong, chờ deploy + kiểm chứng trên trình duyệt/điện thoại thật.
