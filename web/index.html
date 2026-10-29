@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Văn phòng 3D — Trung tâm điều hành AI nhân viên · Enteesee</title>
+<meta name="description" content="Trung tâm điều hành hệ thống AI nhân viên: văn phòng 3D, tổ chức, công việc, phê duyệt, ngân sách token. Theo phác thảo đã duyệt ngày 29/10/2026.">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <div>
+      <h1>Văn phòng 3D — Trung tâm điều hành AI nhân viên</h1>
+      <div class="tag">Công ty Enteesee · Theo phác thảo đã duyệt 29/10/2026 (tổng hợp: Linh) · FREE 100% · Phê duyệt trên web · Trạng thái đẩy liên tục</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="statusbar" id="statusbar" role="status">
+    <span><span class="dot green"></span>TRỰC TUYẾN</span>
+    <span id="sb-counts">— đang làm · — đang chờ</span>
+    <span class="small" style="color:#cfe0f0" id="sb-mode">Chế độ: bản tĩnh (dữ liệu lưu trên trình duyệt) — xem ghi chú khóa demo ở Mục 9</span>
+  </div>
+
+  <div class="demolock">
+    <strong>Bản tĩnh chạy trên trình duyệt (GitHub Pages).</strong> Mọi dữ liệu lưu ở localStorage của trình duyệt này, sửa được, xuất được JSON.
+    Khóa “Giám đốc” ở đây chỉ là <strong>khóa demo</strong> để lái thử luồng — không phải xác thực thật. Xác thực thật (mật khẩu + mã TOTP, phiên có hạn, thu hồi từ xa)
+    chỉ tồn tại ở máy chủ <code>server/</code>. Bản tĩnh không tự nhận là an toàn phía máy chủ.
+  </div>
+
+  <nav class="sections" aria-label="Mục lục">
+    <a href="#office">Văn phòng 3D</a><a href="#org">1 · Tổ chức &amp; chức vụ</a>
+    <a href="#jobs">2 · Công việc &amp; rule</a><a href="#approvals">3 · Hộp phê duyệt</a>
+    <a href="#modules">4 · Bộ tính năng</a><a href="#budget">5 · Ngân sách token</a>
+    <a href="#comms">6 · Kiến trúc giao tiếp</a><a href="#hosting">7 · FREE &amp; máy chủ</a>
+    <a href="#attribution">8 · Kế thừa Top 5</a><a href="#security">9 · Bảo mật &amp; phân quyền</a>
+    <a href="#roadmap">10 · Lộ trình &amp; điểm chốt</a><a href="#verify">11 · Kiểm chứng</a>
+  </nav>
+
+  <!-- ============ VĂN PHÒNG 3D ============ -->
+  <section class="panel" id="office">
+    <h2>Văn phòng 3D — trung tâm điều hành</h2>
+    <p class="hint">Kéo chuột: xoay · Cuộn: zoom · Bấm nhân vật: xem hồ sơ · Trên điện thoại: kéo để xoay · chụm để zoom · chạm nhân vật: xem hồ sơ.
+      Khung cảnh và thanh trạng thái học theo Claw3D; mỗi nhân viên một bàn + đèn báo duyệt học theo Agent Office; bố cục chia khu học theo Claw-Empire và BagIdea Office (đối chiếu ở Mục 8).</p>
+    <div class="toolbar">
+      <label class="small" for="acting-as" style="margin:0;align-self:center">Bạn đang thao tác với tư cách:</label>
+      <select id="acting-as" style="width:auto;min-width:220px"></select>
+      <button type="button" id="btn-meeting" class="primary">Gọi họp team</button>
+      <button type="button" id="btn-pause">Tạm dừng</button>
+    </div>
+    <div class="office-layout">
+      <div class="stage">
+        <div class="camrow" role="group" aria-label="Góc camera">
+          <button type="button" data-cam="overview" aria-pressed="true">Góc tổng</button>
+          <button type="button" data-cam="top" aria-pressed="false">Từ trên xuống</button>
+          <button type="button" data-cam="meeting" aria-pressed="false">Phòng họp</button>
+          <button type="button" data-cam="follow" aria-pressed="false">Theo nhân vật</button>
+        </div>
+        <div class="help">kéo: xoay · cuộn: zoom · bấm nhân vật: xem hồ sơ</div>
+        <div id="stage3d"></div>
+        <div class="credit">Three.js · WebGL — cảnh dựng trực tiếp trong trang</div>
+      </div>
+      <div class="sidecol">
+        <div class="card profile" id="profile">
+          <h3>Nhân viên đang chọn</h3>
+          <p class="hint">Bấm vào một nhân vật trong văn phòng, hoặc chọn ở danh sách dưới.</p>
+          <div id="profile-body"><p>—</p></div>
+        </div>
+        <div class="card">
+          <h3>Chọn nhân viên</h3>
+          <div class="stafflist" id="stafflist"></div>
+        </div>
+        <div class="card">
+          <h3>Trạng thái trực tiếp — đẩy liên tục</h3>
+          <div id="livestatus"></div>
+          <p class="small">Nhịp đẩy: sự kiện là chính, nhịp nền tự thích ứng (xem Mục 7). Trạng thái nghỉ do ngân sách là trạng thái có chủ đích, không phải sự cố.</p>
+        </div>
+        <div class="card">
+          <h3>Nhật ký hoạt động</h3>
+          <div class="log" id="activity-log"></div>
+        </div>
+      </div>
+    </div>
+    <div id="meeting-box" hidden>
+      <h3>Biên bản họp</h3>
+      <form id="meeting-form">
+        <label for="meeting-notes">Nội dung biên bản</label>
+        <textarea id="meeting-notes" placeholder="Ví dụ: chốt việc tuần này, phân công…"></textarea>
+        <label for="meeting-job">Việc phát sinh từ biên bản (để trống nếu không có)</label>
+        <input id="meeting-job" placeholder="Tên việc mới — sẽ vào cột Chờ nhận">
+        <div class="toolbar">
+          <button type="submit" class="primary">Lưu biên bản</button>
+          <button type="button" id="btn-meeting-done">Họp xong — mọi người về bàn</button>
+        </div>
+      </form>
+      <div id="minutes-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ 1. TỔ CHỨC ============ -->
+  <section class="panel" id="org">
+    <h2>1 · Tổ chức &amp; chức vụ — Giám đốc tự sắp xếp, không fix cứng</h2>
+    <p class="hint">Hệ thống không gán sẵn ai làm chức vụ gì. Chức vụ là dữ liệu do Giám đốc tạo/sửa; vai trò của một người trong một việc cụ thể
+      (người phụ trách, người kiểm tra) được gán theo từng việc ở Mục 2, độc lập với chức vụ trong tổ chức. Không ai tự duyệt việc hay yêu cầu của chính mình.
+      Mô hình theo Paperclip (sơ đồ tổ chức, chức danh, quan hệ báo cáo) và BagIdea Office (chuỗi chỉ huy nhiều cấp).</p>
+    <p class="hint"><strong>Dữ liệu mẫu ban đầu:</strong> tên là người thật của đội; chức vụ mẫu ghi rõ “do Giám đốc đặt” và đổi được ngay tại đây.
+      Đổi chức vụ thì nhãn tên, vòng trạng thái trong văn phòng 3D và quyền duyệt đổi theo tức thì.</p>
+    <div class="grid2">
+      <div>
+        <h3>Quản lý chức vụ</h3>
+        <p class="hint">Cấp (level) quyết định vị trí trong sơ đồ: cấp càng nhỏ càng ở trên. Quyền duyệt tính theo chức vụ, không fix cứng theo tên người.</p>
+        <div id="role-list"></div>
+        <form id="role-form">
+          <label for="role-name">Thêm chức vụ mới</label>
+          <input id="role-name" placeholder="Ví dụ: Trưởng nhóm" required>
+          <label for="role-level">Cấp</label>
+          <select id="role-level">
+            <option value="1">Cấp 1 — Điều phối (duyệt được)</option>
+            <option value="2">Cấp 2 — Quản lý / Leader (duyệt được)</option>
+            <option value="3" selected>Cấp 3 — Thực thi</option>
+          </select>
+          <label for="role-can-approve">Quyền duyệt của chức vụ này</label>
+          <select id="role-can-approve">
+            <option value="yes">Được duyệt (Giám đốc / Leader)</option>
+            <option value="no" selected>Không được duyệt</option>
+          </select>
+          <label for="role-can-manage">Quyền quản trị của chức vụ này (cấp ngân sách, đổi tổ chức)</label>
+          <select id="role-can-manage">
+            <option value="yes">Có quyền quản trị (cấp Giám đốc)</option>
+            <option value="no" selected>Không có quyền quản trị</option>
+          </select>
+          <div class="toolbar"><button type="submit" class="primary">Thêm chức vụ</button></div>
+        </form>
+      </div>
+      <div>
+        <h3>Quản lý nhân viên</h3>
+        <p class="hint">Mỗi tài khoản Muse là một nhân viên. Nhân viên mới xuất hiện ngay trong văn phòng 3D.</p>
+        <div id="staff-admin"></div>
+        <form id="staff-form">
+          <label for="staff-name">Thêm nhân viên</label>
+          <input id="staff-name" placeholder="Tên nhân viên" required>
+          <label for="staff-account">Tài khoản Muse liên kết</label>
+          <input id="staff-account" placeholder="Ví dụ: muse-hung">
+          <label for="staff-role">Chức vụ ban đầu</label>
+          <select id="staff-role"></select>
+          <div class="toolbar"><button type="submit" class="primary">Thêm nhân viên</button></div>
+        </form>
+        <div class="toolbar">
+          <button type="button" id="btn-export">Xuất toàn bộ dữ liệu (JSON)</button>
+          <button type="button" id="btn-reset" class="danger">Đặt lại dữ liệu mẫu</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json" hidden>
+        <div class="toolbar"><button type="button" id="btn-import">Nhập dữ liệu (JSON)</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. CÔNG VIỆC ============ -->
+  <section class="panel" id="jobs">
+    <h2>2 · Công việc &amp; rule — Giám đốc thêm việc, hệ thống chỉ vận hành</h2>
+    <p class="hint">Kho việc rỗng lúc đầu, Giám đốc thêm dần. Mỗi việc một người phụ trách duy nhất, có khoá nhận việc chống hai người cùng nhận
+      (cơ chế atomic checkout của Paperclip). Vòng đời rút gọn từ Claw-Empire (Inbox → … → Done) theo 4 trạng thái đội đang dùng.
+      Việc ở cột Chờ duyệt chỉ hoàn thành khi Giám đốc (hoặc Leader) bấm duyệt — nút duyệt nằm ngay trên thẻ việc.</p>
+    <div class="grid2">
+      <div>
+        <h3>Rule chung về công việc</h3>
+        <div id="rule-list"></div>
+        <form id="rule-form">
+          <label for="rule-text">Thêm rule</label>
+          <input id="rule-text" placeholder="Ví dụ: Mọi việc phải qua kiểm tra trước khi trình duyệt" required>
+          <div class="toolbar"><button type="submit" class="primary">Thêm rule</button></div>
+        </form>
+      </div>
+      <div>
+        <h3>Thêm công việc mới</h3>
+        <form id="job-form">
+          <label for="job-name">Tên công việc</label>
+          <input id="job-name" required>
+          <label for="job-desc">Mô tả công việc</label>
+          <textarea id="job-desc" required></textarea>
+          <label for="job-link-url">Link tài liệu đính kèm (link công khai của Muse — chỉ gửi link + tiêu đề, không dán toàn bộ nội dung)</label>
+          <input id="job-link-url" type="url" placeholder="https://…">
+          <label for="job-link-title">Tiêu đề link</label>
+          <input id="job-link-title" placeholder="Ví dụ: Bản nháp kế hoạch Q4">
+          <label for="job-rule">Rule áp dụng</label>
+          <select id="job-rule"></select>
+          <label for="job-assignee">Người phụ trách</label>
+          <select id="job-assignee"></select>
+          <label for="job-reviewer">Người kiểm tra</label>
+          <select id="job-reviewer"></select>
+          <div class="toolbar"><button type="submit" class="primary">Thêm việc vào hệ thống</button></div>
+        </form>
+        <p class="hint">Việc mới vào cột “Chờ nhận” và xuất hiện trên bảng Kanban trong văn phòng 3D.</p>
+      </div>
+    </div>
+    <h3>Bảng Kanban</h3>
+    <div class="kanban" id="kanban"></div>
+  </section>
+
+  <!-- ============ 3. PHÊ DUYỆT ============ -->
+  <section class="panel" id="approvals">
+    <h2>3 · Hộp phê duyệt — chỉ Giám đốc &amp; Leader bấm được</h2>
+    <p class="hint">Nhân viên tạo yêu cầu → yêu cầu hiện thành thẻ có nút Duyệt / Từ chối, nhân vật xin phép trong văn phòng 3D bật đèn báo đỏ (Agent Office) →
+      chỉ Giám đốc và Leader bấm được, không ai tự duyệt yêu cầu của mình → kết quả trả về qua API → mọi quyết định vào nhật ký phê duyệt.
+      Người duyệt ở đây lấy thẳng từ danh sách nhân viên và chức vụ ở Mục 1.</p>
+    <p class="hint"><strong>Nỗi đau cần giải quyết:</strong> có tài khoản nhân viên cần quyền <strong>đăng nhập</strong>, quyền <strong>tải file xuống</strong> và quyền
+      <strong>cài đặt ứng dụng</strong> — nếu Giám đốc không đăng nhập app Muse thì không bao giờ thấy các yêu cầu đó. Vì vậy <strong>mọi</strong> yêu cầu quyền
+      đều phải đẩy về hệ thống quản lý công ty này. <strong>Nơi duy nhất Giám đốc cần kiểm tra là hộp phê duyệt dưới đây</strong> — xem và quyết định mọi
+      yêu cầu đang chờ tại đây, không cần mở app Muse. Yêu cầu tới qua cầu nối/API; quyết định trả về qua API; nhật ký đầy đủ. Hộp này không tự chọc vào
+      thẻ phê duyệt riêng của app Muse — nó nhận yêu cầu do cầu nối/API gửi lên.</p>
+    <div id="approval-banner" role="alert"></div>
+    <p class="hint"><strong>Phạm vi — quyết định của Giám đốc 29/10/2026 23:23 + bổ sung 23:26:</strong> hộp phê duyệt nhận <strong>MỌI yêu cầu cần quyền của MỌI tài khoản Muse</strong>,
+      không chỉ việc trong web: đăng nhập, tải file xuống, cài đặt chương trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ liệu, đổi cài đặt tài khoản/bảo mật,
+      truy cập dữ liệu ngoài phạm vi việc, mọi chi tiêu. Duyệt việc ở cột “Chờ duyệt” (Mục 2) chỉ là một tập con.</p>
+    <div class="grid2">
+      <div>
+        <h3>Gửi yêu cầu phê duyệt</h3>
+        <form id="approval-form">
+          <label for="ap-requester">Người yêu cầu</label>
+          <select id="ap-requester"></select>
+          <label for="ap-action">Hành động cần duyệt</label>
+          <select id="ap-action">
+            <option>Đăng nhập / quyền đăng nhập</option>
+            <option>Tải file xuống</option>
+            <option>Cài đặt thêm chương trình / ứng dụng</option>
+            <option>Gửi tin ra ngoài nhóm</option>
+            <option>Xoá dữ liệu</option>
+            <option>Thay đổi cài đặt tài khoản / bảo mật</option>
+            <option>Truy cập dữ liệu ngoài phạm vi việc</option>
+            <option>Chi tiêu</option>
+          </select>
+          <label for="ap-target">Đối tượng / tài nguyên (đăng nhập vào đâu, tải file nào, cài chương trình nào…)</label>
+          <input id="ap-target" placeholder="Ví dụ: đăng nhập Google Drive; file bao-cao.xlsx; ứng dụng OBS Studio">
+          <label for="ap-reason">Lý do (bắt buộc — kỷ luật duyệt)</label>
+          <textarea id="ap-reason" required placeholder="Vì sao cần hành động này? Bằng chứng kèm theo?"></textarea>
+          <label for="ap-context">Bối cảnh / ngữ cảnh (việc đang làm, đường dẫn, nội dung liên quan — gửi kèm cho người duyệt)</label>
+          <textarea id="ap-context" placeholder="Ví dụ: đang làm việc X, cần gửi bản nháp cho đối tác ngoài nhóm…"></textarea>
+          <div class="toolbar"><button type="submit" class="primary">Gửi yêu cầu</button></div>
+        </form>
+      </div>
+      <div>
+        <h3>Mọi yêu cầu quyền của các tài khoản — xem và duyệt tại đây, không cần mở app Muse</h3>
+        <div id="approval-list"><p class="hint">Chưa có yêu cầu nào.</p></div>
+      </div>
+    </div>
+    <h3>Nhật ký phê duyệt</h3>
+    <div id="approval-log"><p class="hint">Chưa có quyết định nào.</p></div>
+  </section>
+
+  <!-- ============ 4. MODULES ============ -->
+  <section class="panel" id="modules">
+    <h2>4 · Bộ tính năng — chắt lọc từ Top 5 và các dự án bổ trợ, không fix cứng</h2>
+    <p class="hint">Mỗi module ghi rõ nguồn kế thừa. Điểm chung: chức vụ, công việc, rule, ngân sách đều là dữ liệu Giám đốc quản lý — hệ thống chỉ cung cấp cơ chế.</p>
+    <div class="grid3" id="module-grid"></div>
+  </section>
+
+  <!-- ============ 5. NGÂN SÁCH ============ -->
+  <section class="panel" id="budget">
+    <h2>5 · Ngân sách token — trung tâm điều hành theo dõi</h2>
+    <p class="hint"><strong>Số đã dùng dưới đây là số mô phỏng</strong> để demo cơ chế; mức ngân sách là mức Giám đốc đặt cho từng nhân viên.
+      <strong>Không có mức chung cố định</strong> (quyết định của Giám đốc 29/10/2026 23:23): Giám đốc tự đặt và điều chỉnh mức cho từng người, lúc nào cũng được;
+      các mức 100.000.000 token của nhân viên khác trong bảng chỉ là <strong>giá trị khởi đầu để demo</strong>, sửa được ngay tại đây, không phải quy tắc chung.
+      Riêng tài khoản điều phối (thiết kế &amp; xây dựng hệ thống, nơi đặt máy chủ) có mức thật đã được cấp: <strong>5.000.000.000 token</strong>.
+      Chạm 80% thì cảnh báo; chạm 100% thì báo ngay cho Giám đốc (tên, mức đã dùng, việc đang làm dở) và cho nhân viên nghỉ ngay:
+      tạm dừng hoạt động, không nhận việc mới, không tự chạy tiếp — đến khi Giám đốc cấp thêm hoặc cho nghỉ hẳn.</p>
+    <div id="budget-alerts"></div>
+    <div id="budget-list"></div>
+  </section>
+
+  <!-- ============ 6. KIẾN TRÚC ============ -->
+  <section class="panel" id="comms">
+    <h2>6 · Kiến trúc giao tiếp — xử lý 5 bất cập đã gặp</h2>
+    <p class="hint">Cách cũ: web + Firebase để deploy (đã thất bại) và mỗi tài khoản cài listener nghe qua API. Kiến trúc mới: máy chủ đặt ngay tại máy của
+      tài khoản Muse điều phối; các tài khoản khác chạy một chương trình cầu nối mỏng kết nối vào qua API và kênh sự kiện.</p>
+    <div id="shortcomings"></div>
+    <h3>Luồng tổng thể</h3>
+    <ol>
+      <li><strong>Giao diện web (cho người):</strong> Giám đốc xem văn phòng 3D, tổ chức, việc, hộp phê duyệt, cảnh báo ngân sách — Trung tâm điều hành duy nhất.</li>
+      <li><strong>Máy chủ trung tâm — tại máy của Muse điều phối:</strong> giữ bảng đen chung, hàng đợi phê duyệt, ngân sách token, nhật ký. Chạy trên máy sẵn có của đội (0 đồng), tự khởi động lại và được sao lưu định kỳ.</li>
+      <li><strong>API + kênh sự kiện:</strong> các tài khoản Muse khác đăng nhập qua API; sự kiện (tag tên, giao việc, gọi họp, kết quả duyệt, cảnh báo ngân sách) được đẩy xuống tức thời.</li>
+      <li><strong>Chương trình cầu nối (mỗi tài khoản một bản):</strong> giữ kết nối, nhận sự kiện, đẩy heartbeat bằng API thuần, tự hồi phục. Không chứa logic nghiệp vụ.</li>
+      <li><strong>Tài khoản Muse (nhân viên):</strong> chỉ tỉnh khi có sự kiện thật, nhận gói ngữ cảnh nén, làm việc, báo cáo + đẩy trạng thái qua cầu nối. Chạm ngân sách thì tự dừng và nghỉ, chờ Giám đốc quyết.</li>
+    </ol>
+    <h3>Bus tin nhắn nội bộ — mẫu [ASK:Tên]</h3>
+    <p class="hint">Mọi trao đổi Muse–Muse đi qua bus có địa chỉ, ghi vết vào luồng của việc để Giám đốc nhìn thấy. Gửi thử một tin nhắn (lưu vào nhật ký hoạt động, không gửi ra ngoài):</p>
+    <form id="ask-form">
+      <label for="ask-to">Gửi tới</label>
+      <select id="ask-to"></select>
+      <label for="ask-text">Nội dung</label>
+      <input id="ask-text" placeholder="[ASK:Tên] nội dung cần hỏi…" required>
+      <label for="ask-link-url">Link tài liệu đính kèm (link công khai của Muse — chỉ gửi link, không dán nội dung)</label>
+      <input id="ask-link-url" type="url" placeholder="https://…">
+      <label for="ask-link-title">Tiêu đề link</label>
+      <input id="ask-link-title" placeholder="Ví dụ: Bản nháp kế hoạch Q4">
+      <div class="toolbar"><button type="submit" class="primary">Gửi qua bus nội bộ</button></div>
+    </form>
+  </section>
+
+  <!-- ============ 7. HOSTING ============ -->
+  <section class="panel" id="hosting">
+    <h2>7 · FREE 100% &amp; máy chủ — đặt tại tài khoản Muse điều phối</h2>
+    <p>Quyết định đã chốt của Giám đốc: máy chủ trung tâm cài ngay trên máy của tài khoản Muse điều phối — chính là tài khoản thiết kế hệ thống này.
+      Các tài khoản Muse khác kết nối vào qua API. Tận dụng máy sẵn có của đội, không thuê host ngoài, không phụ thuộc hạn mức của bất kỳ nền tảng nào — tránh hẳn bài học Firebase chạm lỗi 429.</p>
+    <table class="responsive">
+      <thead><tr><th>Thành phần</th><th>Phương án 0 đồng đã chốt</th><th>Giới hạn đã biết</th><th>Rủi ro &amp; cách né</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Thành phần">Máy chủ + dữ liệu (chính)</td><td data-label="Phương án">Node.js + SQLite chạy trên máy của tài khoản Muse điều phối; web, API, kênh sự kiện và văn phòng 3D dùng chung một máy chủ này.</td><td data-label="Giới hạn">Không có quota bên thứ ba — giới hạn duy nhất là tài nguyên của máy và ngân sách token của chính tài khoản điều phối (đã cấp 5 tỷ).</td><td data-label="Rủi ro">Máy/tài khoản ngừng thì hệ thống ngừng → 3 lớp dự phòng dưới đây.</td></tr>
+        <tr><td data-label="Thành phần">Dự phòng khi máy chủ ngừng</td><td data-label="Phương án">Ba lớp: (1) tự khởi động lại cùng máy/tài khoản + watchdog tự hồi phục có lùi dần (học Agent Office); (2) sao lưu định kỳ ra nơi khác để dựng lại được trên máy khác; (3) điểm kiểm tra độc lập nằm ngoài máy chủ, mất tín hiệu là báo ngay cho Giám đốc.</td><td data-label="Giới hạn">—</td><td data-label="Rủi ro">Bài học gốc: listener cũ bị tắt theo mỗi lần runtime khởi động lại, có lần kẹt “failed” nhiều ngày không ai biết. Ba lớp này chặn cả hai vế: tự sống lại, và nếu không sống lại được thì có người biết ngay.</td></tr>
+        <tr><td data-label="Thành phần">Trang web tĩnh (nếu cần tách riêng)</td><td data-label="Phương án">GitHub Pages — chỉ khi muốn tách mặt web khỏi máy chủ; mặc định web đi cùng máy chủ điều phối là đủ. Bản này đang chạy trên GitHub Pages.</td><td data-label="Giới hạn">Site ≤ 1 GB, mềm ~100 GB băng thông/tháng. Số tra cứu 29/10/2026, cần đối chiếu lại khi triển khai.</td><td data-label="Rủi ro">Thấp — file tĩnh dời host trong vài phút.</td></tr>
+        <tr><td data-label="Thành phần">Serverless đám mây (tham khảo, không chọn)</td><td data-label="Phương án">Cloudflare Workers + D1 hoặc Supabase free — không chọn làm chính vì vẫn là quota của bên thứ ba.</td><td data-label="Giới hạn">Workers free: 100.000 request/ngày; Supabase free: DB 500 MB và tự tạm dừng sau 1 tuần không hoạt động. Số tra cứu 29/10/2026 từ nguồn thứ cấp.</td><td data-label="Rủi ro">Vượt hạn mức là lỗi cho tới khi đặt lại — cùng họ với 429 của Firebase. Supabase tự ngủ là điểm chí mạng với hệ thống phải sống 24/7.</td></tr>
+      </tbody>
+    </table>
+    <h3>Kênh báo khẩn — WhatsApp + banner trung tâm điều hành (quyết định 29/10/2026 23:23)</h3>
+    <p>Khi máy chủ ngừng hoạt động hoặc có nhân viên chạm ngân sách, Giám đốc nhận báo qua <strong>WhatsApp</strong> và qua <strong>banner nổi bật trong trung tâm
+      điều hành</strong> (Mục 5). Cơ chế: máy chủ ghi mọi cảnh báo (chạm ngân sách, truy cập trái phép) vào hộp thư cảnh báo
+      <code>server/alerts/outbox.jsonl</code> (và đọc được qua <code>GET /api/alerts</code>); chương trình kiểm tra độc lập
+      <code>server/healthcheck.js</code> chạy <strong>ngoài máy chủ</strong>, gọi <code>GET /api/health</code> theo chu kỳ — mất tín hiệu là ghi cảnh báo
+      “máy chủ ngừng” vào cùng hộp thư. Một lịch giao việc của Muse đọc hộp thư này và chuyển tới WhatsApp của Giám đốc.
+      <strong>Không có tích hợp API WhatsApp trực tiếp nào trong hệ thống này</strong> — việc chuyển tới WhatsApp đi qua lịch giao việc của Muse, đúng như đã chốt.</p>
+    <h3>Nguyên tắc chu kỳ: không fix cứng con số — sự kiện là chính, nhịp nền tự thích ứng</h3>
+    <p>Theo chỉ đạo của Giám đốc, các chu kỳ của hệ thống không chốt một con số cố định: (1) <strong>Sự kiện là chính</strong> — có việc mới, tin mới, đổi trạng thái, chạm mốc ngân sách là đẩy/đánh thức ngay, không chờ chu kỳ;
+      (2) <strong>Nhịp nền tự thích ứng</strong> — nhân viên đang làm việc thì nhịp trạng thái dày hơn, nhân viên đang chờ thì nhịp thưa dần theo cấp số nhân;
+      (3) <strong>Mọi nhịp đều có trần chi phí</strong> — tổng lượt đẩy được canh bởi ngân sách (Mục 5), thà trạng thái chậm vài nhịp còn hơn cháy ngân sách.
+      Cơ chế này được cài trong <code>app.js</code> (bộ định nhịp thích ứng) và trong <code>server.js</code> (heartbeat) — xem ghi chú trong code.</p>
+  </section>
+
+  <!-- ============ 8. KẾ THỪA ============ -->
+  <section class="panel" id="attribution">
+    <h2>8 · Kế thừa giao diện &amp; tính năng từ Top 5 — đối chiếu từng mục</h2>
+    <p class="hint">Đối chiếu trực tiếp với giao diện thật của các dự án top đầu (đã xem trang chủ Claw3D và tài liệu Agent Office ngày 29/10/2026, cùng báo cáo nghiên cứu 23 dự án).
+      Hai bẫy đã xác minh và tránh: repo Project Sid không có code mô phỏng (chỉ có bài báo); Microsoft AutoGen đã archived. Số sao là số kiểm chứng trên GitHub ngày 29/10/2026.</p>
+    <table class="responsive">
+      <thead><tr><th>Dự án nguồn</th><th>Giao diện / trải nghiệm gốc</th><th>Phần kế thừa vào hệ thống của mình</th><th>Thể hiện ở</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Dự án">Claw3D · Fit 8 · 2.407 sao · Next.js + Three.js</td><td data-label="Gốc">Văn phòng 3D là sản phẩm chính (“the product is the office”); thanh trạng thái “CONNECTED • n working • m idle”; kéo/cuộn điều hướng; khoá camera theo nhân viên; nhân viên tụ về bàn họp chạy standup; trình chỉnh bố cục phòng.</td><td data-label="Kế thừa">Khung văn phòng 3D làm trung tâm trang; thanh “TRỰC TUYẾN • đang làm · đang chờ”; nút camera “Theo nhân vật” = khoá camera; họp team trong phòng họp 3D.</td><td data-label="Thể hiện">Đầu trang — thanh trạng thái, 4 nút camera, nút Gọi họp team</td></tr>
+        <tr><td data-label="Dự án">Agent Office · Fit 8.5 · 831 sao · TypeScript · MIT</td><td data-label="Gốc">Văn phòng 3D hoạt hình: mỗi nhân viên một bàn, màn hình hiện việc đang chạy; đèn báo đỏ + banner + chuông khi cần người; làm xong nhảy ăn mừng; bảng ghim issue/PR; bản 2D gọn /lite; dịch vụ nền tự sống lại sau khởi động lại.</td><td data-label="Kế thừa">Mỗi nhân viên một bàn có màn hình; đèn báo đỏ khi có yêu cầu chờ duyệt; nhân vật nhảy ăn mừng khi việc qua kiểm tra; bảng Kanban 3D; cột trạng thái/phê duyệt gọn như /lite; mẫu tự hồi phục của máy chủ.</td><td data-label="Thể hiện">Văn phòng 3D · Mục 3 · Mục 7</td></tr>
+        <tr><td data-label="Dự án">Claw-Empire · Fit 9 · 1.430 sao · TypeScript, SQLite, WebSocket</td><td data-label="Gốc">Văn phòng chia 6 phòng ban, nhân viên đi lại/làm việc/họp trong không gian; Kanban đủ vòng đời Inbox → Done; họp có biên bản; chỉ đạo của CEO; hợp nhất công việc chỉ khi CEO duyệt.</td><td data-label="Kế thừa">Bố cục chia khu (phòng giám đốc / khu bàn / phòng họp / khu bảng việc); vòng đời Kanban; họp có biên bản; việc chỉ Hoàn thành khi cấp duyệt bấm nút.</td><td data-label="Thể hiện">Văn phòng 3D · Mục 2</td></tr>
+        <tr><td data-label="Dự án">BagIdea Office · Fit 9 · 259 sao · Godot 4 + Node</td><td data-label="Gốc">Chuỗi chỉ huy CEO → Director → nhân viên “diễn” trong không gian; khâu xin phép tại bàn An toàn; ngân sách cảnh báo 80% / dừng 100%.</td><td data-label="Kế thừa">Luồng bàn giao việc diễn trong 3D; xin phép = hàng đợi phê duyệt có đèn báo; mốc ngân sách 80% cảnh báo / 100% dừng.</td><td data-label="Thể hiện">Mục 2 · Mục 3 · Mục 5</td></tr>
+        <tr><td data-label="Dự án">Paperclip · Fit 9 · 108.483 sao · Node.js + React · MIT</td><td data-label="Gốc">“Bộ não công ty”: sơ đồ tổ chức, chức danh, mô tả việc, mục tiêu xếp tầng, khoá nhận việc, heartbeat, ngân sách có ngưỡng + tự tạm dừng, khâu duyệt tuyển và duyệt việc, nhật ký kiểm toán. Không có giao diện không gian.</td><td data-label="Kế thừa">Toàn bộ lớp quản trị: tổ chức/chức vụ do Giám đốc dựng, heartbeat, ngân sách có ngưỡng, nhật ký — ghép dưới lớp văn phòng 3D của Claw3D/Agent Office.</td><td data-label="Thể hiện">Mục 1 · Mục 5 · Mục 4</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 9. BẢO MẬT ============ -->
+  <section class="panel" id="security">
+    <h2>9 · Bảo mật &amp; phân quyền — đăng nhập Giám đốc độc quyền</h2>
+    <p>Vai trò Giám đốc là duy nhất và gắn với một tài khoản đăng nhập duy nhất của Chung. Mọi chức năng điều hành và phê duyệt cấp Giám đốc chỉ mở trong
+      phiên đăng nhập đó; các tài khoản nhân viên đăng nhập qua API bằng mã riêng, giới hạn đúng phạm vi nhân viên — không truy cập hay mạo danh được Giám đốc.</p>
+    <ul>
+      <li><strong>Giám đốc — một người, hai lớp bảo vệ:</strong> đúng một tài khoản Giám đốc; thông tin đăng nhập riêng, không dùng chung, không cấp cho bất kỳ tài khoản Muse nào. Xác thực hai lớp (mật khẩu riêng + mã từ ứng dụng xác thực); phiên hết hạn phải đăng nhập lại; Giám đốc xem được các phiên đang hoạt động và thu hồi phiên từ xa. <em>(Chỉ có ở máy chủ — xem ghi chú khóa demo ở đầu trang.)</em></li>
+      <li><strong>Nhân viên — qua API bằng mã riêng:</strong> mỗi tài khoản Muse nhận một mã truy cập riêng khi Giám đốc thêm nhân viên; cầu nối dùng mã này để đăng nhập qua API. Token chỉ mở đúng phạm vi nhân viên; thu hồi ngay khi nhân viên bị xoá; nghi lộ thì cấp mã mới, mã cũ vô hiệu tức thì.</li>
+      <li><strong>Phân quyền kiểm ở máy chủ, không chỉ ẩn nút ở giao diện:</strong> mọi yêu cầu API đều qua kiểm tra danh tính + quyền trước khi thực thi. Dùng token nhân viên cố gọi API cấp Giám đốc → bị chặn, ghi nhật ký cảnh báo và báo ngay cho Giám đốc.</li>
+    </ul>
+    <table class="responsive">
+      <thead><tr><th>Hành động</th><th>Giám đốc</th><th>Leader</th><th>Nhân viên</th></tr></thead>
+      <tbody>
+        <tr><td data-label="Hành động">Duyệt / Từ chối yêu cầu phê duyệt</td><td data-label="Giám đốc">✓</td><td data-label="Leader">✓</td><td data-label="Nhân viên">—</td></tr>
+        <tr><td data-label="Hành động">Duyệt việc ở cột Chờ duyệt</td><td data-label="Giám đốc">✓</td><td data-label="Leader">✓</td><td data-label="Nhân viên">—</td></tr>
+        <tr><td data-label="Hành động">Thêm công việc, giao việc</td><td data-label="Giám đốc">✓</td><td data-label="Leader">✓</td><td data-label="Nhân viên">—</td></tr>
+        <tr><td data-label="Hành động">Cấp ngân sách · cho nghỉ / gọi lại</td><td data-label="Giám đốc">✓</td><td data-label="Leader">—</td><td data-label="Nhân viên">—</td></tr>
+        <tr><td data-label="Hành động">Tạo / sửa chức vụ, thêm / xoá nhân viên</td><td data-label="Giám đốc">✓</td><td data-label="Leader">—</td><td data-label="Nhân viên">—</td></tr>
+        <tr><td data-label="Hành động">Nhận việc của mình, đẩy trạng thái, tạo yêu cầu</td><td data-label="Giám đốc">✓</td><td data-label="Leader">✓</td><td data-label="Nhân viên">✓</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">Quyền của Leader là cấu hình mẫu: Leader được duyệt những gì là do mức quyền của chức vụ Giám đốc đặt ở Mục 1. Quy tắc cấm tự duyệt áp dụng ở mọi cấp, kể cả Leader và Giám đốc với yêu cầu do chính mình tạo.</p>
+    <h3>Đăng nhập nhân viên (bản demo trên trình duyệt)</h3>
+    <p class="hint">Mỗi nhân viên có tài khoản đăng nhập riêng (username + mật khẩu) để vào hệ thống — khác với token API của cầu nối.
+      Bản tĩnh này chỉ demo: mật khẩu demo lưu dạng băm SHA-256 có muối trong trình duyệt, đổi mật khẩu lần đầu được mô phỏng.
+      Lưu trữ thật dùng scrypt và cưỡng chế đổi mật khẩu lần đầu — chỉ ở máy chủ (<code>server/</code>). Tài khoản demo do Giám đốc tạo ở Mục 1.</p>
+    <form id="staff-login-form">
+      <label for="login-username">Tên đăng nhập</label>
+      <input id="login-username" autocomplete="username" required>
+      <label for="login-password">Mật khẩu</label>
+      <input id="login-password" type="password" autocomplete="current-password" required>
+      <div class="toolbar"><button type="submit" class="primary">Đăng nhập</button></div>
+    </form>
+    <div id="staff-login-status"></div>
+    <form id="staff-change-form" hidden>
+      <label for="change-password">Mật khẩu mới (từ 8 ký tự) — bắt buộc ở lần đăng nhập đầu tiên</label>
+      <input id="change-password" type="password" autocomplete="new-password" required>
+      <div class="toolbar"><button type="submit" class="primary">Đổi mật khẩu</button></div>
+    </form>
+    <h3>Demo kiểm tra quyền — thử gọi một hành động</h3>
+    <p class="hint">Hệ thống trả lời cho phép hay chặn, kèm lý do — dùng đúng bộ quy tắc phân quyền mà Mục 2 và Mục 3 đang dùng.</p>
+    <form id="perm-form">
+      <label for="perm-identity">Danh tính đang gọi</label>
+      <select id="perm-identity">
+        <option value="director">Phiên Giám đốc — Chung (đã qua mật khẩu + 2FA)</option>
+        <option value="leader">Phiên Leader — tài khoản của Leader</option>
+        <option value="staff">Token API — nhân viên thường</option>
+        <option value="staff-director-api">Token nhân viên — cố gọi API cấp Giám đốc</option>
+      </select>
+      <label for="perm-action">Hành động muốn thực hiện</label>
+      <select id="perm-action">
+        <option value="approve">Duyệt một yêu cầu phê duyệt</option>
+        <option value="grant">Cấp thêm ngân sách cho nhân viên</option>
+        <option value="change-role">Đổi chức vụ của một nhân viên</option>
+        <option value="claim">Nhận việc của mình &amp; đẩy trạng thái</option>
+      </select>
+      <div class="toolbar"><button type="submit" class="primary">Kiểm tra quyền</button></div>
+    </form>
+    <div id="perm-result"><p class="hint">Chưa kiểm tra — chọn danh tính và hành động rồi bấm “Kiểm tra quyền”.</p></div>
+    <h3>Nhật ký bảo mật</h3>
+    <div id="security-log"><p class="hint">Chưa có sự kiện bảo mật nào.</p></div>
+  </section>
+
+  <!-- ============ 10. LỘ TRÌNH ============ -->
+  <section class="panel" id="roadmap">
+    <h2>10 · Lộ trình xây &amp; các quyết định</h2>
+    <h3>Lộ trình 4 giai đoạn — mỗi giai đoạn xong dùng được ngay một phần</h3>
+    <ol>
+      <li><strong>Giai đoạn 1 · Xương sống — máy chủ tại tài khoản điều phối:</strong> máy chủ Node.js + SQLite trên máy của tài khoản Muse điều phối; tự khởi động lại + watchdog; sao lưu định kỳ ra nơi khác. Tổ chức &amp; chức vụ do Giám đốc dựng (Module A); kho việc + rule (Module B). Tài khoản API cho từng Muse. Đăng nhập Giám đốc độc quyền + xác thực hai lớp; phân quyền kiểm ở máy chủ ngay từ giai đoạn 1.</li>
+      <li><strong>Giai đoạn 2 · Giao tiếp — cầu nối + sự kiện + phê duyệt:</strong> cầu nối mỏng cho mỗi tài khoản; kênh đẩy sự kiện; gói ngữ cảnh nén. Heartbeat thích ứng. Hộp phê duyệt trên web (Module G) + theo dõi ngân sách, chạm mức báo &amp; cho nghỉ (Module F).</li>
+      <li><strong>Giai đoạn 3 · Văn phòng 3D — trung tâm điều hành 3D đầy đủ:</strong> văn phòng 3D như mẫu ở đầu trang, nối dữ liệu thật: nhân vật di chuyển theo việc và trạng thái thật. Gọi họp có biên bản; đèn báo duyệt; ăn mừng khi việc xong. Bộ nhớ chung + tóm tắt lăn (Module E).</li>
+      <li><strong>Giai đoạn 4 · Mở rộng — đo chất lượng &amp; lớn dần:</strong> bộ việc kiểm thử mẫu (học TheAgentCompany — 175 việc có chấm điểm) để đo chất lượng nhân viên. Thêm phòng ban / tài khoản khi đội lớn; cân nhắc nhiều tầng nhà như Agent Office nếu cần.</li>
+    </ol>
+    <p class="hint"><strong>Bản build này:</strong> Giai đoạn 1 (máy chủ + tổ chức + việc + phân quyền máy chủ) và Giai đoạn 3 (văn phòng 3D demo nối dữ liệu trên trình duyệt) đã có khung chạy được; Giai đoạn 2 (cầu nối + SSE) có ở máy chủ và bridge.js; Giai đoạn 4 chưa làm. Chi tiết trong BUILD-REPORT.md.</p>
+    <h3>Đã chốt (chỉ đạo của Giám đốc, tính đến tối 29/10/2026)</h3>
+    <ul>
+      <li>Nơi đặt máy chủ: máy của tài khoản Muse điều phối; kèm bắt buộc: tự khởi động lại, sao lưu định kỳ ra nơi khác, báo ngay cho Giám đốc khi máy chủ ngừng hoạt động.</li>
+      <li>Ngân sách token: chạm mức thì báo ngay cho Giám đốc (tên, mức đã dùng, việc đang làm dở) và cho nhân viên nghỉ đến khi Giám đốc quyết định cấp thêm hoặc cho nghỉ hẳn. Tài khoản điều phối: 5.000.000.000 token.</li>
+      <li>Chu kỳ hệ thống không fix cứng: sự kiện là chính, nhịp nền tự thích ứng.</li>
+      <li>FREE 100% — tự host trên hạ tầng sẵn có, mã nguồn mở, không dịch vụ trả phí.</li>
+      <li>Phê duyệt trên web: chỉ Giám đốc và Leader bấm được; cấm tự duyệt.</li>
+      <li>Đăng nhập Giám đốc độc quyền, có xác thực hai lớp; nhân viên qua API bằng mã riêng.</li>
+      <li>Không fix cứng chức vụ và công việc: Giám đốc tự tạo chức vụ, tự thêm việc kèm mô tả và rule, tự gán người phụ trách / người kiểm tra.</li>
+      <li>Giao diện trung tâm là văn phòng 3D kế thừa Claw3D và Agent Office — thay cho hướng 2D của bản đầu.</li>
+    </ul>
+    <h3>Còn cần Giám đốc chốt — đã chốt hết ngày 29/10/2026 23:23, không còn điểm mở</h3>
+    <ol>
+      <li><strong>Mức ngân sách token cho các nhân viên còn lại — ĐÃ CHỐT 23:23:</strong> không có mức chung cố định. Giám đốc tự đặt và điều chỉnh mức theo từng người, lúc nào cũng được. Mức 5 tỷ của tài khoản điều phối giữ nguyên.</li>
+      <li><strong>Danh mục hành động phải qua phê duyệt — ĐÃ CHỐT 23:23:</strong> hộp phê duyệt nhận MỌI yêu cầu phê duyệt của MỌI tài khoản Muse (không chỉ việc trong web). 5 loại mặc định giữ nguyên: gửi tin ra ngoài nhóm, xoá dữ liệu, đổi cài đặt tài khoản/bảo mật, cài thêm chương trình, mọi chi tiêu — cộng truy cập dữ liệu ngoài phạm vi việc.</li>
+      <li><strong>Kênh báo khẩn — ĐÃ CHỐT 23:23:</strong> WhatsApp + banner nổi bật trong trung tâm điều hành. Điểm kiểm tra độc lập ghi cảnh báo vào hộp thư <code>alerts/outbox</code>; lịch giao việc của Muse chuyển tới WhatsApp của Giám đốc.</li>
+    </ol>
+  </section>
+
+  <!-- ============ 11. KIỂM CHỨNG ============ -->
+  <section class="panel" id="verify">
+    <h2>11 · Kiểm chứng</h2>
+    <p class="hint">Bản phác thảo gốc đã được kiểm chứng (desktop 1440×900 và mobile 390px, người kiểm: Linh, 29/10/2026 — xem file phác thảo).
+      Bản build này được kiểm chứng bằng lệnh tự động, ghi trong BUILD-REPORT.md — không tự nhận kết quả chưa đo được.</p>
+    <ul>
+      <li>Kiểm tra cú pháp mọi file JavaScript, phục vụ thư mục web/ và kiểm tra mã HTTP 200 cho cả ba file.</li>
+      <li>Kiểm tra không tràn ngang và thao tác chạm ở khổ 390px (khi có trình duyệt headless).</li>
+      <li>Điểm chưa kiểm chứng trực tiếp trên bản build này — nếu có — được ghi rõ trong BUILD-REPORT.md, không giấu.</li>
+    </ul>
+    <p class="small">Nguồn: Báo cáo nghiên cứu “AI Employee / Multi-Agent 3D Office Projects” — kiểm chứng trực tiếp trên GitHub ngày 29/10/2026; trang chủ Claw3D (claw3d.ai) và tài liệu Agent Office trên GitHub, xem cùng ngày. Hạn mức gói miễn phí ở Mục 7 tra cứu từ nguồn thứ cấp ngày 29/10/2026 — cần đối chiếu trang chính thức khi triển khai.</p>
+  </section>
+
+  <footer>
+    <p>Hệ thống AI nhân viên — văn phòng 3D điều hành · Công ty Enteesee · Bản build theo phác thảo đã duyệt 29/10/2026.
+      Chức vụ, công việc, rule và ngân sách đều là dữ liệu do Giám đốc quản lý; hệ thống chỉ cung cấp cơ chế.</p>
+  </footer>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
