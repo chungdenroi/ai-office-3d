@@ -1,6 +1,25 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — SỬA LỖI 3D LIVE XONG (CHƯA DEPLOY), CHỜ DEPLOY + KIỂM CHỨNG TRÊN TRÌNH DUYỆT/ĐIỆN THOẠI THẬT
+## TRẠNG THÁI — SỬA KHUNG NHÃN 3D + RESIZE XONG (CHƯA DEPLOY), CHỜ DEPLOY + KIỂM CHỨNG TRÊN TRÌNH DUYỆT/ĐIỆN THOẠI THẬT
+
+## (0) MỚI NHẤT 30/10 — Sửa khung nhãn 3D (lỗi live 04:36 +07)
+
+- Lỗi A (Phòng họp: nhãn vượt mép trên), lỗi B (Theo người: nhãn khổng lồ
+  che nút), lỗi C (vào lần đầu thiếu nhân vật): ĐÃ SỬA + ĐÃ KIỂM CHỨNG
+  trong headless-shell (chi tiết + bảng số liệu: `BUILD-REPORT.md` §7).
+  Chỉ đổi `web/app.js` (camera, `makeLabel`, `fitLabels`, `_initGen`,
+  `setSize(…, false)`) + 2 dòng `web/style.css` (min-width lưới, max-width
+  canvas). Tìm thêm lúc kiểm thử: resize sống 1280→390 tràn ngang do bẫy
+  min-content của canvas — đã sửa và đo lại (docW = vw = 390).
+- Kết quả cuối (cache đã chặn): 1280px — 0 nhãn vượt biên cả 4 góc, chồng
+  tối đa 13%; 390px — 0 vượt biên, chồng tối đa 22% (chạm góc, tên đọc
+  rõ); vào lần đầu đủ 5 nhân vật; nhân viên mới vào sau hiện không cần
+  reload; không lỗi JS; `node --check` PASS. DB thật không chạm.
+- CHƯA DEPLOY: agent cha push bằng gh-api put-file (KHÔNG git local):
+  `web/app.js`, `web/style.css`, `BUILD-REPORT.md`, `PROGRESS.md` (+ các
+  file đợt trước nếu chưa push). Sau đó kiểm chứng live bắt buộc: render
+  3D + nhãn 4 góc + menu dưới cố định ở 390px thật.
+
 
 Cập nhật lần cuối: ~06:40, 30/10/2026 (giờ Sài Gòn).
 
@@ -78,4 +97,4 @@ deploy, kiểm chứng trên site thật + trình duyệt thật có mạng.
 
 ## (6) Cập nhật lần cuối
 
-~06:40, 30/10/2026 (Asia/Saigon) — sửa lỗi 3D live xong, chờ deploy + kiểm chứng trên trình duyệt/điện thoại thật.
+~07:00, 30/10/2026 (Asia/Saigon) — sửa khung nhãn 3D + resize xong, chờ deploy + kiểm chứng trên trình duyệt/điện thoại thật.
