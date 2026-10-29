@@ -166,3 +166,34 @@ Không có hệ thống tải file lên — chỉ dùng link.
 3. Báo khẩn: WhatsApp + banner trung tâm điều hành.
 4. Mỗi Muse = 1 nhân viên có tài khoản/mật khẩu riêng + cài cầu nối để nối hệ
    thống; trao đổi tài liệu qua link công khai của Muse.
+
+---
+
+## Bổ sung 30/10/2026 — Vỏ ứng dụng mới (rebuild)
+
+Bản web cũ (một trang dài trình bày lại phác thảo) đã bị Giám đốc từ chối và
+được **xây lại hoàn toàn** thành vỏ ứng dụng thật:
+
+- Mở URL máy chủ là thấy **màn hình đăng nhập trước** (Giám đốc: mật khẩu +
+  TOTP; nhân viên: tên đăng nhập + mật khẩu). Không nội dung nào hiện trước khi
+  đăng nhập. Chưa có tài khoản Giám đốc thì hiện màn hình **Cài đặt lần đầu**
+  (đặt mật khẩu + quét mã TOTP, một lần duy nhất, không mật khẩu mặc định).
+- Sau đăng nhập: **trung tâm điều phối** với thanh trạng thái trên cùng, menu
+  trái (máy tính) / menu dưới cố định (điện thoại), các màn làm việc thật:
+  Văn phòng 3D, **Phòng chat**, Việc, Phê duyệt, Nhân sự & chức vụ, Ngân sách,
+  Nhật ký, Cài đặt & kit, Tài liệu thiết kế.
+- **Phòng chat** là màn làm việc hạng nhất: phòng chung + nhắn trực tiếp, tin
+  nhắn tới live qua SSE không cần tải lại, nhắc tên `[ASK:Tên]`/`@Tên` báo ngay
+  cho người được nhắc, tin gắn vào việc, link đính kèm (link công khai của
+  Muse). Mọi tin đều mang danh tính người gửi đã xác thực.
+- Văn phòng 3D: nếu thư viện 3D qua CDN không tải được, tự chuyển sang **dạng
+  danh sách 2D** đầy đủ thao tác — không bao giờ trắng trang.
+- Mật khẩu Giám đốc dùng **scrypt** (định dạng `salt:hash`); chuỗi SHA-256 cũ
+  vẫn đăng nhập được kèm cảnh báo — hãy chuyển sang scrypt theo README.
+- Tải bộ kit ngay trong màn Cài đặt & kit (cần đăng nhập): `bridge.js`,
+  `install.sh`, `install.bat`, `config.example.json`, `README.md`.
+
+Kiểm tra sau rebuild: hợp đồng API tự động 70/70 + trình duyệt thật 28/28
+(mobile 390px), xem `BUILD-REPORT.md`. Phần chưa kiểm chứng: render 3D trực
+quan (CDN bị chặn trong môi trường thử nghiệm), cài kit đầy đủ trên Windows
+thật.
