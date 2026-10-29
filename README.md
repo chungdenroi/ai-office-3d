@@ -21,7 +21,7 @@ bổ trợ: Outworked, Pixel Agents, Generative Agents, AI Town.
 
 | Đường dẫn | Vai trò |
 |---|---|
-| `web/index.html` + `web/app.js` + `web/style.css` | **Vỏ ứng dụng thật**: màn hình đăng nhập trước, rồi trung tâm điều phối (văn phòng 3D, phòng chat, việc, phê duyệt, nhân sự, ngân sách, nhật ký, cài đặt). Nói chuyện với API máy chủ cùng nguồn; chỉ khi không nối được máy chủ mới có bản dùng thử ngoại tuyến ghi nhãn DEMO rõ ràng. Three.js qua CDN, không cần build. |
+| `web/index.html` + `web/app.js` + `web/style.css` + `web/vendor/three.module.js` | **Vỏ ứng dụng thật**: màn hình đăng nhập trước, rồi trung tâm điều phối (văn phòng 3D, phòng chat, việc, phê duyệt, nhân sự, ngân sách, nhật ký, cài đặt). Nói chuyện với API máy chủ cùng nguồn; chỉ khi không nối được máy chủ mới có bản dùng thử ngoại tuyến ghi nhãn DEMO rõ ràng. Thư viện 3D đi kèm cùng nguồn (`web/vendor/`), không phụ thuộc CDN, không cần build. |
 | `server/server.js` | Máy chủ trung tâm: Node thuần, **không dependency**. REST + SSE, SQLite (`node:sqlite`) với fallback file JSON, sao lưu định kỳ, phân quyền kiểm ở máy chủ. Đồng thời phục vụ luôn thư mục `web/`. |
 | `server/bridge.js` | Cầu nối mỏng cho mỗi tài khoản Muse: giữ SSE, đẩy heartbeat bằng API thuần, watchdog tự hồi phục có lùi dần, tự dừng khi chạm ngân sách. Không chứa logic nghiệp vụ. Bản cài đặt được: xem `kit/`. |
 | `server/healthcheck.js` | Điểm kiểm tra độc lập (chạy ngoài máy chủ): gọi `/api/health`, mất tín hiệu đủ ngưỡng thì ghi cảnh báo vào hộp thư `server/alerts/outbox.jsonl` để chuyển tới WhatsApp của Giám đốc. |
@@ -150,7 +150,7 @@ Giám đốc** (đúng §9).
 | Phần | Trạng thái (sau rebuild 30/10/2026) |
 |---|---|
 | Vỏ ứng dụng web (đăng nhập, văn phòng, chat, việc, phê duyệt, nhân sự, ngân sách, nhật ký, cài đặt) | **Hệ thống thật**: nói chuyện với API máy chủ cùng nguồn, dữ liệu trên máy chủ. Chỉ khi không nối được máy chủ mới rơi về bản dùng thử ngoại tuyến ghi nhãn DEMO rõ ràng. |
-| Văn phòng 3D | **Code thật** (Three.js CDN). Nếu CDN không tải được, tự chuyển sang dạng danh sách 2D đầy đủ thao tác. Render 3D trực quan trên trình duyệt thật chưa kiểm chứng trong môi trường thử nghiệm (CDN bị chặn) — xem BUILD-REPORT.md. |
+| Văn phòng 3D | **Code thật** (Three.js r160 đi kèm trong `web/vendor/`, thử CDN jsDelivr/unpkg/cdnjs nếu file đi kèm không tới được). Nếu mọi nguồn đều không tải được, tự chuyển sang dạng danh sách 2D đầy đủ thao tác. Render 3D đã kiểm chứng trong trình duyệt headless với WebGL phần mềm (xem BUILD-REPORT.md §3 Cổng 6 + ảnh `shot-office-3d-*.png`); kiểm chứng trên trình duyệt/điện thoại thật sau deploy vẫn bắt buộc. |
 | Số "đã dùng" | **Số thật** khi cầu nối đẩy lên; Giám đốc cũng có thể ghi nhận thủ công có nhật ký. Chỉ mức 5.000.000.000 token của tài khoản điều phối là mức thật đã cấp. |
 | Xác thực Giám đốc | **Thật**: mật khẩu scrypt + TOTP, có cài đặt lần đầu, không mật khẩu mặc định. |
 | Máy chủ: lưu trữ, phân quyền, SSE, heartbeat, ngân sách, sao lưu | **Code thật**, đã kiểm tra bằng hợp đồng API tự động 70/70 + trình duyệt thật 28/28 (xem BUILD-REPORT.md). Chưa chạy 24/7 trên máy điều phối. |
