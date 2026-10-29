@@ -1,1175 +1,1732 @@
 /* ============================================================================
- * Văn phòng 3D — Trung tâm điều hành AI nhân viên (bản tĩnh, dữ liệu local)
+ * TRUNG TÂM ĐIỀU PHỐI — Hệ thống AI nhân viên (vỏ ứng dụng thật)
  * ----------------------------------------------------------------------------
- * NGUYÊN TẮC THIẾT KẾ (theo phác thảo đã duyệt 29/10/2026):
- *  - Chức vụ, công việc, rule, ngân sách đều là DỮ LIỆU do Giám đốc quản lý.
- *    Không có logic nào gán cứng "người này = chức vụ này / việc này".
- *    Mọi quyền đều tính từ dữ liệu chức vụ hiện tại (xem PERMISSIONS).
- *  - Số liệu "đã dùng" trong Mục 5 là SỐ MÔ PHỎNG, ghi rõ trong giao diện.
- *    Chỉ mức ngân sách 5.000.000.000 token của tài khoản điều phối là mức
- *    thật đã được cấp (quyết định đã chốt, Mục 5 + Mục 10).
- *  - Khóa Giám đốc ở bản tĩnh này chỉ là KHÓA DEMO để lái thử luồng.
- *    Xác thực thật (mật khẩu + TOTP, phiên, thu hồi) chỉ có ở server/.
- *  - Chu kỳ: SỰ KIỆN LÀ CHÍNH, nhịp nền tự thích ứng, có trần chi phí
- *    (xem AdaptivePulse ở cuối file).
+ * Màn hình đăng nhập trước, vỏ ứng dụng sau. Máy chủ là nguồn sự thật duy
+ * nhất khi nối được; localStorage CHỈ là bản dùng thử ngoại tuyến có ghi
+ * nhãn DEMO. Mọi quyền đều tính từ dữ liệu chức vụ hiện tại — không ghi
+ * cứng quyền theo tên người. Không số liệu giả: số "đã dùng" do cầu nối
+ * đẩy lên (hoặc Giám đốc ghi nhận có nhật ký); bản demo ghi rõ mô phỏng.
  * ========================================================================== */
 'use strict';
 
-/* ------------------------------ Lưu trữ -------------------------------- */
-const LS_KEY = 'ai-office-3d-v1';
-const uid = () => 'id-' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
-
-function seedState() {
-  // Chức vụ mẫu: DỮ LIỆU do Giám đốc đặt, đổi/xoá được ngay tại Mục 1.
-  // Quyền duyệt / quản trị nằm ở dữ liệu chức vụ, không nằm ở tên người.
-  const roles = [
-    { id: 'r-giamdoc',  name: 'Giám đốc',  level: 1, canApprove: true,  canManage: true  },
-    { id: 'r-dieuphoi', name: 'Điều phối', level: 1, canApprove: true,  canManage: false },
-    { id: 'r-quanly',   name: 'Quản lý',   level: 2, canApprove: true,  canManage: false },
-    { id: 'r-thucthi',  name: 'Thực thi',  level: 3, canApprove: false, canManage: false },
-  ];
-  // Người thật của đội. Chức vụ gán kèm CHỈ LÀ MẪU BAN ĐẦU do Giám đốc đặt
-  // (phác thảo §1); vai trò trong từng việc gán riêng ở Mục 2, độc lập.
-  const staff = [
-    { id: 's-chung', name: 'Chung', account: 'teddyssk559@gmail.com', roleId: 'r-giamdoc',  status: 'waiting',  budget: null,        used: 0,         resting: false, restedFully: false },
-    { id: 's-muse',  name: 'Muse',  account: 'muse-dieu-phoi',        roleId: 'r-dieuphoi', status: 'working',  budget: 5000000000, used: 412000000, resting: false, restedFully: false },
-    { id: 's-hung',  name: 'Hùng',  account: 'muse-hung',             roleId: 'r-quanly',   status: 'waiting',  budget: 100000000,  used: 12000000,  resting: false, restedFully: false },
-    { id: 's-tuan',  name: 'Tuấn',  account: 'muse-tuan',             roleId: 'r-thucthi',  status: 'waiting',  budget: 100000000,  used: 8000000,   resting: false, restedFully: false },
-    { id: 's-linh',  name: 'Linh',  account: 'muse-linh',             roleId: 'r-thucthi',  status: 'waiting',  budget: 100000000,  used: 5000000,   resting: false, restedFully: false },
-  ];
-  return {
-    version: 1,
-    roles,
-    staff,
-    // Kho việc RỖNG lúc đầu theo đúng nguyên tắc Module B — Giám đốc thêm dần.
-    rules: [
-      { id: uid(), text: 'Mọi việc phải qua kiểm tra trước khi trình duyệt' },
-      { id: uid(), text: 'Duyệt / trả lại phải có lý do; cấm tự duyệt việc của mình' },
-    ],
-    jobs: [],
-    approvals: [],
-    approvalLog: [],
-    minutes: [],
-    activity: [],
-    security: [],
-    actingAsId: 's-chung',
-    selectedId: 's-muse',
-    demoSession: null, // phiên đăng nhập demo trên trình duyệt {staffId} — thật chỉ ở máy chủ
-    budgetAlerts: [], // {staffId, at, kind: 'warn'|'full'}
-  };
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.version === 1) return s; }
-  } catch (e) { /* dữ liệu hỏng -> dùng mẫu */ }
-  return seedState();
-}
-let state = loadState();
-function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
-
+/* ------------------------------ Tiện ích --------------------------------- */
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('vi-VN'));
-const nowTime = () => new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-const roleOf = (st) => state.roles.find((r) => r.id === st.roleId) || { name: '(chưa gán chức vụ)', level: 9, canApprove: false, canManage: false };
-const staffById = (id) => state.staff.find((s) => s.id === id);
-const actingAs = () => staffById(state.actingAsId) || state.staff[0];
-
-/* ------------------------- Bộ quy tắc phân quyền -------------------------
- * MỘT bộ quy tắc duy nhất, dùng chung cho: nút duyệt trên thẻ việc (Mục 2),
- * nút Duyệt/Từ chối (Mục 3), demo kiểm tra quyền (Mục 9) và máy chủ
- * (server/server.js cài lại cùng bộ quy tắc này phía máy chủ).
- * Không có tên người nào được ghi cứng trong các hàm dưới đây. */
-const PERMISSIONS = {
-  canDecideApproval(actor, req) {
-    if (!actor) return { ok: false, reason: 'Chưa xác định danh tính đang thao tác.' };
-    const role = roleOf(actor);
-    if (!role.canApprove) return { ok: false, reason: `Chức vụ “${role.name}” không có quyền duyệt (quyền duyệt tính theo chức vụ ở Mục 1).` };
-    if (req && actor.id === req.requesterId) return { ok: false, reason: 'Cấm tự duyệt yêu cầu của chính mình — áp dụng ở mọi cấp.' };
-    return { ok: true, reason: `Chức vụ “${role.name}” có quyền duyệt và không phải người yêu cầu.` };
-  },
-  canApproveJob(actor, job) {
-    if (!actor) return { ok: false, reason: 'Chưa xác định danh tính đang thao tác.' };
-    const role = roleOf(actor);
-    if (!role.canApprove) return { ok: false, reason: `Chức vụ “${role.name}” không có quyền duyệt việc.` };
-    if (job && actor.id === job.assigneeId) return { ok: false, reason: 'Cấm tự duyệt việc của chính mình.' };
-    return { ok: true, reason: `Chức vụ “${role.name}” có quyền duyệt việc.` };
-  },
-  canGrant(actor) {
-    const role = actor && roleOf(actor);
-    if (!role || !role.canManage) return { ok: false, reason: 'Chỉ Giám đốc (chức vụ có quyền quản trị) mới được cấp ngân sách / cho nghỉ / gọi lại.' };
-    return { ok: true, reason: 'Chức vụ có quyền quản trị (cấp Giám đốc).' };
-  },
-  canChangeRole(actor) {
-    const role = actor && roleOf(actor);
-    if (!role || !role.canManage) return { ok: false, reason: 'Chỉ Giám đốc (chức vụ có quyền quản trị) mới được tạo/sửa chức vụ, thêm/xoá nhân viên.' };
-    return { ok: true, reason: 'Chức vụ có quyền quản trị (cấp Giám đốc).' };
-  },
-  canClaim(actor, job) {
-    if (!actor) return { ok: false, reason: 'Chưa xác định danh tính.' };
-    if (actor.resting) return { ok: false, reason: `${actor.name} đang nghỉ do chạm ngân sách — không nhận việc mới cho đến khi Giám đốc quyết định.` };
-    if (job.status !== 'Chờ nhận') return { ok: false, reason: 'Việc không còn ở cột Chờ nhận.' };
-    if (job.claimedBy && job.claimedBy !== actor.id) return { ok: false, reason: 'Việc đã có người nhận (khoá nhận việc nguyên tử) — không thể nhận trùng.' };
-    if (actor.id !== job.assigneeId) return { ok: false, reason: 'Chỉ người phụ trách được gán cho việc này mới nhận được việc.' };
-    return { ok: true, reason: 'Đủ điều kiện nhận việc.' };
-  },
-};
-
-/* --------------------------- Nhật ký + trạng thái ------------------------ */
-function logActivity(text, link) {
-  // link (tuỳ chọn): {url, title} — chỉ nhận URL http(s); hiển thị dạng link
-  // bấm được, ghi vào nhật ký. Quy ước trao đổi tài liệu: gửi LINK công khai
-  // của Muse + tiêu đề + tóm tắt, không dán toàn bộ nội dung vào chat.
-  const safeLink = link && /^https?:\/\//i.test(link.url || '') ? { url: link.url, title: link.title || link.url } : null;
-  state.activity.unshift({ at: nowTime(), text, link: safeLink });
-  state.activity = state.activity.slice(0, 60);
-  save(); renderLog(); renderLiveStatus(); renderStatusbar();
-}
-function logSecurity(text) {
-  state.security.unshift({ at: nowTime(), text });
-  state.security = state.security.slice(0, 40);
-  save(); renderSecurityLog();
-}
-
+const uid = () => 'id-' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const fmtNum = (n) => n == null ? '—' : Number(n).toLocaleString('vi-VN');
+const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }); } catch { return iso || ''; } };
 const STATUS_META = {
-  working:  { label: 'Đang làm',            cls: 'working',  ring: 0x1f9d55 },
-  waiting:  { label: 'Đang chờ',            cls: 'waiting',  ring: 0xd69e00 },
-  approval: { label: 'Cần duyệt',           cls: 'approval', ring: 0xd64545 },
-  resting:  { label: 'Đang nghỉ (ngân sách)', cls: 'resting', ring: 0x7c8da6 },
+  working: { label: 'Đang làm', cls: 'working', dot: 'green', ring: 0x35d07f },
+  waiting: { label: 'Đang chờ', cls: 'waiting', dot: 'yellow', ring: 0xd69e00 },
+  approval: { label: 'Cần duyệt', cls: 'approval', dot: 'red', ring: 0xd64545 },
+  resting: { label: 'Đang nghỉ (ngân sách)', cls: 'resting', dot: 'rest', ring: 0x8fa3b8 },
 };
-function effectiveStatus(st) {
-  if (st.resting) return 'resting';
-  if (state.approvals.some((a) => a.status === 'pending' && a.requesterId === st.id)) return 'approval';
-  return st.status;
-}
-function renderStatusbar() {
-  const counts = { working: 0, waiting: 0, approval: 0, resting: 0 };
-  state.staff.forEach((s) => { counts[effectiveStatus(s)]++; });
-  $('#sb-counts').textContent = `${counts.working} đang làm · ${counts.waiting} đang chờ · ${counts.approval} cần duyệt · ${counts.resting} đang nghỉ (ngân sách)`;
-}
-function renderLiveStatus() {
-  $('#livestatus').innerHTML = state.staff.map((s) => {
-    const st = effectiveStatus(s);
-    const m = STATUS_META[st];
-    const job = state.jobs.find((j) => j.assigneeId === s.id && j.status !== 'Hoàn thành');
-    return `<div class="row" style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dashed #e4e9ee;font-size:14px">
-      <span><span class="dot ${m.cls === 'working' ? 'green' : m.cls === 'waiting' ? 'yellow' : m.cls === 'approval' ? 'red' : 'rest'}"></span><strong>${esc(s.name)}</strong> <span class="small">(${esc(roleOf(s).name)})</span></span>
-      <span class="pill ${m.cls}">${m.label}</span></div>
-      ${job ? `<div class="small" style="padding:0 0 4px 18px">Đang làm: ${esc(job.name)} — ${job.progress}%</div>` : ''}`;
-  }).join('');
-}
-function renderLog() {
-  $('#activity-log').innerHTML = state.activity.length
-    ? state.activity.map((a) => `<div><time>${esc(a.at)}</time>${esc(a.text)}${a.link ? ` <a href="${esc(a.link.url)}" target="_blank" rel="noopener">📎 ${esc(a.link.title)}</a>` : ''}</div>`).join('')
-    : '<p class="hint">Chưa có hoạt động nào.</p>';
-}
-function renderSecurityLog() {
-  $('#security-log').innerHTML = state.security.length
-    ? state.security.map((a) => `<div style="padding:5px 0;border-bottom:1px dashed #e4e9ee;font-size:14px"><time style="color:var(--muted);font-size:12px;margin-right:6px">${esc(a.at)}</time>${esc(a.text)}</div>`).join('')
-    : '<p class="hint">Chưa có sự kiện bảo mật nào.</p>';
-}
-
-/* ------------------------------ Mục 1: Tổ chức --------------------------- */
-function staffOptions(selectedId, placeholder) {
-  return (placeholder ? `<option value="">${placeholder}</option>` : '') +
-    state.staff.map((s) => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${esc(s.name)} — ${esc(roleOf(s).name)}</option>`).join('');
-}
-function roleOptions(selectedId) {
-  return state.roles.slice().sort((a, b) => a.level - b.level)
-    .map((r) => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${esc(r.name)} (cấp ${r.level})</option>`).join('');
-}
-function renderOrg() {
-  const sorted = state.roles.slice().sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
-  $('#role-list').innerHTML = sorted.map((r) => `
-    <div class="staffrow">
-      <strong>${esc(r.name)}</strong>
-      <span class="pill">Cấp ${r.level}</span>
-      <span class="small">${r.canApprove ? 'Được duyệt' : 'Không duyệt'} · ${r.canManage ? 'Quyền quản trị' : 'Không quản trị'}</span>
-      <span style="flex:1"></span>
-      <button type="button" class="small" data-action="role-rename" data-id="${r.id}">Đổi tên</button>
-      <button type="button" class="small danger" data-action="role-delete" data-id="${r.id}">Xoá</button>
-    </div>`).join('') || '<p class="hint">Chưa có chức vụ nào.</p>';
-
-  $('#staff-admin').innerHTML = state.staff.map((s) => {
-    const lg = s.loginDemo;
-    const loginText = !lg ? 'Chưa có tài khoản đăng nhập' : lg.disabled ? `Tài khoản ${lg.username} — ĐÃ KHOÁ` : `Tài khoản ${lg.username}${lg.mustChange ? ' — phải đổi mật khẩu lần đầu' : ''}`;
-    return `
-    <div class="staffrow">
-      <div><strong>${esc(s.name)}</strong><div class="small">${esc(s.account || 'Chưa gắn tài khoản Muse')}</div><div class="small">${esc(loginText)}</div></div>
-      <select data-role-for="${s.id}" aria-label="Chức vụ của ${esc(s.name)}">${roleOptions(s.roleId)}</select>
-      <button type="button" class="small" data-action="staff-login-create" data-id="${s.id}">Tạo tài khoản</button>
-      <button type="button" class="small" data-action="staff-login-reset" data-id="${s.id}">Đặt lại mật khẩu</button>
-      <button type="button" class="small" data-action="staff-login-disable" data-id="${s.id}">${lg && lg.disabled ? 'Mở khoá' : 'Khoá'}</button>
-      <button type="button" class="small danger" data-action="staff-delete" data-id="${s.id}">Xoá</button>
-    </div>`;
-  }).join('');
-  $$('#staff-admin select[data-role-for]').forEach((sel) => {
-    sel.addEventListener('change', () => {
-      const st = staffById(sel.dataset.roleFor);
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); renderOrg(); return; }
-      st.roleId = sel.value; save();
-      logActivity(`${actingAs().name} đổi chức vụ của ${st.name} thành “${roleOf(st).name}”.`);
-      renderAll(); Pulse.kick('role-change');
-    });
-  });
-
-  $('#staff-role').innerHTML = roleOptions(state.roles[0] && state.roles[0].id);
-  renderActingAs();
-  renderStaffList();
-  renderProfile();
-}
-function renderActingAs() {
-  const sel = $('#acting-as');
-  const cur = sel.value || state.actingAsId;
-  sel.innerHTML = state.staff.map((s) => `<option value="${s.id}">${esc(s.name)} — ${esc(roleOf(s).name)}</option>`).join('');
-  sel.value = staffById(cur) ? cur : (state.staff[0] && state.staff[0].id);
-  state.actingAsId = sel.value;
-}
-function renderStaffList() {
-  $('#stafflist').innerHTML = state.staff.map((s) => {
-    const st = effectiveStatus(s);
-    return `<button type="button" data-action="select-staff" data-id="${s.id}">
-      <span><strong>${esc(s.name)}</strong> <span class="small">${esc(roleOf(s).name)}</span></span>
-      <span class="pill ${STATUS_META[st].cls}">${STATUS_META[st].label}</span></button>`;
-  }).join('');
-}
-function renderProfile() {
-  const s = staffById(state.selectedId) || state.staff[0];
-  if (!s) { $('#profile-body').innerHTML = '<p>—</p>'; return; }
-  const st = effectiveStatus(s);
-  const job = state.jobs.find((j) => j.assigneeId === s.id && j.status !== 'Hoàn thành');
-  $('#profile-body').innerHTML = `
-    <div class="row"><span>Tên</span><strong>${esc(s.name)}</strong></div>
-    <div class="row"><span>Chức vụ hiện tại</span><strong>${esc(roleOf(s).name)} (cấp ${roleOf(s).level})</strong></div>
-    <div class="row"><span>Tài khoản Muse</span><span>${esc(s.account || '—')}</span></div>
-    <div class="row"><span>Trạng thái</span><span class="pill ${STATUS_META[st].cls}">${STATUS_META[st].label}</span></div>
-    <div class="row"><span>Việc đang làm</span><span>${job ? esc(job.name) + ' — ' + job.status : '—'}</span></div>
-    <div class="row"><span>Ngân sách token</span><span>${s.budget == null ? 'Chưa đặt (chờ Giám đốc chốt)' : fmtNum(s.budget)}</span></div>
-    <p class="small">Chức vụ trên đây là dữ liệu do Giám đốc đặt (mẫu ban đầu), đổi được ở Mục 1. Vai trò trong từng việc gán riêng ở Mục 2.</p>`;
-}
-
-/* --------------------------- Mục 2: Việc & Kanban ------------------------ */
 const JOB_COLUMNS = ['Chờ nhận', 'Đang làm', 'Chờ duyệt', 'Hoàn thành'];
-function renderJobs() {
-  $('#rule-list').innerHTML = state.rules.map((r) => `
-    <div class="staffrow"><span style="flex:1">${esc(r.text)}</span>
-    <button type="button" class="small danger" data-action="rule-delete" data-id="${r.id}">Xoá</button></div>`).join('')
-    || '<p class="hint">Chưa có rule nào.</p>';
-  $('#job-rule').innerHTML = '<option value="">(không áp rule)</option>' +
-    state.rules.map((r) => `<option value="${r.id}">${esc(r.text)}</option>`).join('');
-  $('#job-assignee').innerHTML = staffOptions(null, '— Chọn người phụ trách —');
-  $('#job-reviewer').innerHTML = staffOptions(null, '— Chọn người kiểm tra —');
-  $('#ap-requester').innerHTML = staffOptions();
-  $('#ask-to').innerHTML = staffOptions();
+const APPROVAL_ACTIONS = [
+  'Đăng nhập', 'Tải file xuống', 'Cài đặt ứng dụng / chương trình',
+  'Gửi tin ra ngoài nhóm', 'Xoá dữ liệu', 'Thay đổi cài đặt tài khoản / bảo mật',
+  'Truy cập dữ liệu ngoài phạm vi việc', 'Chi tiêu',
+];
 
-  $('#kanban').innerHTML = JOB_COLUMNS.map((col) => {
-    const jobs = state.jobs.filter((j) => j.status === col);
-    return `<div class="kcol"><h3>${col} (${jobs.length})</h3>${jobs.map(jobCard).join('') || '<p class="hint">Trống</p>'}</div>`;
-  }).join('');
-}
-function jobCard(j) {
-  const rule = state.rules.find((r) => r.id === j.ruleId);
-  const asg = staffById(j.assigneeId), rev = staffById(j.reviewerId);
-  const claimedBy = j.claimedBy ? staffById(j.claimedBy) : null;
-  let actions = '';
-  if (j.status === 'Chờ nhận') {
-    actions += `<button type="button" class="small primary" data-action="job-run" data-id="${j.id}">Chạy luồng trong văn phòng 3D</button>`;
-  }
-  if (j.status === 'Chờ duyệt') {
-    actions += `<button type="button" class="small primary" data-action="job-approve" data-id="${j.id}">Duyệt → Hoàn thành</button>
-      <button type="button" class="small" data-action="job-return" data-id="${j.id}">Trả lại (có lý do)</button>`;
-  }
-  if (j.status !== 'Hoàn thành') {
-    actions += `<button type="button" class="small danger" data-action="job-delete" data-id="${j.id}">Xoá việc</button>`;
-  }
-  return `<article class="jobcard">
-    <strong>${esc(j.name)}</strong>
-    <div class="meta">${esc(j.desc)}</div>
-    ${j.linkUrl && /^https?:\/\//i.test(j.linkUrl) ? `<div class="meta">📎 Tài liệu: <a href="${esc(j.linkUrl)}" target="_blank" rel="noopener">${esc(j.linkTitle || j.linkUrl)}</a> (mở link khi cần — không dán nội dung vào chat)</div>` : ''}
-    ${rule ? `<div class="meta">Rule: ${esc(rule.text)}</div>` : ''}
-    <div class="meta">Phụ trách: ${asg ? esc(asg.name) : '—'} · Kiểm tra: ${rev ? esc(rev.name) : '—'}${claimedBy ? ` · Đã nhận bởi ${esc(claimedBy.name)}` : ''}</div>
-    ${j.status === 'Đang làm' ? `<div class="progress"><i style="width:${j.progress}%"></i></div><div class="meta">Tiến độ: ${j.progress}%</div>` : ''}
-    <div class="actions">${actions}</div>
-  </article>`;
-}
-function setJobStatus(job, status, note) {
-  job.status = status; save(); renderJobs(); renderLiveStatus(); renderStatusbar(); sync3D();
-  logActivity(`Việc “${job.name}”: ${status}${note ? ' — ' + note : ''}.`);
-  Pulse.kick('job-' + status);
+function effectiveStatus(st, approvals) {
+  if (st.resting) return 'resting';
+  if (approvals && approvals.some((a) => a.status === 'pending' && a.requesterId === st.id)) return 'approval';
+  return st.status === 'working' ? 'working' : 'waiting';
 }
 
-/* Chạy luồng: nhận việc (khoá nguyên tử) -> bàn làm -> 85% -> bàn kiểm tra -> Chờ duyệt.
-   Tốc độ nhân vật bám thời gian thực (dùng delta thời gian trong vòng lặp 3D). */
-let flowRunning = false;
-function runJobFlow(jobId) {
-  const job = state.jobs.find((j) => j.id === jobId);
-  if (!job || flowRunning) return;
-  const actor = actingAs();
-  const assignee = staffById(job.assigneeId);
-  const reviewer = staffById(job.reviewerId);
-  if (!assignee || !reviewer) { alert('Việc thiếu người phụ trách hoặc người kiểm tra.'); return; }
-  // Người chạy luồng phải là người phụ trách (hoặc Giám đốc/Leader giao hộ thì
-  // nhân vật phụ trách vẫn là người di chuyển; khoá nhận việc kiểm tra bên dưới).
-  const claim = PERMISSIONS.canClaim(assignee, job);
-  if (!claim.ok) { alert('Không chạy được luồng: ' + claim.reason); return; }
-  job.claimedBy = assignee.id; save(); renderJobs();
-  assignee.status = 'working'; save();
-  flowRunning = true;
-  logActivity(`${assignee.name} nhận việc “${job.name}” ở bảng Kanban (khoá nhận việc: một người duy nhất).`);
-  const step = (fn, delay) => new Promise((res) => setTimeout(() => { fn(); res(); }, delay));
-  (async () => {
-    await step(() => { Office3D.walkTo(assignee.id, Office3D.points.board); }, 150);
-    await step(() => { setJobStatus(job, 'Đang làm', `đã nhận bởi ${assignee.name}`); Office3D.walkTo(assignee.id, Office3D.points.deskOf(assignee.id)); }, 900);
-    await step(() => { job.progress = 50; save(); renderJobs(); }, 1100);
-    await step(() => { job.progress = 85; save(); renderJobs(); logActivity(`${assignee.name} đẩy tiến độ việc “${job.name}” lên 85%.`); }, 1100);
-    await step(() => { Office3D.walkTo(assignee.id, Office3D.points.deskOf(reviewer.id)); logActivity(`${assignee.name} mang kết quả sang bàn ${reviewer.name} để kiểm tra.`); }, 900);
-    await step(() => {
-      setJobStatus(job, 'Chờ duyệt', `chờ ${actingAs().name} hoặc Leader duyệt trên thẻ việc`);
-      assignee.status = 'waiting'; save();
-      flowRunning = false;
-      renderJobs(); renderLiveStatus(); renderStatusbar(); sync3D();
-    }, 1200);
-  })();
+/* ------------------------------ Phiên ------------------------------------ */
+const Session = {
+  token: sessionStorage.getItem('office.token') || '',
+  demo: sessionStorage.getItem('office.demo') === '1',
+  me: null, meType: '', apiBase: (localStorage.getItem('office.apiBase') || '').replace(/\/$/, ''),
+  save(token, demo) { this.token = token; this.demo = !!demo; sessionStorage.setItem('office.token', token); sessionStorage.setItem('office.demo', demo ? '1' : ''); },
+  clear() { this.token = ''; this.demo = false; this.me = null; this.meType = ''; sessionStorage.removeItem('office.token'); sessionStorage.removeItem('office.demo'); },
+};
+function apiBase() { return Session.apiBase; }
+
+/* --------------------- Bản dùng thử ngoại tuyến (DEMO) -------------------
+ * Chỉ chạy khi KHÔNG nối được máy chủ. Cùng một giao diện gọi API, dữ liệu
+ * mẫu lưu ở localStorage của trình duyệt này, ghi nhãn DEMO ở mọi màn hình.
+ * Ngữ nghĩa bảo mật/phê duyệt/ngân sách giữ nguyên như máy chủ thật. */
+const DemoDB = {
+  KEY: 'office.demo.v1',
+  data: null,
+  seed() {
+    const roles = [
+      { id: 'r-giamdoc', name: 'Giám đốc', level: 1, canApprove: true, canManage: true },
+      { id: 'r-dieuphoi', name: 'Điều phối', level: 1, canApprove: true, canManage: false },
+      { id: 'r-quanly', name: 'Quản lý', level: 2, canApprove: true, canManage: false },
+      { id: 'r-thucthi', name: 'Thực thi', level: 3, canApprove: false, canManage: false },
+    ];
+    const staff = [
+      { id: 's-chung', name: 'Chung', account: 'teddyssk559@gmail.com', roleId: 'r-giamdoc', status: 'waiting', budget: null, used: 0, resting: false, restedFully: false, login: { username: 'giamdoc', hasPassword: true, mustChangePassword: false, disabled: false } },
+      { id: 's-muse', name: 'Muse', account: 'muse-dieu-phoi', roleId: 'r-dieuphoi', status: 'working', budget: 5000000000, used: 0, resting: false, restedFully: false, login: { username: 'muse', hasPassword: true, mustChangePassword: false, disabled: false } },
+      { id: 's-hung', name: 'Hùng', account: 'muse-hung', roleId: 'r-quanly', status: 'waiting', budget: null, used: 0, resting: false, restedFully: false, login: null },
+      { id: 's-tuan', name: 'Tuấn', account: 'muse-tuan', roleId: 'r-thucthi', status: 'waiting', budget: null, used: 0, resting: false, restedFully: false, login: null },
+      { id: 's-linh', name: 'Linh', account: 'muse-linh', roleId: 'r-thucthi', status: 'waiting', budget: null, used: 0, resting: false, restedFully: false, login: null },
+    ];
+    return { roles, staff, jobs: [], approvals: [], rules: [{ id: 'rule-1', text: 'Mọi việc phải qua kiểm tra trước khi trình duyệt' }], messages: [], meetings: [], audit: [], alerts: [], sessions: [] };
+  },
+  load() {
+    if (!this.data) {
+      try { this.data = JSON.parse(localStorage.getItem(this.KEY)) || this.seed(); }
+      catch { this.data = this.seed(); }
+    }
+    return this.data;
+  },
+  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch { /* bỏ qua */ } },
+  reset() { this.data = this.seed(); this.save(); },
+};
+function demoAudit(d, action, actorId, target, result, extra) {
+  d.audit.push({ id: uid(), at: new Date().toISOString(), action, actorId, actorType: 'demo', target: target || null, result, ...(extra || {}) });
+}
+function demoTaggedIds(d, text) {
+  const ids = new Set();
+  const names = [...String(text).matchAll(/\[ASK:([^\]]+)\]/g), ...String(text).matchAll(/@([A-Za-zÀ-ỹ]+)/g)].map((m) => m[1].trim().toLowerCase());
+  for (const n of names) { const hit = d.staff.find((s) => s.name.toLowerCase() === n); if (hit) ids.add(hit.id); }
+  return [...ids];
+}
+function demoRoleOf(d, st) { return d.roles.find((r) => r.id === st.roleId) || { name: '(chưa gán)', level: 9, canApprove: false, canManage: false }; }
+function demoCanDecide(d, me, ap) {
+  const role = demoRoleOf(d, d.staff.find((s) => s.id === me.id) || {});
+  if (!role.canApprove) return 'Chức vụ hiện tại không có quyền duyệt.';
+  if (me.id === ap.requesterId) return 'Cấm tự duyệt yêu cầu của chính mình.';
+  return null;
+}
+function demoCheckBudget(d, st) {
+  if (st.budget == null || st.budget <= 0 || st.resting) return;
+  if (st.used >= st.budget) {
+    st.resting = true; st.status = 'resting';
+    d.alerts.push({ id: uid(), at: new Date().toISOString(), kind: 'budget-full', staffId: st.id, text: `${st.name} đã chạm 100% ngân sách (mô phỏng).` });
+  }
+}
+async function demoRequest(method, path, body) {
+  const d = DemoDB.load();
+  const me = Session.me ? d.staff.find((s) => s.id === Session.me.id) : null;
+  const fail = (status, message) => { const e = new Error(message); e.status = status; throw e; };
+  const seg = path.split('/').filter(Boolean);
+  const q = path.includes('?') ? new URLSearchParams(path.split('?')[1]) : new URLSearchParams();
+  const base = seg.slice(0, 2).join('/');
+  const needMe = !['setup', 'health'].includes(seg[1]);
+  if (needMe && !me) fail(401, 'Chưa đăng nhập (bản demo).');
+  // GET
+  if (method === 'GET' && path.startsWith('/api/health')) return { ok: true, demo: true, counts: { staff: d.staff.length, jobs: d.jobs.length, pendingApprovals: d.approvals.filter((a) => a.status === 'pending').length } };
+  if (method === 'GET' && base === 'api/roles') return d.roles;
+  if (method === 'GET' && base === 'api/staff') return d.staff.map((s) => ({ ...s, login: s.login ? { ...s.login, passwordHash: undefined } : null }));
+  if (method === 'GET' && base === 'api/rules') return d.rules;
+  if (method === 'GET' && base === 'api/jobs') return d.jobs;
+  if (method === 'GET' && base === 'api/approvals' && seg.length === 2) return d.approvals;
+  if (method === 'GET' && base === 'api/approvals' && seg.length === 3) {
+    const ap = d.approvals.find((a) => a.id === seg[2]); if (!ap) fail(404, 'Không tìm thấy yêu cầu.');
+    if (Session.meType !== 'director' && ap.requesterId !== me.id) fail(403, 'Chỉ người yêu cầu và cấp duyệt mới đọc được.');
+    return ap;
+  }
+  if (method === 'GET' && base === 'api/budgets') return d.staff.map((s) => ({ staffId: s.id, name: s.name, budget: s.budget, used: s.used, resting: s.resting }));
+  if (method === 'GET' && base === 'api/audit') return d.audit.slice(-100);
+  if (method === 'GET' && base === 'api/alerts') return d.alerts.slice(-50);
+  if (method === 'GET' && base === 'api/sessions') return d.sessions;
+  if (method === 'GET' && base === 'api/meetings') return d.meetings.slice(-20);
+  if (method === 'GET' && base === 'api/messages') {
+    let out = d.messages;
+    const jobId = q.get('jobId'), to = q.get('to');
+    if (jobId) out = out.filter((m) => m.jobId === jobId);
+    else if (to === 'room') out = out.filter((m) => m.toId === 'room');
+    else if (to) out = out.filter((m) => (m.fromId === me.id && m.toId === to) || (m.fromId === to && m.toId === me.id));
+    return out.slice(-100);
+  }
+  if (method === 'GET' && base === 'api/context') {
+    return { kind: demoRoleOf(d, me).canManage ? 'director' : 'staff', staff: { id: me.id, name: me.name, role: demoRoleOf(d, me).name }, myJobs: d.jobs.filter((j) => j.assigneeId === me.id || j.reviewerId === me.id), recentDecisions: d.approvals.filter((a) => a.status !== 'pending').slice(-5), rollingSummary: [], openDecisions: d.approvals.filter((a) => a.status === 'pending').length };
+  }
+  // POST / PATCH / DELETE
+  const role = me ? demoRoleOf(d, me) : {};
+  const needDirector = () => { if (Session.meType !== 'director') fail(403, 'Chỉ phiên Giám đốc mới được gọi API này (bản demo).'); };
+  if (method === 'POST' && path === '/api/roles') {
+    needDirector(); if (!body.name) fail(400, 'Thiếu tên chức vụ.');
+    const r = { id: uid(), name: body.name, level: Number(body.level || 3), canApprove: !!body.canApprove, canManage: !!body.canManage };
+    d.roles.push(r); demoAudit(d, 'role-create', me.id, r.id, 'ok'); DemoDB.save(); return r;
+  }
+  if (method === 'PATCH' && seg[1] === 'roles' && seg.length === 3) {
+    needDirector(); const r = d.roles.find((x) => x.id === seg[2]); if (!r) fail(404, 'Không tìm thấy chức vụ.');
+    Object.assign(r, { name: body.name || r.name, level: body.level !== undefined ? Number(body.level) : r.level, canApprove: body.canApprove !== undefined ? !!body.canApprove : r.canApprove, canManage: body.canManage !== undefined ? !!body.canManage : r.canManage });
+    if (!d.roles.some((x) => x.canManage)) fail(400, 'Phải còn ít nhất một chức vụ có quyền quản trị.');
+    demoAudit(d, 'role-update', me.id, r.id, 'ok'); DemoDB.save(); return r;
+  }
+  if (method === 'DELETE' && seg[1] === 'roles' && seg.length === 3) {
+    needDirector();
+    if (d.staff.some((s) => s.roleId === seg[2])) fail(400, 'Còn nhân viên đang giữ chức vụ này.');
+    d.roles = d.roles.filter((r) => r.id !== seg[2]); demoAudit(d, 'role-delete', me.id, seg[2], 'ok'); DemoDB.save(); return { ok: true };
+  }
+  if (method === 'POST' && path === '/api/staff') {
+    needDirector(); if (!body.name || !d.roles.find((r) => r.id === body.roleId)) fail(400, 'Thiếu tên hoặc chức vụ không tồn tại.');
+    const st = { id: uid(), name: body.name, account: body.account || '', roleId: body.roleId, status: 'waiting', budget: body.budget ?? null, used: 0, resting: false, restedFully: false, login: body.username ? { username: body.username, hasPassword: true, mustChangePassword: true, disabled: false } : null };
+    d.staff.push(st); demoAudit(d, 'staff-create', me.id, st.id, 'ok'); DemoDB.save();
+    return { id: st.id, token: 'demo-token-' + uid(), warning: 'Bản demo: mã token hiển thị để lái thử luồng cấp mã.' };
+  }
+  if (method === 'PATCH' && seg[1] === 'staff' && seg.length === 3) {
+    needDirector(); const st = d.staff.find((s) => s.id === seg[2]); if (!st) fail(404, 'Không tìm thấy nhân viên.');
+    if (body.roleId) st.roleId = body.roleId; if (body.name) st.name = body.name; if (body.account !== undefined) st.account = body.account;
+    demoAudit(d, 'staff-update', me.id, st.id, 'ok'); DemoDB.save(); return st;
+  }
+  if (method === 'DELETE' && seg[1] === 'staff' && seg.length === 3) {
+    needDirector(); d.staff = d.staff.filter((s) => s.id !== seg[2]); demoAudit(d, 'staff-delete', me.id, seg[2], 'ok'); DemoDB.save(); return { ok: true };
+  }
+  if (method === 'POST' && seg[1] === 'staff' && seg[3] === 'reset-password') {
+    needDirector(); const st = d.staff.find((s) => s.id === seg[2]); if (!st || !st.login) fail(400, 'Nhân viên chưa có tài khoản đăng nhập.');
+    st.login.mustChangePassword = true; demoAudit(d, 'password-reset', me.id, st.id, 'ok'); DemoDB.save(); return { ok: true, mustChangePassword: true };
+  }
+  if (method === 'POST' && seg[1] === 'staff' && seg[3] === 'set-disabled') {
+    needDirector(); const st = d.staff.find((s) => s.id === seg[2]); if (!st || !st.login) fail(400, 'Nhân viên chưa có tài khoản đăng nhập.');
+    st.login.disabled = !!body.disabled; demoAudit(d, 'login-disable', me.id, st.id, 'ok'); DemoDB.save(); return st;
+  }
+  if (method === 'POST' && seg[1] === 'staff' && seg[3] === 'rotate-token') {
+    needDirector(); demoAudit(d, 'token-rotate', me.id, seg[2], 'ok'); DemoDB.save(); return { token: 'demo-token-' + uid(), warning: 'Bản demo: mã mới hiển thị để lái thử.' };
+  }
+  if (method === 'POST' && path === '/api/rules') { needDirector(); const r = { id: uid(), text: body.text }; d.rules.push(r); DemoDB.save(); return r; }
+  if (method === 'DELETE' && seg[1] === 'rules' && seg.length === 3) { needDirector(); d.rules = d.rules.filter((r) => r.id !== seg[2]); DemoDB.save(); return { ok: true }; }
+  if (method === 'POST' && path === '/api/jobs') {
+    if (Session.meType !== 'director' && !role.canApprove) fail(403, 'Chỉ Giám đốc hoặc Leader mới được thêm/giao việc.');
+    if (!body.name || !body.assigneeId || !body.reviewerId) fail(400, 'Thiếu tên việc, người phụ trách hoặc người kiểm tra.');
+    const job = { id: uid(), name: body.name, desc: body.desc || '', ruleId: body.ruleId || null, assigneeId: body.assigneeId, reviewerId: body.reviewerId, status: 'Chờ nhận', progress: 0, claimedBy: null, links: [], createdAt: new Date().toISOString(), createdBy: me.id };
+    d.jobs.push(job); demoAudit(d, 'job-create', me.id, job.id, 'ok'); DemoDB.save(); return job;
+  }
+  const jobAct = (fn) => {
+    const job = d.jobs.find((j) => j.id === seg[2]); if (!job) fail(404, 'Không tìm thấy việc.');
+    return fn(job);
+  };
+  if (method === 'POST' && seg[1] === 'jobs' && seg[3] === 'claim') return jobAct((job) => {
+    if (job.status !== 'Chờ nhận') fail(409, 'Việc không còn ở cột Chờ nhận.');
+    if (job.claimedBy && job.claimedBy !== me.id) fail(409, 'Việc đã có người nhận.');
+    if (me.id !== job.assigneeId) fail(403, 'Chỉ người phụ trách được gán mới nhận được việc.');
+    const st = d.staff.find((s) => s.id === me.id); if (st.resting) fail(403, 'Nhân viên đang nghỉ do chạm ngân sách.');
+    job.claimedBy = me.id; job.status = 'Đang làm'; demoAudit(d, 'job-claim', me.id, job.id, 'ok'); DemoDB.save(); return job;
+  });
+  if (method === 'POST' && seg[1] === 'jobs' && seg[3] === 'submit') return jobAct((job) => {
+    if (me.id !== job.assigneeId) fail(403, 'Chỉ người phụ trách mới trình việc.');
+    if (job.status !== 'Đang làm') fail(409, 'Việc chưa ở trạng thái Đang làm.');
+    job.status = 'Chờ duyệt'; job.submittedAt = new Date().toISOString(); demoAudit(d, 'job-submit', me.id, job.id, 'ok'); DemoDB.save(); return job;
+  });
+  if (method === 'POST' && seg[1] === 'jobs' && seg[3] === 'approve') return jobAct((job) => {
+    if (!role.canApprove) fail(403, 'Chức vụ hiện tại không có quyền duyệt việc.');
+    if (me.id === job.assigneeId) fail(403, 'Cấm tự duyệt việc của chính mình.');
+    if (job.status !== 'Chờ duyệt') fail(409, 'Việc chưa ở cột Chờ duyệt.');
+    job.status = 'Hoàn thành'; job.progress = 100; demoAudit(d, 'job-approve', me.id, job.id, 'ok'); DemoDB.save(); return job;
+  });
+  if (method === 'POST' && seg[1] === 'jobs' && seg[3] === 'return') return jobAct((job) => {
+    if (!role.canApprove) fail(403, 'Chức vụ hiện tại không có quyền duyệt việc.');
+    if (me.id === job.assigneeId) fail(403, 'Cấm tự duyệt việc của chính mình.');
+    if (!body.reason) fail(400, 'Trả lại phải có lý do.');
+    job.status = 'Đang làm'; job.progress = Math.min(job.progress, 40); demoAudit(d, 'job-return', me.id, job.id, 'ok', { reason: body.reason }); DemoDB.save(); return job;
+  });
+  if (method === 'POST' && seg[1] === 'jobs' && seg[3] === 'links') return jobAct((job) => {
+    if (!/^https?:\/\//.test(body.url || '')) fail(400, 'Link phải bắt đầu bằng http(s)://.');
+    job.links = job.links || []; job.links.push({ url: body.url, title: body.title || body.url, by: me.id, at: new Date().toISOString() });
+    DemoDB.save(); return job;
+  });
+  if (method === 'POST' && path === '/api/approvals') {
+    if (!body.action || !body.reason) fail(400, 'Thiếu hành động hoặc lý do.');
+    const ap = { id: uid(), requesterId: me.id, action: body.action, target: body.target || '', reason: body.reason, context: body.context || '', jobId: body.jobId || null, source: 'demo', status: 'pending', at: new Date().toISOString() };
+    d.approvals.push(ap); demoAudit(d, 'approval-request', me.id, ap.id, 'ok'); DemoDB.save(); return ap;
+  }
+  if (method === 'POST' && seg[1] === 'approvals' && seg[3] === 'decide') {
+    const ap = d.approvals.find((a) => a.id === seg[2]); if (!ap) fail(404, 'Không tìm thấy yêu cầu.');
+    if (ap.status !== 'pending') fail(409, 'Yêu cầu đã được quyết định.');
+    const denied = demoCanDecide(d, me, ap); if (denied) fail(403, denied);
+    if (!['approved', 'rejected'].includes(body.decision)) fail(400, 'decision phải là approved hoặc rejected.');
+    if (body.decision === 'rejected' && !body.note) fail(400, 'Từ chối phải có lý do.');
+    ap.status = body.decision; ap.decidedBy = me.id; ap.decidedAt = new Date().toISOString(); ap.note = body.note || '';
+    demoAudit(d, 'approval-decide', me.id, ap.id, body.decision); DemoDB.save(); return ap;
+  }
+  if (method === 'PATCH' && seg[1] === 'budgets' && seg.length === 3) {
+    needDirector(); const st = d.staff.find((s) => s.id === seg[2]); if (!st) fail(404, 'Không tìm thấy nhân viên.');
+    if (body.budget !== undefined) st.budget = body.budget == null ? null : Math.max(0, Number(body.budget));
+    if (body.used !== undefined) st.used = Math.max(0, Number(body.used));
+    demoCheckBudget(d, st); demoAudit(d, 'budget-set', me.id, st.id, 'ok'); DemoDB.save();
+    return { staffId: st.id, budget: st.budget, used: st.used };
+  }
+  if (method === 'POST' && seg[1] === 'budgets' && seg[3] === 'topup') {
+    needDirector(); const st = d.staff.find((s) => s.id === seg[2]); if (!st) fail(404, 'Không tìm thấy nhân viên.');
+    if (st.budget == null) fail(400, 'Chưa đặt mức ngân sách.');
+    st.budget = Math.round(st.budget * 1.5); st.resting = false; st.restedFully = false; st.status = 'waiting';
+    demoAudit(d, 'budget-topup', me.id, st.id, 'ok'); DemoDB.save(); return { staffId: st.id, budget: st.budget };
+  }
+  if (method === 'POST' && path === '/api/heartbeat') {
+    const st = d.staff.find((s) => s.id === me.id);
+    if (st.resting) return { ok: true, resting: true };
+    if (body.status && ['working', 'waiting'].includes(body.status)) st.status = body.status;
+    if (typeof body.used === 'number') st.used = Math.max(0, body.used);
+    demoCheckBudget(d, st); DemoDB.save(); return { ok: true, status: st.status };
+  }
+  if (method === 'POST' && path === '/api/messages') {
+    if (!body.to || !body.text) fail(400, 'Thiếu người nhận hoặc nội dung.');
+    if (body.to !== 'room' && !d.staff.find((s) => s.id === body.to)) fail(400, 'Người nhận không tồn tại.');
+    let link = null;
+    if (body.link) { if (!/^https?:\/\//.test(body.link.url || '')) fail(400, 'Link phải bắt đầu bằng http(s)://.'); link = { url: body.link.url, title: body.link.title || body.link.url }; }
+    const msg = { id: uid(), fromId: me.id, toId: body.to, jobId: body.jobId || null, text: body.text, link, taggedIds: demoTaggedIds(d, body.text), at: new Date().toISOString() };
+    d.messages.push(msg); demoAudit(d, 'message', me.id, msg.id, 'ok'); DemoDB.save(); return msg;
+  }
+  if (method === 'POST' && path === '/api/meetings') {
+    if (Session.meType !== 'director' && !role.canApprove) fail(403, 'Chỉ Giám đốc hoặc Leader mới gọi họp.');
+    const mt = { id: uid(), title: body.title || 'Họp team', calledBy: me.id, at: new Date().toISOString(), attendees: d.staff.map((s) => s.id), minutes: '', status: 'open' };
+    d.meetings.push(mt); demoAudit(d, 'meeting-call', me.id, mt.id, 'ok'); DemoDB.save(); return mt;
+  }
+  if (method === 'PATCH' && seg[1] === 'meetings' && seg.length === 3) {
+    const mt = d.meetings.find((m) => m.id === seg[2]); if (!mt) fail(404, 'Không tìm thấy cuộc họp.');
+    if (typeof body.minutes === 'string') mt.minutes = body.minutes;
+    if (body.status) mt.status = body.status;
+    demoAudit(d, 'meeting-minutes', me.id, mt.id, 'ok'); DemoDB.save(); return mt;
+  }
+  if (method === 'POST' && path === '/api/director/logout') return { ok: true };
+  if (method === 'POST' && seg[1] === 'sessions' && seg[3] === 'revoke') return { ok: true };
+  if (method === 'POST' && path === '/api/backup') return { ok: true, reason: 'demo' };
+  fail(404, 'API không tồn tại (bản demo): ' + method + ' ' + path);
 }
 
-/* ------------------------------ Mục 3: Phê duyệt ------------------------- */
-function renderApprovals() {
-  const pending = state.approvals.filter((a) => a.status === 'pending');
-  // Banner chờ duyệt không thể bỏ sót: số lượng + đèn đỏ + kêu gọi hành động.
-  const banner = $('#approval-banner');
-  if (banner) {
-    banner.innerHTML = pending.length
-      ? `<div class="alertbox" role="alert"><strong>🔴 Có ${pending.length} yêu cầu quyền đang chờ duyệt.</strong> Xem và quyết định ngay tại hộp phê duyệt dưới đây — không cần mở app Muse. Nhân vật xin phép trong văn phòng 3D đang bật đèn báo đỏ.</div>`
-      : '';
-  }
-  $('#approval-list').innerHTML = pending.length ? pending.map((a) => {
-    const req = staffById(a.requesterId);
-    return `<article class="reqcard pending">
-      <strong>${esc(a.action)}</strong>
-      <div class="meta">Người yêu cầu: ${req ? esc(req.name) : '—'} · Nguồn: ${a.source === 'api' ? 'cầu nối/API (tài khoản Muse)' : 'web'} · Lúc ${esc(a.at)}</div>
-      ${a.target ? `<p>Đối tượng / tài nguyên: <strong>${esc(a.target)}</strong></p>` : ''}
-      <p>Lý do: ${esc(a.reason)}</p>
-      ${a.context ? `<p class="small">Bối cảnh: ${esc(a.context)}</p>` : ''}
-      <div class="toolbar">
-        <button type="button" class="small primary" data-action="ap-decide" data-id="${a.id}" data-decision="approved">Duyệt</button>
-        <button type="button" class="small danger" data-action="ap-decide" data-id="${a.id}" data-decision="rejected">Từ chối</button>
-      </div>
-      <p class="small">Người duyệt hiện tại: ${esc(actingAs().name)} (${esc(roleOf(actingAs()).name)}). Không ai tự duyệt yêu cầu của chính mình.</p>
-    </article>`;
-  }).join('') : '<p class="hint">Chưa có yêu cầu nào.</p>';
-  $('#approval-log').innerHTML = state.approvalLog.length ? state.approvalLog.map((a) => `
-    <div style="padding:6px 0;border-bottom:1px dashed #e4e9ee;font-size:14px">
-      <time style="color:var(--muted);font-size:12px;margin-right:6px">${esc(a.at)}</time>
-      ${a.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối'} “${esc(a.action)}” của ${esc(a.requesterName)} — bởi ${esc(a.decidedByName)} (${esc(a.decidedByRole)}). Kết quả đã trả về qua API.
-      ${a.note ? `<span class="small">Lý do quyết định: ${esc(a.note)}</span>` : ''}
-    </div>`).join('') : '<p class="hint">Chưa có quyết định nào.</p>';
+/* ------------------------------ Gọi API ---------------------------------- */
+class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
+async function request(method, path, body) {
+  if (Session.demo) return demoRequest(method, path, body);
+  const res = await fetch(apiBase() + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(Session.token ? { Authorization: 'Bearer ' + Session.token } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) throw new ApiError(res.status, (data && data.error) || ('Lỗi máy chủ ' + res.status));
+  return data;
 }
-function decideApproval(id, decision) {
-  const a = state.approvals.find((x) => x.id === id);
-  if (!a || a.status !== 'pending') return;
-  const actor = actingAs();
-  if (demoBlocked(actor)) { alert('Bạn phải đổi mật khẩu lần đầu trước khi duyệt (bản demo).'); return; }
-  const chk = PERMISSIONS.canDecideApproval(actor, a);
-  if (!chk.ok) {
-    alert('Bị chặn: ' + chk.reason);
-    logSecurity(`Yêu cầu duyệt “${a.action}” bị ${actor.name} bấm nhưng bị chặn: ${chk.reason}`);
+const api = {
+  get: (p) => request('GET', p),
+  post: (p, b) => request('POST', p, b || {}),
+  patch: (p, b) => request('PATCH', p, b || {}),
+  del: (p) => request('DELETE', p),
+};
+
+/* ------------------------------ Trạng thái ------------------------------- */
+const S = {
+  route: 'office',
+  staff: [], roles: [], jobs: [], approvals: [], rules: [],
+  budgets: [], audit: [], alerts: [], messages: [], meetings: [], sessions: [],
+  health: null, selectedStaffId: null, chatTarget: 'room', chatJobId: '',
+  feed: [], meetingActive: null, jobDraft: null, lastChatSeen: Number(localStorage.getItem('office.chatSeen') || 0),
+  sseOk: false, sse: null, pollTimer: null,
+};
+function staffById(id) { return S.staff.find((s) => s.id === id); }
+function roleOfStaff(st) { return S.roles.find((r) => r.id === (st && st.roleId)) || { name: '(chưa gán)', level: 9, canApprove: false, canManage: false }; }
+function myRole() { return Session.me ? roleOfStaff(Session.me) : { name: '', level: 9, canApprove: false, canManage: false }; }
+function isDirector() { return Session.meType === 'director'; }
+function canManage() { return isDirector(); }
+function pendingApprovals() { return S.approvals.filter((a) => a.status === 'pending'); }
+function myName(id) { const s = staffById(id); return s ? s.name : '(đã xoá)'; }
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(t._timer); t._timer = setTimeout(() => { t.hidden = true; }, 4200);
+}
+function showError(e) {
+  const msg = e && e.message ? e.message : 'Đã xảy ra lỗi không rõ.';
+  toast(msg);
+  return msg;
+}
+function openModal(html) {
+  const root = $('#modal-root');
+  root.innerHTML = '<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true">' + html + '</div></div>';
+  root.hidden = false;
+  $('.modal-backdrop', root).addEventListener('click', (e) => { if (e.target.classList.contains('modal-backdrop')) closeModal(); });
+}
+function closeModal() { const root = $('#modal-root'); root.hidden = true; root.innerHTML = ''; }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+function feedAdd(text) {
+  // Không ghi trùng lặp liên tiếp (vd: vào lại màn Văn phòng khi 3D lỗi).
+  if (S.feed[0] && S.feed[0].text === text) return;
+  S.feed.unshift({ at: new Date().toISOString(), text });
+  S.feed = S.feed.slice(0, 40);
+  const log = $('#activity-log');
+  if (log) log.innerHTML = S.feed.map((f) => '<li><time>' + esc(fmtTime(f.at)) + '</time>' + esc(f.text) + '</li>').join('') || '<li>Chưa có hoạt động nào.</li>';
+}
+
+/* ------------------------------ Dữ liệu ---------------------------------- */
+async function refreshAll() {
+  const [staff, roles, jobs, approvals, rules] = await Promise.all([
+    api.get('/api/staff'), api.get('/api/roles'), api.get('/api/jobs'), api.get('/api/approvals'), api.get('/api/rules'),
+  ]);
+  S.staff = staff; S.roles = roles; S.jobs = jobs; S.approvals = approvals; S.rules = rules;
+  try { S.budgets = await api.get('/api/budgets'); } catch { S.budgets = []; }
+  try { S.messages = await api.get('/api/messages'); } catch { S.messages = []; }
+  try { S.meetings = await api.get('/api/meetings'); } catch { S.meetings = []; }
+  if (isDirector()) {
+    try { S.audit = await api.get('/api/audit'); } catch { S.audit = []; }
+    try { S.alerts = await api.get('/api/alerts'); } catch { S.alerts = []; }
+    try { S.sessions = await api.get('/api/sessions'); } catch { S.sessions = []; }
+  }
+  if (!S.selectedStaffId || !staffById(S.selectedStaffId)) S.selectedStaffId = (Session.me && Session.me.id) || (staff[0] && staff[0].id) || null;
+  renderTopbar();
+}
+async function refreshHealth() {
+  try { S.health = await api.get('/api/health'); } catch { S.health = null; }
+  renderTopbar();
+}
+
+/* ------------------------------ SSE + thăm dò ----------------------------- */
+function connectSSE() {
+  if (Session.demo || !Session.token) return;
+  try { if (S.sse) S.sse.close(); } catch { /* bỏ qua */ }
+  const es = new EventSource(apiBase() + '/api/events?token=' + encodeURIComponent(Session.token));
+  S.sse = es;
+  es.onopen = () => { S.sseOk = true; renderTopbar(); };
+  es.onerror = () => { S.sseOk = false; renderTopbar(); };
+  es.onmessage = (ev) => handleEvent(JSON.parse(ev.data));
+  es.addEventListener('job', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('approval', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('budget', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('message', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('meeting', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('org', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('heartbeat', (ev) => handleEvent(JSON.parse(ev.data)));
+  es.addEventListener('director-alert', (ev) => handleEvent(JSON.parse(ev.data)));
+}
+function handleEvent(ev) {
+  if (!ev || !ev.type) return;
+  if (ev.type === 'message' && ev.message) {
+    // Tránh trùng khi tin do chính mình gửi: POST đã trả về + SSE đẩy lại.
+    if (!S.messages.some((m) => m.id === ev.message.id)) S.messages.push(ev.message);
+    const taggedMe = ev.message.taggedIds && Session.me && ev.message.taggedIds.includes(Session.me.id);
+    if (taggedMe) toast('Bạn được nhắc tên trong Phòng chat: ' + ev.message.text.slice(0, 80));
+    if (S.route === 'chat') renderChatLog();
+    updateChatBadge();
     return;
   }
-  const note = prompt(decision === 'approved' ? 'Lý do duyệt (ghi vào nhật ký):' : 'Lý do từ chối (bắt buộc):', '');
-  if (decision === 'rejected' && !note) { alert('Từ chối phải có lý do.'); return; }
-  a.status = decision; a.decidedBy = actor.id; a.decidedAt = nowTime(); a.note = note || '';
-  const req = staffById(a.requesterId);
-  state.approvalLog.unshift({ ...a, requesterName: req ? req.name : '—', decidedByName: actor.name, decidedByRole: roleOf(actor).name, at: nowTime() });
-  save();
-  logActivity(`Yêu cầu “${a.action}” của ${req ? req.name : '—'} đã được ${decision === 'approved' ? 'duyệt' : 'từ chối'} bởi ${actor.name}. Kết quả đã trả về qua API.`);
-  renderApprovals(); renderLiveStatus(); renderStatusbar(); sync3D(); Pulse.kick('approval-decided');
+  if (ev.type === 'director-alert') { toast('Cảnh báo: ' + (ev.text || '')); return; }
+  if (ev.type === 'approval' && ev.approval) feedAdd((ev.change === 'decided' ? 'Phê duyệt đã quyết: ' : 'Yêu cầu phê duyệt mới: ') + ev.approval.action);
+  if (ev.type === 'job' && ev.job) {
+    feedAdd('Việc "' + ev.job.name + '" → ' + ev.job.status);
+    if (S.route === 'office') Office3D.onJobEvent(ev.job, ev.change);
+  }
+  // Mọi sự kiện thay đổi dữ liệu: tải lại từ máy chủ rồi cập nhật đúng màn
+  // đang mở — màn Văn phòng chỉ cập nhật panel + đồng bộ 3D, KHÔNG vẽ lại
+  // khung cảnh (tránh lỗi trắng trang ở bản cũ).
+  if (['job', 'approval', 'budget', 'meeting', 'org', 'heartbeat'].includes(ev.type)) {
+    refreshAll().then(() => {
+      if (S.route === 'office') refreshOfficePanel();
+      else if (S.route === 'chat') renderChatLog();
+      else if (['jobs', 'approvals', 'budgets', 'people', 'logs'].includes(S.route)) renderScreen(true);
+    }).catch(() => { /* ngoại tuyến: giữ dữ liệu cũ */ });
+  }
+}
+function startPolling() {
+  if (S.pollTimer) clearInterval(S.pollTimer);
+  S.pollTimer = setInterval(() => {
+    if (document.hidden) return;
+    refreshHealth();
+    refreshAll().then(() => { if (S.route === 'office') refreshOfficePanel(); else renderScreen(true); }).catch(() => { /* ngoại tuyến: giữ dữ liệu cũ */ });
+  }, 25000);
 }
 
-/* ------------------------------ Mục 5: Ngân sách ------------------------- */
-function budgetPct(s) { return s.budget ? Math.min(100, Math.round((s.used / s.budget) * 100)) : 0; }
-function renderBudgets() {
-  $('#budget-alerts').innerHTML = state.budgetAlerts.filter((a) => !a.resolved).map((a) => {
-    const s = staffById(a.staffId);
-    if (!s) return '';
-    const job = state.jobs.find((j) => j.assigneeId === s.id && j.status !== 'Hoàn thành');
-    return a.kind === 'full'
-      ? `<div class="alertbox" role="alert"><strong>CẢNH BÁO GIÁM ĐỐC — ${esc(s.name)} đã chạm 100% ngân sách.</strong><br>
-         Đã dùng: ${fmtNum(s.used)} / ${fmtNum(s.budget)} token · Việc đang làm dở: ${job ? esc(job.name) + ' (' + job.status + ', ' + job.progress + '%)' : 'không có việc dở'}.<br>
-         ${esc(s.name)} đã được cho nghỉ ngay: không nhận việc mới, không tự chạy tiếp — chờ Giám đốc quyết định.</div>`
-      : `<div class="warnbox"><strong>Cảnh báo 80%:</strong> ${esc(s.name)} đã dùng ${fmtNum(s.used)} / ${fmtNum(s.budget)} token (${budgetPct(s)}%).</div>`;
-  }).join('');
-
-  $('#budget-list').innerHTML = state.staff.map((s) => {
-    const pct = budgetPct(s);
-    const barCls = pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '';
-    const isCoord = s.id === 's-muse';
-    return `<div class="staffrow" style="align-items:flex-start">
-      <div style="flex:1;min-width:200px">
-        <strong>${esc(s.name)}</strong> <span class="small">(${esc(roleOf(s).name)})</span>
-        ${isCoord ? '<span class="pill">Mức thật đã cấp: 5.000.000.000</span>' : '<span class="pill">Giá trị khởi đầu — Giám đốc sửa theo từng người, không có mức chung cố định</span>'}
-        <div class="budgetbar" style="margin-top:8px"><i class="${barCls}" style="width:${pct}%"></i></div>
-        <div class="small">Đã dùng (MÔ PHỎNG): ${fmtNum(s.used)} / ${s.budget == null ? 'chưa đặt mức' : fmtNum(s.budget) + ' token'} — ${pct}% · Trạng thái: ${STATUS_META[effectiveStatus(s)].label}</div>
-        <label style="margin-top:8px">Mức ngân sách (token) — Giám đốc sửa</label>
-        <input type="number" min="0" step="1000000" data-budget-for="${s.id}" value="${s.budget == null ? '' : s.budget}" placeholder="Chưa đặt">
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <button type="button" class="small" data-action="budget-plus" data-id="${s.id}">+10% lượt dùng (mô phỏng)</button>
-        <button type="button" class="small" data-action="budget-hit" data-id="${s.id}">Mô phỏng chạm ngân sách</button>
-        <button type="button" class="small primary" data-action="budget-topup" data-id="${s.id}">Cấp thêm ngân sách (+50%)</button>
-        <button type="button" class="small danger" data-action="budget-rest" data-id="${s.id}">${s.restedFully ? 'Gọi lại làm việc' : 'Cho nghỉ hẳn'}</button>
-      </div>
-    </div>`;
-  }).join('');
-  $$('#budget-list input[data-budget-for]').forEach((inp) => {
-    inp.addEventListener('change', () => {
-      const s = staffById(inp.dataset.budgetFor);
-      const chk = PERMISSIONS.canGrant(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); renderBudgets(); return; }
-      const v = inp.value === '' ? null : Math.max(0, Number(inp.value));
-      s.budget = v; save();
-      logActivity(`${actingAs().name} đặt mức ngân sách cho ${s.name}: ${v == null ? 'chưa đặt' : fmtNum(v) + ' token'}.`);
-      checkBudget(s); renderBudgets(); renderLiveStatus(); sync3D();
-    });
+/* ------------------------------ Vỏ + điều hướng --------------------------- */
+const NAV = [
+  ['office', 'Văn phòng 3D'], ['chat', 'Phòng chat'], ['jobs', 'Việc'],
+  ['approvals', 'Phê duyệt'], ['people', 'Nhân sự & chức vụ'], ['budgets', 'Ngân sách'],
+  ['logs', 'Nhật ký'], ['settings', 'Cài đặt & kit'], ['docs', 'Tài liệu thiết kế'],
+];
+function renderTopbar() {
+  const st = $('#topbar-status');
+  if (!st) return;
+  const working = S.staff.filter((s) => effectiveStatus(s, S.approvals) === 'working').length;
+  const waiting = S.staff.filter((s) => effectiveStatus(s, S.approvals) === 'waiting').length;
+  const resting = S.staff.filter((s) => effectiveStatus(s, S.approvals) === 'resting').length;
+  const pend = pendingApprovals().length;
+  const conn = Session.demo ? 'DEMO NGOẠI TUYẾN' : (S.sseOk ? 'Trực tuyến · SSE' : 'Đã nối · đang thăm dò');
+  st.textContent = '● ' + conn + '  ·  ' + working + ' đang làm · ' + waiting + ' đang chờ · ' + resting + ' đang nghỉ' + (S.health ? '  ·  ' + S.health.counts.jobs + ' việc' : '');
+  $('#env-badge').hidden = !Session.demo;
+  const badge = $('#approval-badge');
+  badge.hidden = pend === 0;
+  badge.textContent = pend + ' chờ duyệt';
+  const nb = $('#nav-approval-badge'), nbm = $('#nav-approval-badge-m');
+  [nb, nbm].forEach((b) => { if (b) { b.hidden = pend === 0; b.textContent = pend; } });
+  updateChatBadge();
+  $$('[data-nav]').forEach((a) => {
+    const on = a.dataset.nav === S.route;
+    a.classList.toggle('active', on);
+    if (a.getAttribute('aria-current') !== null || on) { if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
+  });
+  const meLabel = $('#me-label');
+  if (Session.me) meLabel.textContent = Session.me.name + ' — ' + myRole().name + (Session.demo ? ' (DEMO)' : '');
+}
+function updateChatBadge() {
+  const unread = S.messages.filter((m) => {
+    const ts = new Date(m.at).getTime();
+    if (ts <= S.lastChatSeen) return false;
+    if (m.fromId === (Session.me && Session.me.id)) return false;
+    const mine = m.toId === 'room' || m.toId === (Session.me && Session.me.id);
+    const tagged = m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id);
+    return mine || tagged;
+  }).length;
+  [['#chat-badge'], ['#chat-badge-m']].forEach(([sel]) => {
+    const b = $(sel); if (!b) return;
+    b.hidden = unread === 0 || S.route === 'chat'; b.textContent = unread > 9 ? '9+' : String(unread);
   });
 }
-function checkBudget(s, opts) {
-  opts = opts || {};
-  if (s.budget == null || s.budget <= 0) return;
-  const pct = budgetPct(s);
-  if (pct >= 100 && !s.resting) {
-    s.resting = true; s.status = 'resting';
-    state.budgetAlerts.push({ staffId: s.id, at: nowTime(), kind: 'full', resolved: false });
-    logActivity(`CẢNH BÁO: ${s.name} chạm 100% ngân sách (${fmtNum(s.used)}/${fmtNum(s.budget)}). Đã cho nghỉ ngay, chờ Giám đốc quyết định.`);
-    Pulse.kick('budget-full');
-  } else if (pct >= 80 && pct < 100 && !state.budgetAlerts.some((a) => a.staffId === s.id && a.kind === 'warn' && !a.resolved)) {
-    state.budgetAlerts.push({ staffId: s.id, at: nowTime(), kind: 'warn', resolved: false });
-    logActivity(`Cảnh báo 80%: ${s.name} đã dùng ${pct}% ngân sách.`);
+function markChatSeen() {
+  S.lastChatSeen = Date.now();
+  localStorage.setItem('office.chatSeen', String(S.lastChatSeen));
+  updateChatBadge();
+}
+function currentRoute() {
+  const h = location.hash.replace(/^#\/?/, '');
+  return NAV.some(([r]) => r === h) ? h : 'office';
+}
+async function renderScreen(soft) {
+  S.route = currentRoute();
+  renderTopbar();
+  const screen = $('#screen');
+  if (S.route !== 'office') Office3D.dispose();
+  const fn = { office: renderOffice, chat: renderChat, jobs: renderJobs, approvals: renderApprovals, people: renderPeople, budgets: renderBudgets, logs: renderLogs, settings: renderSettings, docs: renderDocs }[S.route];
+  try {
+    await fn(screen);
+    if (S.route === 'chat') markChatSeen();
+  } catch (e) {
+    screen.innerHTML = '<div class="card"><h1>Không tải được màn hình này</h1><p>' + esc(e.message || 'Lỗi không rõ.') + '</p><button class="btn" type="button" onclick="location.reload()">Tải lại trang</button></div>';
   }
-  if (opts.save !== false) save();
+  $('#more-sheet').hidden = true;
+  $('#more-btn').setAttribute('aria-expanded', 'false');
+  if (!soft) screen.focus({ preventScroll: true });
 }
-function budgetTopup(s) {
-  if (demoBlocked(actingAs())) { alert('Bạn phải đổi mật khẩu lần đầu trước khi cấp ngân sách (bản demo).'); return; }
-  const chk = PERMISSIONS.canGrant(actingAs());
-  if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-  if (s.budget == null) { alert('Chưa đặt mức ngân sách cho nhân viên này.'); return; }
-  s.budget = Math.round(s.budget * 1.5);
-  s.resting = false; s.restedFully = false; s.status = 'waiting';
-  state.budgetAlerts.forEach((a) => { if (a.staffId === s.id) a.resolved = true; });
-  save();
-  logActivity(`${actingAs().name} cấp thêm ngân sách cho ${s.name} (+50% → ${fmtNum(s.budget)}). ${s.name} quay lại chờ việc.`);
-  renderBudgets(); renderLiveStatus(); renderStatusbar(); sync3D(); Pulse.kick('budget-topup');
-}
+window.addEventListener('hashchange', () => renderScreen());
 
-/* --------------------------- Mục 4 + Mục 6 (tĩnh) ------------------------ */
-const MODULES = [
-  { id: 'A', name: 'Tổ chức & nhân sự', src: 'Paperclip · BagIdea Office', body: 'Sơ đồ tổ chức nhiều cấp do Giám đốc tự dựng: tạo chức vụ, gán chức vụ, thêm/xoá nhân viên (Mục 1). Hồ sơ nhân viên: tên, chức vụ hiện tại, tài khoản Muse liên kết, trạng thái trực tiếp. Đưa nhân viên mới vào cũng qua duyệt của Giám đốc. Nguyên tắc: không một chức vụ hay mảng việc nào được ghi cứng — tất cả do Giám đốc đặt và sửa được.' },
-  { id: 'B', name: 'Công việc & rule', src: 'Paperclip · Claw-Empire', body: 'Giám đốc tạo việc kèm mô tả + rule, gán người phụ trách và người kiểm tra theo từng việc (Mục 2). Kanban 4 trạng thái; khoá nhận việc nguyên tử; mục tiêu xếp tầng công ty → dự án → việc. Hộp duyệt việc tập trung; duyệt/trả lại phải có lý do; không tự duyệt. Nguyên tắc: kho việc rỗng lúc đầu, Giám đốc thêm dần.' },
-  { id: 'C', name: 'Họp & giao tiếp trong phòng', src: 'Claw-Empire · BagIdea · Outworked (bổ trợ)', body: '“Gọi họp team”: cả đội về phòng họp trong văn phòng 3D, họp xong có biên bản, việc phát sinh tạo ngay từ biên bản. Bàn giao việc được “diễn” trong không gian. Hỏi nhau qua bus tin nhắn có địa chỉ kiểu [ASK:Tên], ghi vết vào luồng của việc.' },
-  { id: 'D', name: 'Trạng thái trực tiếp & heartbeat', src: 'Paperclip · Pixel Agents (bổ trợ)', body: 'Heartbeat cấu trúc nhỏ do cầu nối đẩy bằng API thuần: đang làm gì, tiến độ, vướng ở đâu — không tốn token model. Trạng thái ánh xạ lên nhân vật 3D: vòng màu dưới chân (xanh = đang làm, vàng = đang chờ, đỏ = cần duyệt, xanh xám = đang nghỉ do ngân sách).' },
-  { id: 'E', name: 'Bộ nhớ & ngữ cảnh chung', src: 'Generative Agents · AI Town (bổ trợ)', body: '“Bảng đen” chung: tổ chức, việc, biên bản, quyết định — mọi nhân viên đọc cùng một nguồn sự thật. Gói ngữ cảnh nén khi đánh thức: tóm tắt lăn + phần liên quan, không nạp toàn bộ lịch sử. Xử lý bất cập “được báo một tin mà không thấy toàn cảnh”.' },
-  { id: 'F', name: 'Ngân sách token — chạm mức là báo & cho nghỉ', src: 'Paperclip · BagIdea — quy tắc do Giám đốc chốt 29/10', body: 'Ngân sách theo từng nhân viên; 80% cảnh báo, 100% báo ngay cho Giám đốc (tên, mức đã dùng, việc dở) và cho nghỉ ngay đến khi Giám đốc cấp thêm hoặc cho nghỉ hẳn. Trạng thái nghỉ hiển thị riêng, phân biệt với ngoại tuyến/lỗi.' },
-  { id: 'G', name: 'Phê duyệt quyền trên web', src: 'Outworked (bổ trợ) · Agent Office', body: 'Yêu cầu nhạy cảm thành thẻ Duyệt / Từ chối trên web + đèn báo đỏ trên nhân vật. Chỉ Giám đốc & Leader duyệt được; cấm tự duyệt; kết quả trả về qua API; nhật ký đầy đủ. Quyền duyệt tính theo chức vụ ở Mục 1. Xem demo ở Mục 3.' },
-  { id: 'H', name: 'Máy chủ tại tài khoản điều phối — tự hồi phục', src: 'Quyết định của Giám đốc 29/10', body: 'Máy chủ cài trên máy của tài khoản Muse điều phối; các tài khoản khác kết nối qua API — free 100%. Tự khởi động lại, watchdog hồi phục có lùi dần, sao lưu định kỳ ra nơi khác, điểm kiểm tra độc lập báo ngay khi máy chủ ngừng. Không lặp lại lỗi listener cũ tắt theo runtime rồi nằm im.' },
-];
-const SHORTCOMINGS = [
-  { n: '1 · Trả lời chậm', old: 'Chờ vòng quét, listener chết không ai biết.', fix: 'Kênh sự kiện đẩy (push) từ máy chủ tới cầu nối — nhắc tên / giao việc / gọi họp là đánh thức trong vài giây. Cầu nối có watchdog tự hồi phục có lùi dần, tránh lỗi tự khoá “restart loop” của listener v2.' },
-  { n: '2 · Chỉ biết một tin, không thấy toàn cảnh', old: 'Được thông báo mà không theo dõi được toàn bộ.', fix: 'Mỗi lần đánh thức kèm gói ngữ cảnh nén từ bảng đen chung (Module E): tóm tắt lăn của phòng, việc liên quan, quyết định gần nhất.' },
-  { n: '3 · Khó giao tiếp Muse với Muse', old: 'Mọi trao đổi phải vòng qua phòng chung hoặc qua người.', fix: 'Bus tin nhắn nội bộ có địa chỉ theo nhân viên, mẫu [ASK:Tên], mọi trao đổi ghi vào luồng của việc để Giám đốc nhìn thấy.' },
-  { n: '4 · Tốn nhiều token', old: 'Nạp cả lịch sử mỗi lần tỉnh, quét liên tục bằng model.', fix: 'Chỉ tỉnh khi có sự kiện thật; ngữ cảnh đã nén; việc của máy (heartbeat, nhận–phát tin) do cầu nối làm bằng API thuần. Cộng hàng rào ngân sách (Module F): chạm mức là báo Giám đốc và cho nghỉ, không cháy tiếp.' },
-  { n: '5 · Không biết ai đang làm gì', old: 'Muốn trạng thái đẩy lên liên tục nhưng cách cũ chỉ có trạng thái khi có tin.', fix: 'Heartbeat có cấu trúc do cầu nối đẩy theo sự kiện + nhịp nền — liên tục mà chi phí gần như không, hiển thị thẳng lên văn phòng 3D và cột trạng thái trực tiếp.' },
-  { n: 'Điểm đơn lẻ: máy chủ nằm trên một tài khoản', old: 'Tài khoản điều phối ngừng thì cả hệ thống ngừng, đúng kiểu listener từng tắt theo runtime.', fix: 'Ba lớp dự phòng ở Mục 7 — tự khởi động lại cùng máy/tài khoản, sao lưu ra nơi khác để dựng lại được trên máy khác, điểm kiểm tra độc lập báo ngay cho Giám đốc khi mất tín hiệu.' },
-];
-function renderStaticSections() {
-  $('#module-grid').innerHTML = MODULES.map((m) => `
-    <article class="module"><div class="src">Module ${m.id} · Từ ${esc(m.src)}</div>
-    <h3>${esc(m.name)}</h3><p>${esc(m.body)}</p></article>`).join('');
-  $('#shortcomings').innerHTML = SHORTCOMINGS.map((s) => `
-    <div class="staffrow" style="align-items:flex-start"><div style="flex:1;min-width:220px">
-    <strong>${esc(s.n)}</strong><div class="small">Vấn đề cũ: ${esc(s.old)}</div></div>
-    <div style="flex:1;min-width:220px">Giải pháp: ${esc(s.fix)}</div></div>`).join('');
+/* ------------------------------ Đăng nhập --------------------------------- */
+function showView(which) {
+  $('#login-view').hidden = which !== 'login';
+  $('#app-view').hidden = which !== 'app';
 }
-
-/* --------------------------- Mục 9: Demo phân quyền ---------------------- */
-function renderPermDemo(identity, action) {
-  const map = {
-    director: () => staffById('s-chung') || actingAs(),
-    leader: () => state.staff.find((s) => roleOf(s).canApprove && !roleOf(s).canManage) || actingAs(),
-    staff: () => state.staff.find((s) => !roleOf(s).canApprove) || actingAs(),
-    'staff-director-api': () => state.staff.find((s) => !roleOf(s).canApprove) || actingAs(),
-  };
-  const actor = map[identity]();
-  let verdict;
-  if (identity === 'staff-director-api') {
-    if (action === 'claim') {
-      verdict = { ok: true, reason: 'Nhận việc của mình & đẩy trạng thái thuộc phạm vi token nhân viên — được phép.' };
-    } else {
-      verdict = { ok: false, reason: 'BỊ CHẶN Ở MÁY CHỦ: token nhân viên không có phạm vi Giám đốc. Yêu cầu không được thực thi; sự kiện đã ghi vào nhật ký bảo mật và báo cho Giám đốc.' };
-      logSecurity(`Token nhân viên (${actor.name}) cố gọi API cấp Giám đốc (${action}) — bị chặn 403, ghi nhật ký cảnh báo, đã báo Giám đốc.`);
-    }
-  } else if (action === 'approve') {
-    verdict = PERMISSIONS.canDecideApproval(actor, { requesterId: '__other__' });
-  } else if (action === 'grant') {
-    verdict = PERMISSIONS.canGrant(actor);
-  } else if (action === 'change-role') {
-    verdict = PERMISSIONS.canChangeRole(actor);
-  } else {
-    verdict = { ok: true, reason: 'Nhận việc của mình & đẩy trạng thái: mọi danh tính đã xác thực đều được phép với việc của chính mình.' };
+async function probeServer() {
+  const stateEl = $('#server-state');
+  try {
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 5000);
+    const res = await fetch(apiBase() + '/api/health', { signal: ctl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    stateEl.textContent = 'Đã nối máy chủ tại ' + (apiBase() || 'cùng địa chỉ trang web') + '.';
+    stateEl.className = 'server-state ok';
+    return true;
+  } catch {
+    stateEl.textContent = 'Không nối được máy chủ. Kiểm tra máy chủ đang chạy, hoặc vào bản dùng thử ngoại tuyến bên dưới.';
+    stateEl.className = 'server-state bad';
+    $('#demo-enter').hidden = false; $('#demo-note').hidden = false;
+    return false;
   }
-  $('#perm-result').innerHTML = `<div class="${verdict.ok ? 'warnbox' : 'alertbox'}" style="${verdict.ok ? '' : ''}">
-    <strong>${verdict.ok ? 'ĐƯỢC PHÉP' : 'BỊ CHẶN'}</strong> — ${esc(actor.name)} (${esc(roleOf(actor).name)}) · ${esc(verdict.reason)}</div>
-    <p class="small">Lưu ý: đây là demo chạy bằng đúng bộ quy tắc phân quyền của trang. Bản tĩnh không tự nhận là kiểm tra phía máy chủ — quyết định cuối nằm ở máy chủ (server/).</p>`;
-  renderSecurityLog();
 }
-
-/* ============================ VĂN PHÒNG 3D (Three.js) ============================
- * Cảnh dựng trực tiếp trong trang. Điều khiển tự viết (không phụ thuộc thêm):
- * kéo xoay, cuộn/chụm zoom, bấm/chạm nhân vật để chọn. Tốc độ di chuyển của
- * nhân vật bám thời gian thực (delta giây), không bám số khung hình — trên
- * thiết bị yếu, nhân vật vẫn đi đúng tốc độ thiết kế, chỉ kém mượt. */
-const Office3D = {
-  ready: false, paused: false, scene: null, camera: null, renderer: null,
-  chars: new Map(), // staffId -> {group, ring, lamp, label, labelCanvas, labelTex, target, speed, jumpT, homePos}
-  cam: { theta: 0.7, phi: 0.95, radius: 17, target: null, mode: 'overview' },
-  points: {
-    board: null, meeting: null,
-    deskOf(id) { return Office3D._desks[id] || null; },
-  },
-  _desks: {}, _meetingSeats: [], _raycaster: null, _pointer: null, _downPos: null,
-  _last: 0,
-
-  async init() {
-    const mount = $('#stage3d');
-    let THREE;
+async function boot() {
+  showView('login');
+  // Gắn lắng nghe form NGAY (đồng bộ) trước mọi lần fetch — tránh trường hợp
+  // người dùng bấm Đăng nhập khi probe máy chủ còn đang chạy thì form gửi
+  // theo cách truyền thống và tải lại trang.
+  bindLogin();
+  const ok = await probeServer();
+  let needsSetup = false;
+  if (ok) {
+    try { const st = await api.get('/api/setup/status'); needsSetup = !!st.needsSetup; } catch { needsSetup = false; }
+  }
+  $('#setup-view').hidden = !needsSetup;
+  $('#auth-view').hidden = needsSetup;
+  if (needsSetup) $('#server-state').textContent = 'Máy chủ chưa có tài khoản Giám đốc — hoàn tất cài đặt lần đầu bên dưới.';
+  if (Session.token) {
+    // Phiên cũ còn trong tab: thử khôi phục danh tính, thất bại thì ở lại màn đăng nhập.
+    try { await restoreSession(); return; } catch { Session.clear(); }
+  }
+}
+async function restoreSession() {
+  const staff = await api.get('/api/staff');
+  const ctx = await api.get('/api/context');
+  const me = staff.find((s) => s.id === ctx.staff.id);
+  if (!me) throw new Error('Phiên không còn hợp lệ.');
+  Session.me = me;
+  Session.meType = Session.demo ? (me.id === 's-chung' ? 'director' : 'staff') : await detectSessionKind();
+  await enterApp();
+}
+async function detectSessionKind() {
+  // Đọc loại phiên từ /api/context — KHÔNG thăm dò /api/audit (thăm dò đó
+  // bị máy chủ ghi thành cảnh báo bảo mật, gây nhiễu hộp thư cảnh báo).
+  try {
+    const ctx = await api.get('/api/context');
+    if (ctx.kind === 'director' || ctx.kind === 'staff') return ctx.kind;
+  } catch { /* rơi xuống cách cũ */ }
+  try { await api.get('/api/audit'); return 'director'; } catch (e) { if (e.status === 403) return 'staff'; throw e; }
+}
+function bindLogin() {
+  // Gắn một lần duy nhất — boot() chạy lại sau mỗi lần đăng xuất.
+  const form = $('#login-form');
+  if (!form || form.dataset.bound) return;
+  form.dataset.bound = '1';
+  $$('.tab').forEach((tab) => tab.addEventListener('click', () => {
+    $$('.tab').forEach((t) => { t.classList.toggle('active', t === tab); t.setAttribute('aria-selected', String(t === tab)); });
+    $$('#login-form [data-pane]').forEach((p) => {
+      const show = p.dataset.pane === tab.dataset.tab;
+      p.hidden = !show;
+      // Vô hiệu hoá trường ở khung đang ẩn: chỉ ẩn bằng `hidden` thì một số
+      // trình duyệt vẫn tính trường required của khung ẩn vào kiểm tra hợp lệ
+      // và chặn gửi form mà không báo gì (lỗi đã bắt được khi thử tab Nhân viên).
+      p.querySelectorAll('input,select,textarea').forEach((el) => { el.disabled = !show; });
+    });
+    $('#login-error').hidden = true;
+  }));
+  // Trạng thái ban đầu: khung Nhân viên đang ẩn thì trường của nó phải bị vô hiệu hoá.
+  $$('#login-form [data-pane]').forEach((p) => {
+    const show = p.dataset.pane === 'director';
+    p.querySelectorAll('input,select,textarea').forEach((el) => { el.disabled = !show; });
+  });
+  $('#login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#login-error'); err.hidden = true;
+    const tab = $('.tab.active').dataset.tab;
+    const fd = new FormData(e.target);
     try {
-      THREE = await import('three');
-    } catch (e) {
-      mount.innerHTML = '<p style="padding:16px">Không tải được Three.js từ CDN (mất mạng?). Các mục quản lý bên dưới vẫn hoạt động bình thường; mở lại trang khi có mạng để xem văn phòng 3D.</p>';
-      return;
-    }
-    this.THREE = THREE;
-    const w = mount.clientWidth || 600, h = 460;
+      if (tab === 'director') {
+        const r = await api.post('/api/director/login', { password: fd.get('password'), totp: fd.get('totp') });
+        Session.save(r.token, false);
+        const staff = await api.get('/api/staff');
+        Session.me = staff.find((s) => s.id === r.staffId) || staff[0];
+        Session.meType = 'director';
+      } else {
+        const r = await api.post('/api/staff/login', { username: fd.get('username'), password: fd.get('passwordStaff') });
+        Session.save(r.token, false);
+        // Kiểm tra bắt đổi mật khẩu TRƯỚC mọi lần gọi API khác: máy chủ từ
+        // chối mọi API khác khi tài khoản đang bị bắt đổi mật khẩu.
+        if (r.mustChangePassword) {
+          $('#login-form').hidden = true; $('#change-form').hidden = false;
+          return;
+        }
+        const staff = await api.get('/api/staff');
+        Session.me = staff.find((s) => s.id === r.staffId);
+        Session.meType = 'staff';
+      }
+      await enterApp();
+    } catch (ex) { err.textContent = ex.message || 'Đăng nhập thất bại.'; err.hidden = false; }
+  });
+  $('#change-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#change-error'); err.hidden = true;
+    const fd = new FormData(e.target);
+    try {
+      await api.post('/api/staff/change-password', { currentPassword: fd.get('currentPassword'), newPassword: fd.get('newPassword') });
+      $('#change-form').hidden = true; $('#login-form').hidden = false;
+      await enterApp();
+    } catch (ex) { err.textContent = ex.message || 'Đổi mật khẩu thất bại.'; err.hidden = false; }
+  });
+  $('#setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      const r = await api.post('/api/setup', { password: fd.get('password'), confirmPassword: fd.get('confirmPassword') });
+      $('#setup-form').hidden = true;
+      $('#setup-result').hidden = false;
+      $('#setup-secret').value = r.totpSecret;
+      $('#setup-otpauth').textContent = r.otpauthUrl;
+    } catch (ex) { toast(ex.message || 'Cài đặt thất bại.'); }
+  });
+  $('#setup-done').addEventListener('click', () => {
+    $('#setup-view').hidden = true; $('#auth-view').hidden = false;
+    probeServer();
+  });
+  $('#demo-enter').addEventListener('click', async () => {
+    DemoDB.load();
+    Session.save('demo', true);
+    Session.me = DemoDB.data.staff[0];
+    Session.meType = 'director';
+    await enterApp();
+  });
+  $('#logout-btn').addEventListener('click', async () => {
+    try { if (!Session.demo) await api.post('/api/director/logout', {}); } catch { /* bỏ qua */ }
+    try { if (S.sse) S.sse.close(); } catch { /* bỏ qua */ }
+    Session.clear(); Office3D.dispose();
+    showView('login'); boot();
+  });
+  $('#approval-badge').addEventListener('click', () => { location.hash = '#/approvals'; });
+  $('#more-btn').addEventListener('click', () => {
+    const sheet = $('#more-sheet'); const open = sheet.hidden;
+    sheet.hidden = !open; $('#more-btn').setAttribute('aria-expanded', String(open));
+    $('#more-btn').classList.toggle('active', open);
+  });
+  $$('#more-sheet a').forEach((a) => a.addEventListener('click', () => { $('#more-sheet').hidden = true; }));
+}
+async function enterApp() {
+  showView('app');
+  // Luồng đổi mật khẩu lần đầu đi qua form riêng và chưa gán danh tính —
+  // lấy danh tính của phiên hiện tại trước khi vẽ màn hình, nếu chưa có.
+  if (!Session.me) {
+    const ctx = await api.get('/api/context');
+    const staff = await api.get('/api/staff');
+    Session.me = staff.find((s) => s.id === ctx.staff.id) || null;
+    if (!Session.me) throw new Error('Không xác định được danh tính của phiên đăng nhập.');
+    Session.meType = Session.demo ? (Session.me.id === 's-chung' ? 'director' : 'staff') : await detectSessionKind();
+  }
+  await refreshAll();
+  await refreshHealth();
+  connectSSE();
+  startPolling();
+  if (!location.hash) location.hash = '#/office';
+  await renderScreen();
+  feedAdd('Đã đăng nhập: ' + Session.me.name + ' (' + myRole().name + ')' + (Session.demo ? ' — bản DEMO ngoại tuyến.' : ''));
+}
+document.addEventListener('DOMContentLoaded', boot);
+
+/* ------------------------------ Văn phòng 3D ------------------------------ */
+/* Cảnh 3D giữ lại từ bản trước (phòng, bàn, bảng Kanban, nhân vật, nhãn,
+ * camera) nhưng đã sửa các lỗi ở ảnh chụp 30/10: nhãn TO + tương phản mạnh,
+ * camera chuyển cảnh không bao giờ xoá khung hình, mất context WebGL thì
+ * chuyển sang dạng 2D thay vì trang trắng, canvas chỉ tạo một lần và
+ * không bị vẽ lại khi dữ liệu đổi. */
+const Office3D = {
+  ready: false, mount: null, three: null, renderer: null, scene: null, camera: null,
+  chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
+  orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
+  _raf: 0, _ro: null, _handlers: [], _builtIds: '',
+  THREE_URL: 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+
+  async init(mount) {
+    this.dispose();
+    this.mount = mount;
+    let THREE;
+    try { THREE = await import(this.THREE_URL); }
+    catch (e) { return { ok: false, reason: 'Không tải được thư viện 3D (mạng hoặc CDN bị chặn). Dạng 2D vẫn làm việc đầy đủ.' }; }
+    this.three = THREE;
+    const box = mount;
+    const w = Math.max(200, box.clientWidth), h = Math.max(240, box.clientHeight);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
+    } catch (e) { return { ok: false, reason: 'Trình duyệt không tạo được khung vẽ WebGL. Dạng 2D vẫn làm việc đầy đủ.' }; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    box.appendChild(renderer.domElement);
+    this.renderer = renderer;
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdfe9f2);
-    scene.fog = new THREE.Fog(0xdfe9f2, 30, 55);
-    const camera = new THREE.PerspectiveCamera(48, w / h, 0.1, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    const isMobile = window.matchMedia('(max-width: 720px)').matches;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2)); // khổ nhỏ: giảm độ phân giải vẽ để chạy nhẹ
-    renderer.setSize(w, h);
-    mount.appendChild(renderer.domElement);
-    this.scene = scene; this.camera = camera; this.renderer = renderer;
-    this._raycaster = new THREE.Raycaster(); this._pointer = new THREE.Vector2();
+    scene.fog = new THREE.Fog(0xdfe9f2, 18, 34);
+    this.scene = scene;
+    const camera = new THREE.PerspectiveCamera(46, w / h, 0.1, 100);
+    this.camera = camera;
+    this.applyCamera(0);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9db4c6, 1.05));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.1); sun.position.set(8, 14, 6); scene.add(sun);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9db3c8, 1.15));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(6, 10, 6); sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    scene.add(sun);
 
-    this._buildRoom(THREE);
-    this._buildDesks(THREE);
-    this._buildMeetingRoom(THREE);
-    this._buildKanban(THREE);
-    this._buildCharacters(THREE);
-    this._bindControls(renderer.domElement);
-    this.cam.target = new THREE.Vector3(0, 0, 0);
-    this.points.board = new THREE.Vector3(-5.6, 0, 3.4);
-    this.points.meeting = new THREE.Vector3(4.5, 0, 4.2);
-    this.ready = true;
-    this._last = performance.now();
-    renderer.setAnimationLoop((t) => this._tick(t));
-    window.addEventListener('resize', () => {
-      const nw = mount.clientWidth || 600, nh = mount.clientHeight || 460;
-      camera.aspect = nw / nh; camera.updateProjectionMatrix(); renderer.setSize(nw, nh);
-    });
+    this.buildRoom();
+    this.buildBoard();
     this.sync();
+    this.bindControls();
+    const canvas = renderer.domElement;
+    const onLost = (e) => {
+      e.preventDefault();
+      this.showStageError('Khung vẽ 3D bị hệ thống thu hồi (thường do thiếu bộ nhớ trên điện thoại). Đã chuyển sang dạng 2D — dữ liệu không mất.');
+      this.dispose();
+      renderOfficeFallback();
+    };
+    canvas.addEventListener('webglcontextlost', onLost, false);
+    this._handlers.push(['webglcontextlost', canvas, onLost]);
+    const onRestored = () => { this.hideStageError(); this.sync(); };
+    canvas.addEventListener('webglcontextrestored', onRestored, false);
+    this._handlers.push(['webglcontextrestored', canvas, onRestored]);
+
+    this._ro = new ResizeObserver(() => {
+      if (!this.renderer || !this.mount) return;
+      const nw = Math.max(200, this.mount.clientWidth), nh = Math.max(240, this.mount.clientHeight);
+      this.camera.aspect = nw / nh; this.camera.updateProjectionMatrix();
+      this.renderer.setSize(nw, nh);
+    });
+    this._ro.observe(box);
+
+    const clock = new THREE.Clock();
+    const tick = () => {
+      this._raf = requestAnimationFrame(tick);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      this.animate(dt);
+      if (this.mode === 'follow') this.applyCamera(dt);
+      renderer.render(scene, camera);
+    };
+    tick();
+    this.ready = true;
+    return { ok: true };
   },
 
-  _mat(color) { return new this.THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05 }); },
-  _box(w, h, d, color, x, y, z) {
-    const m = new this.THREE.Mesh(new this.THREE.BoxGeometry(w, h, d), this._mat(color));
-    m.position.set(x, y, z); this.scene.add(m); return m;
+  buildRoom() {
+    const T = this.three, scene = this.scene;
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xe8ddc9, roughness: 0.95 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 11), floorMat);
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1.4); floor.receiveShadow = true;
+    scene.add(floor);
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.9 });
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(16, 4.2), wallMat);
+    back.position.set(0, 2.1, -6.9); back.receiveShadow = true; scene.add(back);
+    const left = new THREE.Mesh(new THREE.PlaneGeometry(11, 4.2), new THREE.MeshStandardMaterial({ color: 0xeef1f4, roughness: 0.9 }));
+    left.rotation.y = Math.PI / 2; left.position.set(-8, 2.1, -1.4); scene.add(left);
+    const right = left.clone(); right.rotation.y = -Math.PI / 2; right.position.x = 8; scene.add(right);
+    const rug = new THREE.Mesh(new THREE.CircleGeometry(2.6, 40), new THREE.MeshStandardMaterial({ color: 0x4c6e8c, roughness: 1 }));
+    rug.rotation.x = -Math.PI / 2; rug.position.set(0.5, 0.02, -0.6); rug.receiveShadow = true; scene.add(rug);
+    // Bàn họp + ghế
+    const table = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.12, 36), new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.7 }));
+    table.position.set(0.5, 0.78, -0.6); table.castShadow = true; scene.add(table);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.78, 16), new THREE.MeshStandardMaterial({ color: 0x5b3b22 }));
+    leg.position.set(0.5, 0.39, -0.6); scene.add(leg);
+    this.seats = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.5;
+      const p = { x: 0.5 + Math.cos(a) * 2.2, z: -0.6 + Math.sin(a) * 2.2, angle: a + Math.PI };
+      this.seats.push(p);
+      const chair = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.55), new THREE.MeshStandardMaterial({ color: 0x2f6f4f, roughness: 0.8 }));
+      chair.position.set(p.x, 0.25, p.z); chair.castShadow = true; scene.add(chair);
+    }
+    // Kệ + cây cảnh góc
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 0.4), new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.8 }));
+    shelf.position.set(-6.4, 0.9, -6.6); scene.add(shelf);
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.5, 16), new THREE.MeshStandardMaterial({ color: 0xb4632a }));
+    pot.position.set(6.9, 0.25, -6.1); scene.add(pot);
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), new THREE.MeshStandardMaterial({ color: 0x3d7a4d, roughness: 1 }));
+    bush.position.set(6.9, 0.95, -6.1); scene.add(bush);
+    // Phòng Giám đốc: vách kính mờ phía trái
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.0), new THREE.MeshStandardMaterial({ color: 0xbfd9e8, transparent: true, opacity: 0.35, roughness: 0.2 }));
+    glass.position.set(-5.9, 1.5, -3.4); glass.rotation.y = Math.PI / 2; scene.add(glass);
   },
-  _buildRoom(THREE) {
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(17, 12.5), this._mat(0xe8eef3));
-    floor.rotation.x = -Math.PI / 2; this.scene.add(floor);
-    // Tường thấp phân khu: phòng Giám đốc (góc trái-trên), phòng họp (phải-dưới)
-    this._box(0.25, 1.1, 4.4, 0xc7d3de, -3.6, 0.55, -3.9);
-    this._box(4.6, 1.1, 0.25, 0xc7d3de, -5.9, 0.55, -1.8);
-    this._box(0.25, 1.1, 3.6, 0xc7d3de, 1.4, 0.55, 4.3);
-    this._box(6.2, 1.1, 0.25, 0xc7d3de, 4.6, 0.55, 2.5);
-    // Thảm khu họp + bảng tên khu
-    const rug = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.2), this._mat(0xd3e4f2));
-    rug.rotation.x = -Math.PI / 2; rug.position.set(4.6, 0.02, 4.3); this.scene.add(rug);
-    this._textSprite('PHÒNG GIÁM ĐỐC', -6, 1.7, -4.4, 0.42);
-    this._textSprite('KHU BÀN LÀM VIỆC', 1.2, 1.7, -4.6, 0.42);
-    this._textSprite('PHÒNG HỌP', 4.6, 1.7, 5.6, 0.42);
-    this._textSprite('BẢNG VIỆC', -6.6, 1.9, 3.4, 0.42);
-  },
-  _textSprite(text, x, y, z, scale) {
-    const c = document.createElement('canvas'); c.width = 512; c.height = 64;
-    const g = c.getContext('2d');
-    g.fillStyle = 'rgba(255,255,255,0.92)'; g.fillRect(0, 0, 512, 64);
-    g.fillStyle = '#33475c'; g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(text, 256, 34);
-    const tex = new this.THREE.CanvasTexture(c);
-    const sp = new this.THREE.Sprite(new this.THREE.SpriteMaterial({ map: tex, depthTest: true }));
-    sp.scale.set(3.4 * (scale || 0.5), 0.42 * (scale || 0.5) * 1.6, 1);
-    sp.position.set(x, y, z); this.scene.add(sp); return sp;
-  },
-  _buildDesks(THREE) {
-    // 5 bàn: Giám đốc trong phòng riêng, 4 bàn còn lại ở khu làm việc.
-    const defs = [
-      { id: 's-chung', x: -6.1, z: -3.6 },
-      { id: 's-muse', x: -1.2, z: -2.6 },
-      { id: 's-hung', x: 1.2, z: -2.6 },
-      { id: 's-tuan', x: 3.6, z: -2.6 },
-      { id: 's-linh', x: 6.0, z: -2.6 },
-    ];
-    defs.forEach((d) => {
-      this._box(1.7, 0.1, 0.9, 0xb98a5a, d.x, 0.74, d.z); // mặt bàn
-      this._box(0.08, 0.74, 0.8, 0x8a6a44, d.x - 0.75, 0.37, d.z);
-      this._box(0.08, 0.74, 0.8, 0x8a6a44, d.x + 0.75, 0.37, d.z);
-      // Màn hình trên bàn — màu = trạng thái (đồng bộ ở sync())
-      const screen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.05), this._mat(0x2b3a4a));
-      screen.position.set(d.x, 1.15, d.z - 0.28); this.scene.add(screen);
-      screen.userData.isDeskScreen = d.id;
-      this._deskScreens = this._deskScreens || {}; this._deskScreens[d.id] = screen;
-      // Ghế
-      this._box(0.6, 0.08, 0.6, 0x5b6b7a, d.x, 0.45, d.z + 1.05);
-      this._box(0.6, 0.5, 0.08, 0x5b6b7a, d.x, 0.7, d.z + 1.32);
-      // Vị trí đứng/ngồi của nhân vật: phía trước bàn
-      this._desks[d.id] = new THREE.Vector3(d.x, 0, d.z + 1.05);
-    });
-  },
-  _buildMeetingRoom(THREE) {
-    this._box(3.4, 0.1, 1.6, 0x9db8cc, 4.6, 0.74, 4.3); // bàn họp
-    this._box(0.12, 0.74, 1.4, 0x6d8296, 3.1, 0.37, 4.3);
-    this._box(0.12, 0.74, 1.4, 0x6d8296, 6.1, 0.37, 4.3);
-    this._meetingSeats = [
-      new THREE.Vector3(3.4, 0, 3.3), new THREE.Vector3(4.6, 0, 3.3), new THREE.Vector3(5.8, 0, 3.3),
-      new THREE.Vector3(3.4, 0, 5.3), new THREE.Vector3(5.8, 0, 5.3),
-    ];
-  },
-  _buildKanban(THREE) {
-    // Bảng việc đứng ở tường trái, 4 cột màu
-    const cols = [0x8fb8dd, 0x7cc79a, 0xe8c46a, 0x9db2c8];
-    this._box(0.15, 2.4, 4.6, 0x5b6b7a, -7.6, 1.2, 3.4);
+
+  buildBoard() {
+    const T = this.three, scene = this.scene;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.2, 0.08), new THREE.MeshStandardMaterial({ color: 0x24425c, roughness: 0.6 }));
+    frame.position.set(1.2, 1.7, -6.82); scene.add(frame);
+    const cols = ['#f2c14e', '#4aa3df', '#e67e22', '#35d07f'];
     cols.forEach((c, i) => {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 2.0), this._mat(c));
-      p.position.set(-7.5, 1.2, 1.35 + i * 1.35); p.rotation.y = Math.PI / 2; this.scene.add(p);
-    });
-    this._textSprite('CHỜ NHẬN · ĐANG LÀM · CHỜ DUYỆT · HOÀN THÀNH', -7.4, 2.7, 3.4, 0.4);
-  },
-  _labelTexture(st) {
-    const c = document.createElement('canvas'); c.width = 256; c.height = 96;
-    const g = c.getContext('2d');
-    g.fillStyle = 'rgba(255,255,255,0.94)';
-    g.beginPath(); g.roundRect(8, 8, 240, 80, 14); g.fill();
-    g.fillStyle = '#1c2733'; g.font = 'bold 30px system-ui, sans-serif'; g.textAlign = 'center';
-    g.fillText(st.name, 128, 42);
-    g.fillStyle = '#5b6b7a'; g.font = '24px system-ui, sans-serif';
-    g.fillText(roleOf(st).name, 128, 72);
-    return { canvas: c, tex: new this.THREE.CanvasTexture(c) };
-  },
-  _buildCharacters(THREE) {
-    const palette = [0x0b6bcb, 0x7c5cd6, 0x1f9d55, 0xd9730d, 0xc2447c];
-    state.staff.forEach((st, i) => {
-      const group = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.26, 0.55, 6, 14), this._mat(palette[i % palette.length]));
-      body.position.y = 0.62; body.userData.staffId = st.id; group.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 16), this._mat(0xf2c9a0));
-      head.position.y = 1.18; head.userData.staffId = st.id; group.add(head);
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.38, 0.5, 32),
-        new THREE.MeshBasicMaterial({ color: 0xd69e00, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; group.add(ring);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 12),
-        new THREE.MeshBasicMaterial({ color: 0xd64545 }));
-      lamp.position.y = 1.62; lamp.visible = false; group.add(lamp);
-      const { canvas, tex } = this._labelTexture(st);
-      const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-      label.scale.set(1.5, 0.56, 1); label.position.y = 1.95; group.add(label);
-      const home = this._desks[st.id] ? this._desks[st.id].clone() : new THREE.Vector3(i * 2 - 4, 0, 0);
-      group.position.copy(home);
-      this.scene.add(group);
-      this.chars.set(st.id, { group, ring, lamp, label, labelCanvas: canvas, labelTex: tex, target: home.clone(), speed: 2.2, jumpT: 0, homePos: home.clone(), body, head });
+      const col = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.8, 0.05), new THREE.MeshStandardMaterial({ color: new T.Color(c), roughness: 0.8 }));
+      col.position.set(-0.55 + i * 1.16, 1.7, -6.76); scene.add(col);
     });
   },
-  _bindControls(el) {
-    let dragging = false, lastX = 0, lastY = 0, pinchD = 0;
-    const pos = (e) => { const r = el.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    el.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; this._downPos = pos(e); el.setPointerCapture(e.pointerId); });
-    el.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
-      this.cam.theta -= dx * 0.006; this.cam.phi = Math.min(1.35, Math.max(0.25, this.cam.phi - dy * 0.005));
-      if (this.cam.mode === 'follow') this.cam.mode = 'overview';
+
+  deskPosition(st, index) {
+    const role = roleOfStaff(st);
+    if (role.canManage) return { x: -6.3, z: -4.6, angle: 0.6 };
+    const i = index;
+    return { x: -1.3 + (i % 5) * 2.35, z: -4.7 + Math.floor(i / 5) * 1.6, angle: 0 };
+  },
+  buildDesk(p, color) {
+    const T = this.three;
+    const g = new T.Group();
+    const top = new T.Mesh(new T.BoxGeometry(1.7, 0.08, 0.85), new T.MeshStandardMaterial({ color: 0x9c6b3f, roughness: 0.7 }));
+    top.position.y = 0.74; top.castShadow = true; g.add(top);
+    const legM = new T.MeshStandardMaterial({ color: 0x5b3b22 });
+    [[-0.75, -0.32], [0.75, -0.32], [-0.75, 0.32], [0.75, 0.32]].forEach(([x, z]) => {
+      const leg = new T.Mesh(new T.BoxGeometry(0.08, 0.74, 0.08), legM);
+      leg.position.set(x, 0.37, z); g.add(leg);
     });
-    el.addEventListener('pointerup', (e) => {
-      const wasDrag = this._downPos && Math.hypot(pos(e).x - this._downPos.x, pos(e).y - this._downPos.y) > 6;
-      dragging = false;
-      if (wasDrag) return;
-      const r = el.getBoundingClientRect();
-      this._pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-      this._raycaster.setFromCamera(this._pointer, this.camera);
-      const hits = this._raycaster.intersectObjects(Array.from(this.chars.values()).flatMap((c) => [c.body, c.head]));
-      if (hits.length) {
-        const id = hits[0].object.userData.staffId;
-        state.selectedId = id; save(); renderProfile(); renderStaffList();
-        if (this.cam.mode === 'follow') this._applyCamera(0);
-        logActivity(`Đã chọn ${staffById(id).name} trong văn phòng 3D.`);
-      }
-    });
-    el.addEventListener('wheel', (e) => { e.preventDefault(); this.cam.radius = Math.min(26, Math.max(6, this.cam.radius + e.deltaY * 0.02)); }, { passive: false });
-    el.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        if (pinchD) this.cam.radius = Math.min(26, Math.max(6, this.cam.radius + (pinchD - d) * 0.03));
-        pinchD = d;
-      }
-    }, { passive: false });
-    el.addEventListener('touchend', () => { pinchD = 0; });
+    const screen = new T.Mesh(new T.BoxGeometry(0.7, 0.45, 0.04), new T.MeshStandardMaterial({ color: 0x1d2b3a, roughness: 0.3, metalness: 0.4 }));
+    screen.position.set(0, 1.02, -0.28); g.add(screen);
+    const chair = new T.Mesh(new T.BoxGeometry(0.6, 0.55, 0.6), new T.MeshStandardMaterial({ color, roughness: 0.85 }));
+    chair.position.set(0, 0.28, 0.85); chair.castShadow = true; g.add(chair);
+    g.position.set(p.x, 0, p.z); g.rotation.y = p.angle || 0;
+    return g;
   },
-  walkTo(staffId, targetVec) {
-    if (!this.ready) return;
-    const c = this.chars.get(staffId);
-    if (!c || !targetVec) return;
-    c.target = targetVec.clone();
+  makeLabel(name, roleName, statusLabel) {
+    const T = this.three;
+    const canvas = document.createElement('canvas');
+    canvas.width = 448; canvas.height = 152;
+    const ctx = canvas.getContext('2d');
+    const round = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
+    ctx.clearRect(0, 0, 448, 152);
+    round(4, 6, 440, 140, 26); ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.fill();
+    ctx.lineWidth = 5; ctx.strokeStyle = '#111827'; ctx.stroke();
+    ctx.fillStyle = '#111827'; ctx.font = '800 52px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(name, 224, 68);
+    ctx.fillStyle = '#374151'; ctx.font = '600 34px system-ui, sans-serif';
+    ctx.fillText(roleName + (statusLabel ? ' · ' + statusLabel : ''), 224, 118);
+    const tex = new T.CanvasTexture(canvas);
+    tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
+    const mat = new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const sprite = new T.Sprite(mat);
+    sprite.scale.set(2.6, 0.88, 1);
+    sprite.renderOrder = 20;
+    return sprite;
   },
-  goHome(staffId) {
-    if (!this.ready) return;
-    const c = this.chars.get(staffId);
-    if (c) c.target = c.homePos.clone();
+  buildChar(st, deskPos) {
+    const T = this.three;
+    const g = new T.Group();
+    const palette = { 's-chung': 0x1f3a5f, 's-muse': 0x0b6bcb };
+    const color = palette[st.id] || [0x2f6f4f, 0x8a5a33, 0x6b4f9e, 0x9e3d64, 0x3d7a8a][Math.abs([...st.id].reduce((a, c) => a + c.charCodeAt(0), 0)) % 5];
+    const body = new T.Mesh(new T.CapsuleGeometry(0.30, 0.62, 6, 14), new T.MeshStandardMaterial({ color, roughness: 0.75 }));
+    body.position.y = 0.95; body.castShadow = true; g.add(body);
+    const head = new T.Mesh(new T.SphereGeometry(0.26, 20, 16), new T.MeshStandardMaterial({ color: 0xf2c89b, roughness: 0.7 }));
+    head.position.y = 1.72; head.castShadow = true; g.add(head);
+    const ringMat = new T.MeshBasicMaterial({ color: 0x35d07f });
+    const ring = new T.Mesh(new T.TorusGeometry(0.48, 0.045, 10, 32), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.03; g.add(ring);
+    const lamp = new T.Mesh(new T.SphereGeometry(0.11, 12, 10), new T.MeshBasicMaterial({ color: 0xe5484d }));
+    lamp.position.y = 2.45; lamp.visible = false; g.add(lamp);
+    const hit = new T.Mesh(new T.BoxGeometry(1.1, 2.3, 1.1), new T.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 1.1; hit.userData.staffId = st.id; g.add(hit);
+    g.position.set(deskPos.x, 0, deskPos.z + 0.95);
+    g.userData = { staffId: st.id, home: new T.Vector3(deskPos.x, 0, deskPos.z + 0.95), target: null, queue: [], jump: 0, label: null, ringMat, lamp, hit };
+    this.scene.add(g);
+    return g;
   },
-  celebrate(staffId) { if (!this.ready) return; const c = this.chars.get(staffId); if (c) c.jumpT = 1.2; },
-  setCamera(mode) {
-    $$('.stage .camrow button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
-    if (!this.ready) return; // CDN Three.js chưa tải: chỉ đổi trạng thái nút, không chạm cảnh 3D
-    this.cam.mode = mode;
-    this._applyCamera(0);
-  },
-  _applyCamera(dt) {
-    const THREE = this.THREE, cam = this.cam;
-    let target = new THREE.Vector3(0, 0, 0), pos;
-    if (cam.mode === 'top') { pos = new THREE.Vector3(0, 17, 0.01); }
-    else if (cam.mode === 'meeting') { target = new THREE.Vector3(4.6, 0, 4.3); pos = new THREE.Vector3(4.6, 6.5, 10.5); }
-    else if (cam.mode === 'follow') {
-      const c = this.chars.get(state.selectedId);
-      if (c) { target = c.group.position.clone(); pos = target.clone().add(new THREE.Vector3(3.2, 2.6, 3.2)); }
-      else { pos = new THREE.Vector3(10, 10, 12); }
-    } else {
-      pos = new THREE.Vector3(
-        target.x + cam.radius * Math.sin(cam.phi) * Math.sin(cam.theta),
-        cam.radius * Math.cos(cam.phi),
-        target.z + cam.radius * Math.sin(cam.phi) * Math.cos(cam.theta));
-    }
-    this.camera.position.lerp(pos, dt > 0 ? Math.min(1, dt * 3) : 1);
-    this.camera.lookAt(target);
-    cam.target = target;
-  },
-  _tick(t) {
-    const dt = Math.min(0.05, (t - this._last) / 1000 || 0.016); // giây thực
-    this._last = t;
-    if (!this.paused) {
-      this.chars.forEach((c, id) => {
-        const g = c.group.position;
-        const dx = c.target.x - g.x, dz = c.target.z - g.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist > 0.05) {
-          const step = Math.min(dist, c.speed * dt);
-          g.x += (dx / dist) * step; g.z += (dz / dist) * step;
-          g.y = Math.abs(Math.sin(t / 130)) * 0.04; // nhịp bước chân
-          c.body.rotation.y = Math.atan2(dx, dz);
-        } else { g.y = 0; }
-        if (c.jumpT > 0) { c.jumpT -= dt; g.y = Math.abs(Math.sin((1.2 - c.jumpT) * 5.2)) * 0.45; if (c.jumpT <= 0) g.y = 0; }
-      });
-    }
-    this._applyCamera(dt);
-    this.renderer.render(this.scene, this.camera);
+  refreshLabel(char, st) {
+    const T = this.three;
+    const status = STATUS_META[effectiveStatus(st, S.approvals)];
+    if (char.userData.label) { char.remove(char.userData.label); char.userData.label.material.map.dispose(); char.userData.label.material.dispose(); }
+    const label = this.makeLabel(st.name, roleOfStaff(st).name, status.label);
+    label.position.y = 2.85;
+    char.add(label);
+    char.userData.label = label;
+    char.userData.ringMat.color.setHex(status.ring);
+    char.userData.lamp.visible = pendingApprovals().some((a) => a.requesterId === st.id);
   },
   sync() {
-    if (!this.ready) return;
-    // Nhân viên mới/xoá: dựng lại toàn bộ nhân vật cho khớp dữ liệu.
-    const ids = Array.from(this.chars.keys());
-    const want = state.staff.map((s) => s.id);
-    if (ids.length !== want.length || !want.every((id) => this.chars.has(id))) {
-      this.chars.forEach((c) => this.scene.remove(c.group));
-      this.chars.clear();
-      this._buildCharacters(this.THREE);
-    }
-    state.staff.forEach((st) => {
-      const c = this.chars.get(st.id);
-      if (!c) return;
-      const stt = effectiveStatus(st);
-      c.ring.material.color.setHex(STATUS_META[stt].ring);
-      c.lamp.visible = state.approvals.some((a) => a.status === 'pending' && a.requesterId === st.id);
-      const { canvas, tex } = this._labelTexture(st);
-      c.label.material.map = tex; c.label.material.needsUpdate = true;
-      const screen = this._deskScreens && this._deskScreens[st.id];
-      if (screen) screen.material.color.setHex(stt === 'working' ? 0x35d07f : stt === 'approval' ? 0xd64545 : stt === 'resting' ? 0x7c8da6 : 0x2b3a4a);
-    });
-  },
-};
-function sync3D() { Office3D.sync(); }
-
-/* ------------------------- Nhịp thích ứng (AdaptivePulse) ----------------
- * NGUYÊN TẮC (§7): (1) sự kiện là chính — có việc/tin/đổi trạng thái/chạm
- * mốc ngân sách thì đẩy NGAY, không chờ chu kỳ; (2) nhịp nền tự thích ứng —
- * đang bận thì nhịp dày (5s), đang chờ thì thưa dần theo cấp số nhân tới
- * tối đa 60s; (3) trần chi phí — vượt trần lượt đẩy thì nhịp nền dừng, chỉ
- * còn đẩy theo sự kiện, thà chậm vài nhịp còn hơn cháy ngân sách. */
-const Pulse = {
-  base: 5000, max: 60000, cap: 500, interval: 5000, pushes: 0, timer: null, lastPush: null,
-  kick(reason) {
-    this.pushes++; this.lastPush = nowTime();
-    this.interval = this.base;
-    this._schedule();
-  },
-  _schedule() {
-    if (this.timer) clearTimeout(this.timer);
-    const anyoneWorking = state.staff.some((s) => effectiveStatus(s) === 'working');
-    this.interval = anyoneWorking ? this.base : Math.min(this.max, this.interval * 2);
-    this.timer = setTimeout(() => this._tickBg(), this.interval);
-  },
-  _tickBg() {
-    if (this.pushes >= this.cap) { logActivity('Nhịp nền đã chạm trần chi phí — tạm dừng đẩy nền, chỉ đẩy theo sự kiện.'); return; }
-    this.pushes++; this.lastPush = nowTime();
-    renderLiveStatus(); renderStatusbar();
-    this._schedule();
-  },
-  start() { this._schedule(); },
-};
-
-/* ------------------------------ Họp team --------------------------------- */
-let meetingActive = false;
-function callMeeting() {
-  if (meetingActive) return;
-  meetingActive = true;
-  logActivity('Gọi họp team: cả đội di chuyển về phòng họp.');
-  state.staff.forEach((s, i) => {
-    const seat = Office3D._meetingSeats[i % Office3D._meetingSeats.length];
-    if (seat) Office3D.walkTo(s.id, seat);
-  });
-  Office3D.setCamera('meeting');
-  $('#meeting-box').hidden = false;
-  $('#meeting-box').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  Pulse.kick('meeting');
-}
-function endMeeting() {
-  meetingActive = false;
-  state.staff.forEach((s) => Office3D.goHome(s.id));
-  $('#meeting-box').hidden = true;
-  logActivity('Họp xong — mọi người về bàn làm việc.');
-  Office3D.setCamera('overview');
-}
-
-/* ------------- Đăng nhập nhân viên (DEMO trên trình duyệt) ---------------
- * Bản demo: băm SHA-256 có muối, lưu trong localStorage — CHỈ để lái thử.
- * Lưu trữ thật dùng scrypt + cưỡng chế đổi mật khẩu lần đầu, chỉ ở máy chủ.
- * Xoá nhân viên ở bản demo cũng xoá luôn tài khoản đăng nhập demo của họ. */
-async function sha256Hex(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-const demoBlocked = (actor) => {
-  if (!actor || !state.demoSession || state.demoSession.staffId !== actor.id) return false;
-  return !!(actor.loginDemo && actor.loginDemo.mustChange);
-};
-function renderDemoLoginStatus() {
-  const box = $('#staff-login-status');
-  const form = $('#staff-change-form');
-  const sess = state.demoSession && staffById(state.demoSession.staffId);
-  if (!sess) { box.innerHTML = '<p class="hint">Chưa đăng nhập.</p>'; form.hidden = true; return; }
-  const lg = sess.loginDemo || {};
-  box.innerHTML = `<p>Đã đăng nhập demo với tư cách <strong>${esc(sess.name)}</strong> (${esc(lg.username || '')}).${lg.mustChange ? ' <strong>Bạn phải đổi mật khẩu lần đầu trước khi duyệt/cấp ngân sách.</strong>' : ''}</p>`;
-  form.hidden = !lg.mustChange;
-}
-async function demoSetPassword(st, username, password) {
-  const salt = Math.random().toString(36).slice(2, 12);
-  st.loginDemo = { username, salt, hash: await sha256Hex(salt + ':' + password), mustChange: true, disabled: false };
-  save();
-}
-
-/* --------------------------- Gắn sự kiện + khởi tạo ---------------------- */
-function renderAll() {
-  renderOrg(); renderJobs(); renderApprovals(); renderBudgets();
-  renderStaticSections(); renderSecurityLog(); renderLog(); renderLiveStatus(); renderStatusbar();
-  sync3D();
-}
-function bindEvents() {
-  $('#acting-as').addEventListener('change', (e) => {
-    state.actingAsId = e.target.value; save();
-    logActivity(`Đang thao tác với tư cách ${actingAs().name} (${roleOf(actingAs()).name}).`);
-    renderAll();
-  });
-  $$('.stage .camrow button').forEach((b) => b.addEventListener('click', () => Office3D.setCamera(b.dataset.cam)));
-  $('#btn-meeting').addEventListener('click', callMeeting);
-  $('#btn-meeting-done').addEventListener('click', endMeeting);
-  $('#btn-pause').addEventListener('click', (e) => {
-    Office3D.paused = !Office3D.paused;
-    e.target.textContent = Office3D.paused ? 'Tiếp tục' : 'Tạm dừng';
-    logActivity(Office3D.paused ? 'Văn phòng 3D tạm dừng chuyển động.' : 'Văn phòng 3D tiếp tục chuyển động.');
-  });
-  $('#meeting-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const text = $('#meeting-notes').value.trim();
-    const jobName = $('#meeting-job').value.trim();
-    if (!text && !jobName) return;
-    state.minutes.unshift({ id: uid(), text, jobName, at: nowTime() });
-    let msg = 'Họp xong — biên bản đã lưu.';
-    if (jobName) {
-      const asg = state.staff[1] || state.staff[0];
-      state.jobs.push({ id: uid(), name: jobName, desc: 'Việc phát sinh từ biên bản họp.', ruleId: state.rules[0] ? state.rules[0].id : '', assigneeId: asg.id, reviewerId: state.staff[0].id, status: 'Chờ nhận', progress: 0, claimedBy: null });
-      msg += ` Việc mới “${jobName}” đã vào cột Chờ nhận.`;
-    }
-    save(); renderJobs(); renderMinutes();
-    logActivity(msg);
-    $('#meeting-notes').value = ''; $('#meeting-job').value = '';
-    Pulse.kick('minutes');
-  });
-
-  $('#role-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const chk = PERMISSIONS.canChangeRole(actingAs());
-    if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-    const name = $('#role-name').value.trim(); if (!name) return;
-    // Quyền quản trị là trường dữ liệu do Giám đốc chọn trong form — form
-    // không tự cấp quyền này nếu Giám đốc không chọn.
-    state.roles.push({ id: uid(), name, level: Number($('#role-level').value), canApprove: $('#role-can-approve').value === 'yes', canManage: $('#role-can-manage').value === 'yes' });
-    save(); logActivity(`${actingAs().name} thêm chức vụ “${name}”.`); $('#role-name').value = '';
-    renderAll(); Pulse.kick('role-add');
-  });
-  $('#staff-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const chk = PERMISSIONS.canChangeRole(actingAs());
-    if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-    const name = $('#staff-name').value.trim(); if (!name) return;
-    const st = { id: uid(), name, account: $('#staff-account').value.trim(), roleId: $('#staff-role').value, status: 'waiting', budget: null, used: 0, resting: false, restedFully: false };
-    // Nhân viên mới CHƯA có mức ngân sách: không có mức chung cố định — Giám đốc tự đặt theo từng người (quyết định 29/10/2026 23:23).
-    state.staff.push(st); save();
-    logActivity(`${actingAs().name} thêm nhân viên ${name} (chức vụ: ${roleOf(st).name}). Nhân viên mới xuất hiện trong văn phòng 3D.`);
-    $('#staff-name').value = ''; $('#staff-account').value = '';
-    renderAll(); Pulse.kick('staff-add');
-  });
-  $('#rule-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const text = $('#rule-text').value.trim(); if (!text) return;
-    state.rules.push({ id: uid(), text }); save();
-    logActivity(`Thêm rule: “${text}”.`); $('#rule-text').value = '';
-    renderJobs(); Pulse.kick('rule-add');
-  });
-  $('#job-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = $('#job-name').value.trim(); if (!name) return;
-    const asg = $('#job-assignee').value, rev = $('#job-reviewer').value;
-    if (!asg || !rev) { alert('Chọn đủ người phụ trách và người kiểm tra.'); return; }
-    const linkUrl = $('#job-link-url').value.trim();
-    const job = { id: uid(), name, desc: $('#job-desc').value.trim(), ruleId: $('#job-rule').value, assigneeId: asg, reviewerId: rev, status: 'Chờ nhận', progress: 0, claimedBy: null, linkUrl, linkTitle: $('#job-link-title').value.trim() };
-    state.jobs.push(job);
-    save(); logActivity(`Việc mới “${name}” vào cột Chờ nhận (phụ trách: ${staffById(asg).name}, kiểm tra: ${staffById(rev).name}).`, linkUrl ? { url: linkUrl, title: job.linkTitle || name } : null);
-    e.target.reset(); renderJobs(); sync3D(); Pulse.kick('job-add');
-  });
-  $('#approval-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const reason = $('#ap-reason').value.trim();
-    if (!reason) { alert('Lý do là bắt buộc (kỷ luật duyệt).'); return; }
-    state.approvals.push({ id: uid(), requesterId: $('#ap-requester').value, action: $('#ap-action').value, target: $('#ap-target').value.trim(), reason, context: $('#ap-context').value.trim(), source: 'web', status: 'pending', at: nowTime() });
-    save();
-    const req = staffById($('#ap-requester').value);
-    logActivity(`${req ? req.name : '—'} gửi yêu cầu phê duyệt “${$('#ap-action').value}”. Đèn báo đỏ đã bật trên nhân vật.`);
-    $('#ap-reason').value = ''; $('#ap-target').value = ''; $('#ap-context').value = ''; renderApprovals(); renderLiveStatus(); renderStatusbar(); sync3D(); Pulse.kick('approval-new');
-  });
-  $('#ask-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const to = staffById($('#ask-to').value);
-    const text = $('#ask-text').value.trim(); if (!text) return;
-    const linkUrl = $('#ask-link-url').value.trim();
-    logActivity(`[ASK:${to ? to.name : '—'}] ${actingAs().name}: ${text} (ghi vết vào bus nội bộ).`, linkUrl ? { url: linkUrl, title: $('#ask-link-title').value.trim() || 'Tài liệu đính kèm' } : null);
-    $('#ask-text').value = ''; $('#ask-link-url').value = ''; $('#ask-link-title').value = ''; Pulse.kick('ask');
-  });
-  $('#perm-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    renderPermDemo($('#perm-identity').value, $('#perm-action').value);
-  });
-  $('#staff-login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const username = $('#login-username').value.trim();
-    const password = $('#login-password').value;
-    const st = state.staff.find((s) => s.loginDemo && s.loginDemo.username === username);
-    if (!st || st.loginDemo.disabled) { alert('Sai tên đăng nhập hoặc mật khẩu, hoặc tài khoản đã bị khoá.'); return; }
-    const hash = await sha256Hex(st.loginDemo.salt + ':' + password);
-    if (hash !== st.loginDemo.hash) { alert('Sai tên đăng nhập hoặc mật khẩu.'); return; }
-    state.demoSession = { staffId: st.id }; state.actingAsId = st.id; save();
-    logActivity(`${st.name} đăng nhập (bản demo).${st.loginDemo.mustChange ? ' Phải đổi mật khẩu lần đầu.' : ''}`);
-    renderAll(); renderDemoLoginStatus();
-  });
-  $('#staff-change-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const sess = state.demoSession && staffById(state.demoSession.staffId);
-    if (!sess) return;
-    const pw = $('#change-password').value;
-    if (pw.length < 8) { alert('Mật khẩu mới phải từ 8 ký tự.'); return; }
-    await demoSetPassword(sess, sess.loginDemo.username, pw);
-    sess.loginDemo.mustChange = false; save();
-    logActivity(`${sess.name} đã đổi mật khẩu lần đầu (bản demo).`);
-    $('#change-password').value = ''; renderAll(); renderDemoLoginStatus();
-  });
-
-  // Uỷ quyền sự kiện cho các nút render động
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    const { action, id } = btn.dataset;
-    if (action === 'select-staff') {
-      state.selectedId = id; save(); renderProfile(); renderStaffList();
-      Office3D.setCamera('follow');
-    } else if (action === 'role-delete') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      if (state.staff.some((s) => s.roleId === id)) { alert('Còn nhân viên đang giữ chức vụ này — đổi chức vụ cho họ trước rồi mới xoá.'); return; }
-      state.roles = state.roles.filter((r) => r.id !== id); save();
-      logActivity(`${actingAs().name} xoá một chức vụ.`); renderAll();
-    } else if (action === 'role-rename') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const r = state.roles.find((x) => x.id === id);
-      const name = prompt('Tên chức vụ mới:', r.name);
-      if (name && name.trim()) { r.name = name.trim(); save(); logActivity(`Đổi tên chức vụ thành “${r.name}”.`); renderAll(); }
-    } else if (action === 'staff-login-create') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const st = staffById(id);
-      const username = prompt(`Tên đăng nhập cho ${st.name} (duy nhất):`, st.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd'));
-      if (!username) return;
-      if (state.staff.some((s) => s.id !== id && s.loginDemo && s.loginDemo.username === username)) { alert('Tên đăng nhập đã tồn tại.'); return; }
-      const password = prompt('Mật khẩu ban đầu (từ 8 ký tự; nhân viên phải đổi ở lần đăng nhập đầu tiên):', '');
-      if (!password || password.length < 8) { alert('Mật khẩu phải từ 8 ký tự.'); return; }
-      await demoSetPassword(st, username, password);
-      logActivity(`${actingAs().name} tạo tài khoản đăng nhập demo cho ${st.name} (username: ${username}).`);
-      renderAll(); renderDemoLoginStatus();
-    } else if (action === 'staff-login-reset') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const st = staffById(id);
-      if (!st.loginDemo) { alert('Nhân viên chưa có tài khoản đăng nhập — tạo tài khoản trước.'); return; }
-      const password = prompt(`Mật khẩu mới cho ${st.name} (nhân viên phải đổi ở lần đăng nhập tiếp theo):`, '');
-      if (!password || password.length < 8) { alert('Mật khẩu phải từ 8 ký tự.'); return; }
-      await demoSetPassword(st, st.loginDemo.username, password);
-      logActivity(`${actingAs().name} đặt lại mật khẩu demo cho ${st.name}.`);
-      renderAll(); renderDemoLoginStatus();
-    } else if (action === 'staff-login-disable') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const st = staffById(id);
-      if (!st.loginDemo) { alert('Nhân viên chưa có tài khoản đăng nhập.'); return; }
-      st.loginDemo.disabled = !st.loginDemo.disabled; save();
-      logActivity(`${actingAs().name} ${st.loginDemo.disabled ? 'khoá' : 'mở khoá'} tài khoản demo của ${st.name}.`);
-      renderAll(); renderDemoLoginStatus();
-    } else if (action === 'staff-delete') {
-      const chk = PERMISSIONS.canChangeRole(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const st = staffById(id);
-      if (!confirm(`Xoá nhân viên ${st.name}? Token API của nhân viên này sẽ bị thu hồi ngay (máy chủ).`)) return;
-      state.staff = state.staff.filter((s) => s.id !== id);
-      state.jobs.forEach((j) => { if (j.assigneeId === id || j.reviewerId === id) j.status = j.status; });
-      if (state.actingAsId === id) state.actingAsId = state.staff[0].id;
-      if (state.selectedId === id) state.selectedId = state.staff[0].id;
-      save(); logActivity(`${actingAs().name} xoá nhân viên ${st.name} (token API thu hồi).`); renderAll(); Pulse.kick('staff-delete');
-    } else if (action === 'rule-delete') {
-      state.rules = state.rules.filter((r) => r.id !== id); save(); renderJobs();
-    } else if (action === 'job-run') {
-      runJobFlow(id);
-    } else if (action === 'job-approve') {
-      const job = state.jobs.find((j) => j.id === id);
-      if (demoBlocked(actingAs())) { alert('Bạn phải đổi mật khẩu lần đầu trước khi duyệt (bản demo).'); return; }
-      const chk = PERMISSIONS.canApproveJob(actingAs(), job);
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      setJobStatus(job, 'Hoàn thành', `được duyệt bởi ${actingAs().name}`);
-      Office3D.celebrate(job.assigneeId);
-      logActivity(`Nhân vật ${staffById(job.assigneeId).name} nhảy ăn mừng — việc đã qua kiểm tra.`);
-    } else if (action === 'job-return') {
-      const job = state.jobs.find((j) => j.id === id);
-      if (demoBlocked(actingAs())) { alert('Bạn phải đổi mật khẩu lần đầu trước khi trả lại việc (bản demo).'); return; }
-      const chk = PERMISSIONS.canApproveJob(actingAs(), job);
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      const reason = prompt('Lý do trả lại (bắt buộc):', '');
-      if (!reason) { alert('Trả lại phải có lý do.'); return; }
-      job.progress = 40; setJobStatus(job, 'Đang làm', 'trả lại: ' + reason);
-    } else if (action === 'job-delete') {
-      state.jobs = state.jobs.filter((j) => j.id !== id); save(); renderJobs(); sync3D();
-      logActivity('Một việc đã bị xoá khỏi bảng Kanban.');
-    } else if (action === 'ap-decide') {
-      decideApproval(id, btn.dataset.decision);
-    } else if (action === 'budget-plus') {
-      const s = staffById(id);
-      if (s.budget == null) { alert('Chưa đặt mức ngân sách cho nhân viên này — Giám đốc đặt mức trước.'); return; }
-      s.used = Math.min(s.budget, s.used + Math.round(s.budget * 0.1)); save();
-      checkBudget(s); renderBudgets(); renderLiveStatus(); renderStatusbar(); sync3D(); Pulse.kick('budget-use');
-    } else if (action === 'budget-hit') {
-      const s = staffById(id);
-      if (s.budget == null) { alert('Chưa đặt mức ngân sách cho nhân viên này — Giám đốc đặt mức trước.'); return; }
-      s.used = s.budget; save();
-      checkBudget(s); renderBudgets(); renderLiveStatus(); renderStatusbar(); sync3D();
-    } else if (action === 'budget-topup') {
-      budgetTopup(staffById(id));
-    } else if (action === 'budget-rest') {
-      const s = staffById(id);
-      const chk = PERMISSIONS.canGrant(actingAs());
-      if (!chk.ok) { alert('Bị chặn: ' + chk.reason); return; }
-      if (s.restedFully) {
-        s.restedFully = false; s.resting = false; s.status = 'waiting'; save();
-        logActivity(`${actingAs().name} gọi ${s.name} quay lại làm việc.`);
-      } else {
-        s.restedFully = true; s.resting = true; s.status = 'resting'; save();
-        logActivity(`${actingAs().name} cho ${s.name} nghỉ hẳn.`);
+    if (!this.scene || !this.three) return;
+    const ids = S.staff.map((s) => s.id).join(',');
+    if (ids !== this._builtIds) {
+      // Tập nhân vật đổi: dựng lại (canvas giữ nguyên — không xoá khung vẽ).
+      for (const [, ch] of this.chars) { this.scene.remove(ch); }
+      for (const [, dk] of this.desks) { this.scene.remove(dk); }
+      this.chars.clear(); this.desks.clear();
+      let k = 0;
+      for (const st of S.staff) {
+        const p = this.deskPosition(st, k);
+        if (!roleOfStaff(st).canManage) k++;
+        const desk = this.buildDesk(p, 0x2f6f4f);
+        this.scene.add(desk); this.desks.set(st.id, desk);
+        const ch = this.buildChar(st, p);
+        this.chars.set(st.id, ch);
+        this.refreshLabel(ch, st);
       }
-      renderBudgets(); renderLiveStatus(); renderStatusbar(); sync3D();
+      this._builtIds = ids;
+      if (S.selectedStaffId && this.chars.has(S.selectedStaffId)) this.focusStaff(S.selectedStaffId, true);
+    } else {
+      for (const st of S.staff) {
+        const ch = this.chars.get(st.id);
+        if (ch) this.refreshLabel(ch, st);
+      }
     }
-  });
-
-  // Xuất / nhập / đặt lại dữ liệu
-  $('#btn-export').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'ai-office-3d-data.json'; a.click();
-    URL.revokeObjectURL(a.href);
-  });
-  $('#btn-import').addEventListener('click', () => $('#import-file').click());
-  $('#import-file').addEventListener('change', (e) => {
-    const f = e.target.files[0]; if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        const s = JSON.parse(rd.result);
-        if (!s || s.version !== 1 || !Array.isArray(s.staff)) throw new Error('bad');
-        state = s; save(); renderAll();
-        logActivity('Đã nhập dữ liệu từ file JSON.');
-      } catch (err) { alert('File không đúng định dạng dữ liệu của hệ thống.'); }
+  },
+  walkTo(staffId, pos, then) {
+    const ch = this.chars.get(staffId); if (!ch) return;
+    ch.userData.queue.push({ pos, then: then || null });
+    if (!ch.userData.target && ch.userData.queue.length) { const n = ch.userData.queue.shift(); ch.userData.target = n; }
+  },
+  goHome(staffId) {
+    const ch = this.chars.get(staffId); if (!ch) return;
+    this.walkTo(staffId, ch.userData.home.clone());
+  },
+  goToSeat(staffId, seatIndex) {
+    const seat = this.seats[seatIndex % this.seats.length]; if (!seat) return;
+    const T = this.three;
+    const ch = this.chars.get(staffId); if (!ch) return;
+    this.walkTo(staffId, new T.Vector3(seat.x, 0, seat.z));
+    ch.userData.seatAngle = seat.angle;
+  },
+  celebrate(staffId) {
+    const ch = this.chars.get(staffId); if (ch) ch.userData.jump = 0.55;
+  },
+  onJobEvent(job, change) {
+    if (!this.ready) return;
+    if (change === 'claimed' && job.claimedBy) {
+      const board = this.three.Vector3 ? new this.three.Vector3(1.2, 0, -5.6) : null;
+      this.walkTo(job.claimedBy, board);
+      this.goHome(job.claimedBy);
+    } else if (change === 'submitted') {
+      const rv = this.chars.get(job.reviewerId);
+      if (rv) this.walkTo(job.assigneeId, rv.position.clone());
+      this.goHome(job.assigneeId);
+    } else if (change === 'approved') {
+      this.celebrate(job.assigneeId);
+      this.goHome(job.assigneeId);
+    }
+  },
+  animate(dt) {
+    for (const [, ch] of this.chars) {
+      const u = ch.userData;
+      if (u.jump > 0) { u.jump -= dt; ch.position.y = Math.max(0, Math.sin((0.55 - u.jump) / 0.55 * Math.PI)) * 0.5; if (u.jump <= 0) ch.position.y = 0; }
+      const target = u.target ? u.target.pos : null;
+      if (target) {
+        const dx = target.x - ch.position.x, dz = target.z - ch.position.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.08) {
+          ch.position.x = target.x; ch.position.z = target.z;
+          const done = u.target; u.target = null;
+          if (u.queue.length) u.target = u.queue.shift();
+          if (done && done.then) done.then();
+          if (u.seatAngle !== undefined && !u.target) ch.rotation.y = u.seatAngle;
+        } else {
+          const step = Math.min(dist, 2.4 * dt);
+          ch.position.x += (dx / dist) * step; ch.position.z += (dz / dist) * step;
+          ch.rotation.y = Math.atan2(dx, dz);
+          ch.position.y = Math.abs(Math.sin(performance.now() / 130)) * 0.03;
+        }
+      }
+    }
+  },
+  applyCamera() {
+    const T = this.three, cam = this.camera;
+    if (!cam) return;
+    const o = this.orbit;
+    if (this.mode === 'overview') { cam.position.set(5.2, 7.2, 9.8); cam.lookAt(0, 0.4, -1.2); return; }
+    if (this.mode === 'top') { cam.position.set(0, 13.5, 0.6); cam.lookAt(0, 0, -1.2); return; }
+    if (this.mode === 'meeting') { cam.position.set(0.5, 3.6, 5.0); cam.lookAt(0.5, 0.4, -0.8); return; }
+    if (this.mode === 'follow') {
+      const ch = this.chars.get(S.selectedStaffId);
+      if (ch) {
+        const p = ch.position;
+        cam.position.set(p.x + 2.3, 2.6, p.z + 3.4);
+        cam.lookAt(p.x, 1.4, p.z);
+      }
+      return;
+    }
+    // Chế độ tự do sau khi kéo: quỹ đạo quanh tâm phòng.
+    const cx = 0, cz = -1.2;
+    cam.position.set(cx + Math.sin(o.yaw) * Math.cos(o.pitch) * o.dist, 0.6 + Math.sin(o.pitch) * o.dist, cz + Math.cos(o.yaw) * Math.cos(o.pitch) * o.dist);
+    cam.lookAt(cx, 0.8, cz);
+  },
+  setMode(mode) {
+    this.mode = mode;
+    if (mode !== 'free') this.applyCamera();
+    $$('.stage .camrow button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+  },
+  focusStaff(id, silent) {
+    S.selectedStaffId = id;
+    if (this.mode === 'follow') this.applyCamera();
+    if (!silent) refreshOfficePanel();
+  },
+  bindControls() {
+    const canvas = this.renderer.domElement;
+    const pointers = new Map();
+    let downAt = 0, downX = 0, downY = 0, moved = 0, pinchDist = 0;
+    const onDown = (e) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) { downAt = performance.now(); downX = e.clientX; downY = e.clientY; moved = 0; }
+      if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchDist = Math.hypot(a.x - b.x, a.y - b.y); }
+      canvas.setPointerCapture(e.pointerId);
     };
-    rd.readAsText(f);
-  });
-  $('#btn-reset').addEventListener('click', () => {
-    if (!confirm('Đặt lại toàn bộ dữ liệu về mẫu ban đầu?')) return;
-    state = seedState(); save(); renderAll();
-    logActivity('Dữ liệu đã được đặt lại về mẫu ban đầu.');
+    const onMove = (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      const prev = pointers.get(e.pointerId);
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      moved = Math.max(moved, Math.hypot(e.clientX - downX, e.clientY - downY));
+      if (pointers.size === 1 && moved > 4) {
+        this.mode = 'free';
+        this.orbit.yaw -= dx * 0.006; this.orbit.pitch = Math.max(0.15, Math.min(1.25, this.orbit.pitch + dy * 0.005));
+        this.applyCamera();
+        $$('.stage .camrow button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist > 0) this.orbit.dist = Math.max(6, Math.min(20, this.orbit.dist * (pinchDist / d)));
+        pinchDist = d; this.mode = 'free'; this.applyCamera();
+      }
+    };
+    const onUp = (e) => {
+      const wasTap = pointers.size === 1 && moved <= 6 && performance.now() - downAt < 400;
+      pointers.delete(e.pointerId);
+      if (wasTap) this.pick(e);
+    };
+    const onWheel = (e) => {
+      e.preventDefault();
+      this.mode = 'free';
+      this.orbit.dist = Math.max(6, Math.min(20, this.orbit.dist + (e.deltaY > 0 ? 1 : -1)));
+      this.applyCamera();
+      $$('.stage .camrow button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    };
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    this._handlers.push(['pointerdown', canvas, onDown], ['pointermove', canvas, onMove], ['pointerup', canvas, onUp], ['pointercancel', canvas, onUp], ['wheel', canvas, onWheel]);
+  },
+  pick(e) {
+    const canvas = this.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const ray = new this.three.Raycaster();
+    ray.setFromCamera({ x: nx, y: ny }, this.camera);
+    const hits = [];
+    for (const [, ch] of this.chars) hits.push(ch.userData.hit);
+    const found = ray.intersectObjects(hits, false);
+    if (found.length) {
+      const id = found[0].object.userData.staffId;
+      this.focusStaff(id);
+      toast(myName(id) + ' — ' + roleOfStaff(staffById(id)).name);
+    }
+  },
+  showStageError(msg) {
+    const el = $('#stage-error'); if (el) { el.textContent = msg; el.hidden = false; }
+  },
+  hideStageError() { const el = $('#stage-error'); if (el) el.hidden = true; },
+  dispose() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = 0;
+    if (this._ro) { this._ro.disconnect(); this._ro = null; }
+    for (const [type, el, fn] of this._handlers) { try { el.removeEventListener(type, fn); } catch { /* bỏ qua */ } }
+    this._handlers = [];
+    if (this.renderer) {
+      try { this.scene && this.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); }); } }); } catch { /* bỏ qua */ }
+      try { this.renderer.dispose(); } catch { /* bỏ qua */ }
+      if (this.renderer.domElement && this.renderer.domElement.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    }
+    this.renderer = null; this.scene = null; this.camera = null; this.three = null;
+    this.chars.clear(); this.desks.clear(); this._builtIds = ''; this.ready = false; this.mount = null;
+  },
+};
+
+/* --------------------------- Màn hình Văn phòng --------------------------- */
+function officePanelHTML() {
+  const st = staffById(S.selectedStaffId) || S.staff[0];
+  const pend = pendingApprovals();
+  const staffList = S.staff.map((s) => {
+    const es = effectiveStatus(s, S.approvals);
+    const meta = STATUS_META[es];
+    const lamp = pend.some((a) => a.requesterId === s.id);
+    return '<button type="button" class="fallback-item" data-select-staff="' + esc(s.id) + '" aria-pressed="' + String(S.selectedStaffId === s.id) + '">' +
+      '<span class="dot ' + meta.dot + '"></span>' +
+      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span></span>' +
+      (lamp ? '<span class="lamp" title="Đang có yêu cầu chờ duyệt"></span>' : '') +
+      '</button>';
+  }).join('');
+  let profile = '';
+  if (st) {
+    const es = effectiveStatus(st, S.approvals);
+    const myJobs = S.jobs.filter((j) => j.assigneeId === st.id && j.status !== 'Hoàn thành');
+    profile = '<div class="card"><h2>Hồ sơ đang chọn</h2>' +
+      '<dl class="kv">' +
+      '<div class="row"><dt>Tên</dt><dd>' + esc(st.name) + '</dd></div>' +
+      '<div class="row"><dt>Chức vụ hiện tại</dt><dd>' + esc(roleOfStaff(st).name) + '</dd></div>' +
+      '<div class="row"><dt>Trạng thái</dt><dd><span class="pill ' + STATUS_META[es].cls + '">' + STATUS_META[es].label + '</span></dd></div>' +
+      '<div class="row"><dt>Tài khoản</dt><dd>' + esc(st.account || '—') + '</dd></div>' +
+      '<div class="row"><dt>Việc đang phụ trách</dt><dd>' + (myJobs.length ? myJobs.map((j) => esc(j.name) + ' (' + esc(j.status) + ')').join('<br>') : 'Không có việc đang làm') + '</dd></div>' +
+      '<div class="row"><dt>Ngân sách</dt><dd>' + (st.budget == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + Math.round((st.used / st.budget) * 100) + '%)') + '</dd></div>' +
+      '</dl>' +
+      '<div class="toolbar"><button class="btn small" type="button" data-goto-chat="' + esc(st.id) + '">Nhắn tin</button>' +
+      '<button class="btn small" type="button" data-goto-jobs="' + esc(st.id) + '">Xem việc</button></div></div>';
+  }
+  const meeting = S.meetings[S.meetings.length - 1];
+  return '<div class="grid" style="gap:12px">' + profile +
+    '<div class="card"><h2>Nhân sự trong phòng</h2><div class="fallback-list">' + staffList + '</div></div>' +
+    (meeting && meeting.status === 'open' ? '<div class="card"><h2>Đang họp: ' + esc(meeting.title) + '</h2><p class="hint">Gọi bởi ' + esc(myName(meeting.calledBy)) + ' · ' + esc(fmtTime(meeting.at)) + '</p></div>' : '') +
+    '<div class="card"><h2>Hoạt động mới nhất</h2><ul class="log" id="activity-log">' + (S.feed.map((f) => '<li><time>' + esc(fmtTime(f.at)) + '</time>' + esc(f.text) + '</li>').join('') || '<li>Chưa có hoạt động nào.</li>') + '</ul></div>' +
+    '</div>';
+}
+function refreshOfficePanel() {
+  if (S.route !== 'office') return;
+  const panel = $('#office-panel');
+  if (panel) { panel.innerHTML = officePanelHTML(); bindOfficePanel(panel); }
+  Office3D.sync();
+}
+function bindOfficePanel(root) {
+  $$('[data-select-staff]', root).forEach((b) => b.addEventListener('click', () => {
+    S.selectedStaffId = b.dataset.selectStaff;
+    Office3D.focusStaff(b.dataset.selectStaff, true);
+    refreshOfficePanel();
+  }));
+  $$('[data-goto-chat]', root).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.gotoChat; location.hash = '#/chat'; }));
+  $$('[data-goto-jobs]', root).forEach((b) => b.addEventListener('click', () => { location.hash = '#/jobs'; }));
+}
+function renderOfficeFallback() {
+  const box = $('#stage-box'); if (!box) return;
+  const items = S.staff.map((s, i) => {
+    const es = effectiveStatus(s, S.approvals);
+    const meta = STATUS_META[es];
+    const lamp = pendingApprovals().some((a) => a.requesterId === s.id);
+    return '<button type="button" class="fallback-item" data-select-staff="' + esc(s.id) + '">' +
+      '<span class="dot ' + meta.dot + '"></span>' +
+      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span></span>' +
+      (lamp ? '<span class="lamp"></span>' : '') + '<span aria-hidden="true">›</span></button>';
+  }).join('');
+  box.innerHTML = '<div class="stage-fallback"><p class="hint"><strong>Dạng danh sách 2D</strong> — cùng dữ liệu, cùng thao tác như bản 3D. Bấm một người để xem hồ sơ.</p>' +
+    '<div class="fallback-list">' + items + '</div>' +
+    '<div class="toolbar"><button class="btn small" type="button" id="retry-3d">Thử lại cảnh 3D</button></div></div>';
+  bindOfficePanel(box);
+  const retry = $('#retry-3d');
+  if (retry) retry.addEventListener('click', () => {
+    S.office2D = false;
+    try { sessionStorage.removeItem('office.force2d'); } catch { /* bỏ qua */ }
+    renderOffice($('#screen'));
   });
 }
-function renderMinutes() {
-  $('#minutes-list').innerHTML = state.minutes.length ? state.minutes.map((m) => `
-    <div style="padding:6px 0;border-bottom:1px dashed #e4e9ee;font-size:14px">
-    <time style="color:var(--muted);font-size:12px;margin-right:6px">${esc(m.at)}</time>${esc(m.text || '(không có nội dung)')}
-    ${m.jobName ? `<span class="small"> → Việc phát sinh: ${esc(m.jobName)}</span>` : ''}</div>`).join('')
-    : '<p class="hint">Chưa có biên bản nào.</p>';
+async function renderOffice(screen) {
+  let use2D = !!S.office2D;
+  try { if (sessionStorage.getItem('office.force2d') === '1') use2D = true; } catch { /* bỏ qua */ }
+  screen.innerHTML =
+    '<h1>Văn phòng 3D</h1>' +
+    '<p class="hint">Trung tâm điều phối — nhân vật, trạng thái và đèn đỏ phản ánh dữ liệu thật trên máy chủ' + (Session.demo ? ' (bản DEMO ngoại tuyến)' : '') + '. Bấm một nhân vật trong phòng để xem hồ sơ.</p>' +
+    '<div class="kpi">' +
+    '<div class="kpi-item"><div class="kpi-num">' + S.staff.length + '</div><div class="kpi-label">Nhân sự</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num">' + S.jobs.filter((j) => j.status !== 'Hoàn thành').length + '</div><div class="kpi-label">Việc đang mở</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num">' + pendingApprovals().length + '</div><div class="kpi-label">Chờ duyệt</div></div>' +
+    '<div class="kpi-item"><div class="kpi-num">' + S.staff.filter((s) => s.resting).length + '</div><div class="kpi-label">Đang nghỉ (ngân sách)</div></div>' +
+    '</div>' +
+    '<div class="office-layout"><section>' +
+    '<div class="toolbar"><button class="btn primary" type="button" id="call-meeting">Gọi họp team</button>' +
+    '<button class="btn" type="button" id="toggle-2d">' + (use2D ? 'Về cảnh 3D' : 'Dạng danh sách 2D') + '</button>' +
+    '<span class="spacer"></span><span class="hint" id="office-mode-note">' + (use2D ? 'Đang ở dạng 2D.' : 'Đang tải cảnh 3D…') + '</span></div>' +
+    '<div class="stage"><div class="stage-box" id="stage-box"></div>' +
+    '<div class="camrow" role="group" aria-label="Góc nhìn">' +
+    '<button type="button" data-cam="overview" aria-pressed="true">Góc tổng</button>' +
+    '<button type="button" data-cam="top" aria-pressed="false">Từ trên</button>' +
+    '<button type="button" data-cam="meeting" aria-pressed="false">Phòng họp</button>' +
+    '<button type="button" data-cam="follow" aria-pressed="false">Theo người</button>' +
+    '</div>' +
+    '<div class="stage-help">Kéo để xoay · Cuộn/pinch để thu phóng · Bấm nhân vật để xem hồ sơ</div>' +
+    '<div class="stage-credit">Dữ liệu thật từ máy chủ — không phải bản vẽ tĩnh.</div>' +
+    '<div class="stage-error" id="stage-error" hidden></div>' +
+    '</div>' +
+    '<div id="meeting-box"></div>' +
+    '</section><aside id="office-panel">' + officePanelHTML() + '</aside></div>';
+  bindOfficePanel($('#office-panel'));
+  $$('.stage .camrow button', screen).forEach((b) => b.addEventListener('click', () => {
+    Office3D.setMode(b.dataset.cam);
+    const note = $('#office-mode-note'); if (note) note.textContent = 'Góc nhìn: ' + b.textContent + '.';
+  }));
+  $('#toggle-2d').addEventListener('click', () => {
+    S.office2D = !S.office2D;
+    if (S.office2D) Office3D.dispose();
+    renderOffice(screen);
+  });
+  $('#call-meeting').addEventListener('click', async () => {
+    try {
+      const mt = await api.post('/api/meetings', { title: 'Họp team' });
+      S.meetingActive = mt; S.meetings.push(mt);
+      S.staff.forEach((s, i) => Office3D.goToSeat(s.id, i));
+      Office3D.setMode('meeting');
+      feedAdd('Đã gọi họp team (' + S.staff.length + ' người).');
+      renderMeetingBox();
+      refreshOfficePanel();
+      toast('Đã gọi họp — cả team đang di chuyển vào phòng họp.');
+    } catch (e) { showError(e); }
+  });
+  renderMeetingBox();
+  if (use2D) { renderOfficeFallback(); return; }
+  const box = $('#stage-box');
+  box.innerHTML = '<p class="hint" style="padding:16px">Đang tải cảnh 3D… Nếu mạng chặn thư viện 3D, hệ thống tự chuyển sang dạng danh sách 2D đầy đủ thao tác.</p>';
+  const res = await Office3D.init(box);
+  if (!res.ok) {
+    S.office2D = true;
+    try { sessionStorage.setItem('office.force2d', '1'); } catch { /* bỏ qua */ }
+    Office3D.showStageError(res.reason);
+    renderOfficeFallback();
+    const note = $('#office-mode-note'); if (note) note.textContent = 'Cảnh 3D không tải được — đang ở dạng 2D.';
+    feedAdd('Cảnh 3D không tải được: ' + res.reason);
+    return;
+  }
+  const note = $('#office-mode-note'); if (note) note.textContent = 'Cảnh 3D đã sẵn sàng.';
+  Office3D.setMode('overview');
+}
+function renderMeetingBox() {
+  const box = $('#meeting-box'); if (!box) return;
+  const mt = S.meetingActive || S.meetings[S.meetings.length - 1];
+  if (!mt || mt.status !== 'open') { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="card"><h2>Biên bản họp: ' + esc(mt.title) + '</h2>' +
+    '<p class="hint">Biên bản ghi bằng tay theo thiết kế đã chốt — sau khi lưu, có thể tạo việc ngay từ biên bản.</p>' +
+    '<label>Biên bản<textarea id="meeting-minutes" rows="4">' + esc(mt.minutes || '') + '</textarea></label>' +
+    '<div class="toolbar"><button class="btn primary" type="button" id="save-minutes">Lưu biên bản</button>' +
+    '<button class="btn" type="button" id="job-from-minutes">Tạo việc từ biên bản</button>' +
+    '<button class="btn" type="button" id="end-meeting">Họp xong</button></div></div>';
+  $('#save-minutes').addEventListener('click', async () => {
+    try {
+      const m = await api.patch('/api/meetings/' + mt.id, { minutes: $('#meeting-minutes').value });
+      Object.assign(mt, m); toast('Đã lưu biên bản.'); feedAdd('Đã lưu biên bản họp.');
+    } catch (e) { showError(e); }
+  });
+  $('#job-from-minutes').addEventListener('click', () => {
+    S.jobDraft = { name: '', desc: $('#meeting-minutes').value || '' };
+    location.hash = '#/jobs';
+  });
+  $('#end-meeting').addEventListener('click', async () => {
+    try {
+      const m = await api.patch('/api/meetings/' + mt.id, { minutes: $('#meeting-minutes').value, status: 'closed' });
+      Object.assign(mt, m); S.meetingActive = null;
+      S.staff.forEach((s) => Office3D.goHome(s.id));
+      Office3D.setMode('overview');
+      renderMeetingBox(); refreshOfficePanel();
+      toast('Đã kết thúc cuộc họp.');
+    } catch (e) { showError(e); }
+  });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  bindEvents();
-  renderAll();
-  renderMinutes();
-  renderDemoLoginStatus();
-  Office3D.init();
-  Pulse.start();
-  if (!state.activity.length) logActivity('Trung tâm điều hành đã mở. Dữ liệu lưu trên trình duyệt này (localStorage).');
-});
+/* -------------------------------- Màn Việc -------------------------------- */
+function jobCardHTML(job) {
+  const assignee = myName(job.assigneeId), reviewer = myName(job.reviewerId);
+  const canClaim = job.status === 'Chờ nhận' && Session.me && Session.me.id === job.assigneeId;
+  const canSubmit = job.status === 'Đang làm' && Session.me && Session.me.id === job.assigneeId;
+  const canReview = job.status === 'Chờ duyệt' && myRole().canApprove && Session.me && Session.me.id !== job.assigneeId;
+  const links = (job.links || []).map((l) => '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.title) + '</a>').join(' · ');
+  return '<article class="jobcard">' +
+    '<strong>' + esc(job.name) + '</strong>' +
+    '<div class="meta">Phụ trách: ' + esc(assignee) + ' · Kiểm tra: ' + esc(reviewer) + (job.claimedBy ? ' · Đã nhận: ' + esc(myName(job.claimedBy)) : '') + '</div>' +
+    (job.desc ? '<div>' + esc(job.desc) + '</div>' : '') +
+    (links ? '<div class="meta">Link: ' + links + '</div>' : '') +
+    '<div class="progress" aria-label="Tiến độ ' + job.progress + '%"><i style="width:' + Math.max(0, Math.min(100, job.progress || 0)) + '%"></i></div>' +
+    '<div class="actions">' +
+    '<button class="btn small" type="button" data-job-detail="' + esc(job.id) + '">Chi tiết</button>' +
+    (canClaim ? '<button class="btn small primary" type="button" data-job-claim="' + esc(job.id) + '">Nhận việc</button>' : '') +
+    (canSubmit ? '<button class="btn small primary" type="button" data-job-submit="' + esc(job.id) + '">Trình duyệt</button>' : '') +
+    (canReview ? '<button class="btn small primary" type="button" data-job-approve="' + esc(job.id) + '">Duyệt xong</button>' +
+      '<button class="btn small" type="button" data-job-return="' + esc(job.id) + '">Trả lại</button>' : '') +
+    '</div></article>';
+}
+function openJobDetail(jobId) {
+  const job = S.jobs.find((j) => j.id === jobId); if (!job) return;
+  const thread = S.messages.filter((m) => m.jobId === jobId);
+  const canAttach = isDirector() || (Session.me && (Session.me.id === job.assigneeId || Session.me.id === job.reviewerId));
+  openModal('<h1>' + esc(job.name) + '</h1>' +
+    '<dl class="kv">' +
+    '<div class="row"><dt>Trạng thái</dt><dd>' + esc(job.status) + ' · ' + (job.progress || 0) + '%</dd></div>' +
+    '<div class="row"><dt>Phụ trách / Kiểm tra</dt><dd>' + esc(myName(job.assigneeId)) + ' / ' + esc(myName(job.reviewerId)) + '</dd></div>' +
+    '<div class="row"><dt>Mô tả</dt><dd>' + esc(job.desc || '—') + '</dd></div>' +
+    '<div class="row"><dt>Rule đính kèm</dt><dd>' + esc((S.rules.find((r) => r.id === job.ruleId) || {}).text || '—') + '</dd></div>' +
+    '</dl>' +
+    '<h2>Link đính kèm (link công khai của Muse)</h2>' +
+    ((job.links || []).map((l) => '<p><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.title) + '</a> <span class="small">— ' + esc(myName(l.by)) + '</span></p>').join('') || '<p class="hint">Chưa có link.</p>') +
+    (canAttach ? '<form id="job-link-form"><label>Link mới<input name="url" type="url" placeholder="https://…" required></label><label>Tiêu đề<input name="title" placeholder="Tiêu đề ngắn"></label><button class="btn small" type="submit">Gắn link</button></form>' : '') +
+    '<h2>Trao đổi trong việc này</h2>' +
+    (thread.map((m) => '<p><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text) + ' <span class="small">' + esc(fmtTime(m.at)) + '</span></p>').join('') || '<p class="hint">Chưa có tin nhắn nào gắn vào việc này.</p>') +
+    '<form id="job-msg-form"><label>Gửi tin vào luồng việc này<textarea name="text" required rows="2"></textarea></label><button class="btn small primary" type="submit">Gửi</button></form>' +
+    '<div class="toolbar"><button class="btn small" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đóng</button></div>');
+  const lf = $('#job-link-form');
+  if (lf) lf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(lf);
+    try {
+      const updated = await api.post('/api/jobs/' + job.id + '/links', { url: fd.get('url'), title: fd.get('title') });
+      Object.assign(job, updated); closeModal(); await refreshAll(); renderScreen();
+      toast('Đã gắn link vào việc.');
+    } catch (ex) { showError(ex); }
+  });
+  const mf = $('#job-msg-form');
+  if (mf) mf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(mf);
+    try {
+      await api.post('/api/messages', { to: 'room', jobId: job.id, text: fd.get('text') });
+      closeModal(); await refreshAll(); renderScreen();
+      toast('Đã gửi tin vào luồng việc.');
+    } catch (ex) { showError(ex); }
+  });
+}
+async function renderJobs(screen) {
+  const canCreate = isDirector() || myRole().canApprove;
+  const draft = S.jobDraft || {};
+  S.jobDraft = null;
+  const staffOpts = S.staff.map((s) => '<option value="' + esc(s.id) + '">' + esc(s.name) + ' — ' + esc(roleOfStaff(s).name) + '</option>').join('');
+  const cols = JOB_COLUMNS.map((col) => {
+    const items = S.jobs.filter((j) => j.status === col);
+    return '<section class="kcol"><h3>' + esc(col) + ' <span>' + items.length + '</span></h3>' +
+      (items.map(jobCardHTML).join('') || '<p class="hint">Không có việc.</p>') + '</section>';
+  }).join('');
+  screen.innerHTML = '<h1>Việc</h1>' +
+    '<p class="hint">Luồng việc: Chờ nhận → người phụ trách nhận → Đang làm → trình duyệt → Chờ duyệt → Leader/Giám đốc duyệt → Hoàn thành. Nhận việc là nguyên tử: hai người cùng nhận, chỉ một người được. Không ai được tự duyệt việc của mình.</p>' +
+    (canCreate ? '<div class="card"><h2>Thêm / giao việc mới</h2><form id="job-form">' +
+      '<label>Tên việc<input name="name" required value="' + esc(draft.name || '') + '"></label>' +
+      '<label>Mô tả<textarea name="desc" rows="2">' + esc(draft.desc || '') + '</textarea></label>' +
+      '<div class="row2"><label>Người phụ trách<select name="assigneeId">' + staffOpts + '</select></label>' +
+      '<label>Người kiểm tra<select name="reviewerId">' + staffOpts + '</select></label></div>' +
+      '<label>Rule đính kèm<select name="ruleId"><option value="">— Không có —</option>' + S.rules.map((r) => '<option value="' + esc(r.id) + '">' + esc(r.text) + '</option>').join('') + '</select></label>' +
+      '<label>Link đính kèm (không bắt buộc)<input name="link" type="url" placeholder="https://…"></label>' +
+      '<button class="btn primary" type="submit">Tạo việc</button></form></div>' : '<p class="hint">Bạn chưa có quyền tạo việc (cần chức vụ có quyền duyệt hoặc Giám đốc).</p>') +
+    '<div class="kanban">' + cols + '</div>';
+  const form = $('#job-form');
+  if (form) form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const body = { name: fd.get('name'), desc: fd.get('desc'), assigneeId: fd.get('assigneeId'), reviewerId: fd.get('reviewerId'), ruleId: fd.get('ruleId') || null };
+    if (fd.get('link')) body.links = [{ url: fd.get('link'), title: fd.get('link') }];
+    try { await api.post('/api/jobs', body); await refreshAll(); renderScreen(); toast('Đã tạo việc.'); }
+    catch (ex) { showError(ex); }
+  });
+  $$('[data-job-detail]', screen).forEach((b) => b.addEventListener('click', () => openJobDetail(b.dataset.jobDetail)));
+  $$('[data-job-claim]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/jobs/' + b.dataset.jobClaim + '/claim', {}); await refreshAll(); renderScreen(); toast('Bạn đã nhận việc.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-job-submit]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/jobs/' + b.dataset.jobSubmit + '/submit', {}); await refreshAll(); renderScreen(); toast('Đã trình việc lên kiểm tra.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-job-approve]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/jobs/' + b.dataset.jobApprove + '/approve', {}); await refreshAll(); renderScreen(); toast('Đã duyệt xong việc.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-job-return]', screen).forEach((b) => b.addEventListener('click', () => {
+    openModal('<h1>Trả lại việc</h1><p class="hint">Trả lại bắt buộc có lý do — người phụ trách đọc lý do để sửa.</p>' +
+      '<form id="return-form"><label>Lý do<textarea name="reason" required rows="3"></textarea></label>' +
+      '<button class="btn primary" type="submit">Trả lại việc</button></form>');
+    $('#return-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api.post('/api/jobs/' + b.dataset.jobReturn + '/return', { reason: new FormData(e.target).get('reason') });
+        closeModal(); await refreshAll(); renderScreen(); toast('Đã trả lại việc.');
+      } catch (ex) { showError(ex); }
+    });
+  }));
+}
+
+/* ----------------------------- Màn Phê duyệt ------------------------------ */
+async function renderApprovals(screen) {
+  const pend = pendingApprovals();
+  const decided = S.approvals.filter((a) => a.status !== 'pending').slice(-20).reverse();
+  const canDecide = (ap) => {
+    if (!myRole().canApprove) return 'Chức vụ hiện tại không có quyền duyệt.';
+    if (Session.me && Session.me.id === ap.requesterId) return 'Cấm tự duyệt yêu cầu của chính mình — kể cả Giám đốc.';
+    return null;
+  };
+  screen.innerHTML = '<h1>Phê duyệt</h1>' +
+    '<p class="hint">Hộp phê duyệt nhận <strong>mọi</strong> yêu cầu cấp quyền của <strong>mọi</strong> tài khoản Muse — đăng nhập, tải file, cài ứng dụng và 5 nhóm còn lại. Quyết định ngay tại đây, không cần mở ứng dụng Muse. Từ chối bắt buộc có lý do. Không ai tự duyệt yêu cầu của mình.</p>' +
+    '<div class="card"><h2>Gửi yêu cầu mới</h2><form id="ap-form">' +
+    '<label>Hành động<select name="action">' + APPROVAL_ACTIONS.map((a) => '<option>' + esc(a) + '</option>').join('') + '</select></label>' +
+    '<label>Mục tiêu / đối tượng<input name="target" placeholder="VD: file bao-cao.pdf, ứng dụng X, tài khoản…"></label>' +
+    '<label>Lý do<textarea name="reason" required rows="2"></textarea></label>' +
+    '<label>Việc liên quan<select name="jobId"><option value="">— Không có —</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select></label>' +
+    '<button class="btn primary" type="submit">Gửi yêu cầu</button></form></div>' +
+    '<h2>Đang chờ quyết định (' + pend.length + ')</h2>' +
+    (pend.length ? pend.map((ap) => {
+      const block = canDecide(ap);
+      return '<div class="card"><div class="toolbar"><strong>' + esc(ap.action) + '</strong><span class="pill approval">Chờ duyệt</span><span class="spacer"></span><span class="small">' + esc(fmtTime(ap.at)) + '</span></div>' +
+        '<dl class="kv"><div class="row"><dt>Người yêu cầu</dt><dd>' + esc(myName(ap.requesterId)) + '</dd></div>' +
+        '<div class="row"><dt>Mục tiêu</dt><dd>' + esc(ap.target || '—') + '</dd></div>' +
+        '<div class="row"><dt>Lý do</dt><dd>' + esc(ap.reason) + '</dd></div>' +
+        (ap.jobId ? '<div class="row"><dt>Việc liên quan</dt><dd>' + esc((S.jobs.find((j) => j.id === ap.jobId) || {}).name || '—') + '</dd></div>' : '') +
+        (ap.source ? '<div class="row"><dt>Nguồn</dt><dd>' + esc(ap.source) + '</dd></div>' : '') + '</dl>' +
+        (block ? '<p class="hint">' + esc(block) + '</p>' :
+          '<form class="decide-form" data-ap="' + esc(ap.id) + '"><label>Ghi chú quyết định (bắt buộc khi từ chối)<input name="note"></label>' +
+          '<div class="toolbar"><button class="btn primary" type="submit" data-decision="approved">Duyệt</button>' +
+          '<button class="btn danger" type="submit" data-decision="rejected">Từ chối</button></div></form>') +
+        '</div>';
+    }).join('') : '<p class="hint">Không có yêu cầu nào đang chờ. Đèn đỏ trong văn phòng sẽ tắt khi hết yêu cầu chờ.</p>') +
+    '<h2>Đã quyết định gần đây</h2>' +
+    (decided.map((ap) => '<div class="card"><strong>' + esc(ap.action) + '</strong> — ' + (ap.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối') + ' bởi ' + esc(myName(ap.decidedBy)) + ' · ' + esc(fmtTime(ap.decidedAt || ap.at)) + (ap.note ? '<div class="hint">Ghi chú: ' + esc(ap.note) + '</div>' : '') + '</div>').join('') || '<p class="hint">Chưa có quyết định nào.</p>');
+  $('#ap-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await api.post('/api/approvals', { action: fd.get('action'), target: fd.get('target'), reason: fd.get('reason'), jobId: fd.get('jobId') || null });
+      await refreshAll(); renderScreen(); toast('Đã gửi yêu cầu phê duyệt.');
+    } catch (ex) { showError(ex); }
+  });
+  $$('.decide-form', screen).forEach((f) => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const decision = e.submitter ? e.submitter.dataset.decision : 'approved';
+    const note = new FormData(f).get('note');
+    try {
+      await api.post('/api/approvals/' + f.dataset.ap + '/decide', { decision, note });
+      await refreshAll(); renderScreen(); toast(decision === 'approved' ? 'Đã duyệt yêu cầu.' : 'Đã từ chối yêu cầu.');
+    } catch (ex) { showError(ex); }
+  }));
+}
+
+/* ------------------------- Màn Nhân sự & chức vụ --------------------------- */
+async function renderPeople(screen) {
+  const director = isDirector();
+  const roleRows = S.roles.map((r) => {
+    const holders = S.staff.filter((s) => s.roleId === r.id).length;
+    return '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + r.level + '</td><td>' + (r.canApprove ? 'Có' : 'Không') + '</td><td>' + (r.canManage ? 'Có' : 'Không') + '</td><td>' + holders + ' người</td>' +
+      (director ? '<td><button class="btn small" type="button" data-role-edit="' + esc(r.id) + '">Sửa</button> <button class="btn small danger" type="button" data-role-del="' + esc(r.id) + '">Xoá</button></td>' : '<td>—</td>') + '</tr>';
+  }).join('');
+  const staffRows = S.staff.map((s) => {
+    const login = s.login || {};
+    return '<tr><td><strong>' + esc(s.name) + '</strong><div class="small">' + esc(s.account || '') + '</div></td>' +
+      '<td>' + esc(roleOfStaff(s).name) + '</td>' +
+      '<td><span class="pill ' + STATUS_META[effectiveStatus(s, S.approvals)].cls + '">' + STATUS_META[effectiveStatus(s, S.approvals)].label + '</span></td>' +
+      '<td>' + (login.username ? esc(login.username) + (login.disabled ? ' (đã khoá)' : '') + (login.mustChangePassword ? ' (phải đổi MK)' : '') : 'Chưa có') + '</td>' +
+      (director ? '<td><button class="btn small" type="button" data-staff-role="' + esc(s.id) + '">Đổi chức vụ</button> ' +
+        (login.username ? '<button class="btn small" type="button" data-staff-reset="' + esc(s.id) + '">Đặt lại MK</button> ' +
+        '<button class="btn small" type="button" data-staff-disable="' + esc(s.id) + '" data-disabled="' + String(!!login.disabled) + '">' + (login.disabled ? 'Mở khoá' : 'Khoá') + '</button> ' +
+        '<button class="btn small" type="button" data-staff-token="' + esc(s.id) + '">Cấp mã API</button> ' : '') +
+        '<button class="btn small danger" type="button" data-staff-del="' + esc(s.id) + '">Xoá</button></td>' : '<td>—</td>') + '</tr>';
+  }).join('');
+  screen.innerHTML = '<h1>Nhân sự &amp; chức vụ</h1>' +
+    '<p class="hint">Chức vụ là dữ liệu, không gắn cứng với người: đổi chức vụ của một người thì quyền của người đó đổi theo ngay. Mọi quyền trong hệ thống đều tính từ bảng chức vụ hiện tại. ' + (director ? '' : 'Bạn đang xem với quyền chỉ đọc — chỉ Giám đốc mới sửa được.') + '</p>' +
+    '<h2>Chức vụ</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tên</th><th>Cấp</th><th>Được duyệt</th><th>Được quản trị</th><th>Người giữ</th>' + (director ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + roleRows + '</tbody></table></div>' +
+    (director ? '<div class="card"><h2>Thêm chức vụ</h2><form id="role-form"><label>Tên chức vụ<input name="name" required></label><div class="row2"><label>Cấp (số càng nhỏ càng cao)<input name="level" type="number" value="3" min="1" max="9"></label></div><label><input type="checkbox" name="canApprove" style="width:auto"> Được duyệt việc / yêu cầu</label><label><input type="checkbox" name="canManage" style="width:auto"> Được quản trị hệ thống</label><button class="btn primary" type="submit">Thêm chức vụ</button></form></div>' : '') +
+    '<h2>Nhân viên</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Người</th><th>Chức vụ</th><th>Trạng thái</th><th>Đăng nhập</th>' + (director ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + staffRows + '</tbody></table></div>' +
+    (director ? '<div class="card"><h2>Thêm nhân viên</h2><form id="staff-form"><div class="row2"><label>Tên hiển thị<input name="name" required></label><label>Tài khoản / email<input name="account"></label></div><label>Chức vụ<select name="roleId">' + S.roles.map((r) => '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>').join('') + '</select></label><div class="row2"><label>Tên đăng nhập<input name="username" placeholder="Để trống = chưa có tài khoản"></label><label>Mật khẩu ban đầu<input name="password" type="password" placeholder="Từ 8 ký tự"></label></div><label>Ngân sách token ban đầu (để trống = chưa đặt)<input name="budget" type="number" min="0"></label><button class="btn primary" type="submit">Thêm nhân viên</button></form></div>' : '');
+  const rf = $('#role-form');
+  if (rf) rf.addEventListener('submit', async (e) => {
+    e.preventDefault(); const fd = new FormData(rf);
+    try { await api.post('/api/roles', { name: fd.get('name'), level: Number(fd.get('level')), canApprove: !!fd.get('canApprove'), canManage: !!fd.get('canManage') }); await refreshAll(); renderScreen(); toast('Đã thêm chức vụ.'); }
+    catch (ex) { showError(ex); }
+  });
+  const sf = $('#staff-form');
+  if (sf) sf.addEventListener('submit', async (e) => {
+    e.preventDefault(); const fd = new FormData(sf);
+    try {
+      const r = await api.post('/api/staff', { name: fd.get('name'), account: fd.get('account'), roleId: fd.get('roleId'), username: fd.get('username') || undefined, initialPassword: fd.get('password') || undefined, budget: fd.get('budget') ? Number(fd.get('budget')) : undefined });
+      await refreshAll(); renderScreen();
+      if (r.token) openModal('<h1>Đã tạo nhân viên</h1><p class="warnbox">Mã API token chỉ hiện <strong>một lần duy nhất</strong>. Ghi lại và đưa cho nhân viên qua kênh an toàn — mã này không hiện lại.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      else toast('Đã thêm nhân viên.');
+    } catch (ex) { showError(ex); }
+  });
+  $$('[data-role-edit]', screen).forEach((b) => b.addEventListener('click', () => {
+    const r = S.roles.find((x) => x.id === b.dataset.roleEdit);
+    openModal('<h1>Sửa chức vụ: ' + esc(r.name) + '</h1><form id="role-edit-form"><label>Tên<input name="name" value="' + esc(r.name) + '" required></label><label>Cấp<input name="level" type="number" value="' + r.level + '" min="1" max="9"></label><label><input type="checkbox" name="canApprove" style="width:auto" ' + (r.canApprove ? 'checked' : '') + '> Được duyệt việc / yêu cầu</label><label><input type="checkbox" name="canManage" style="width:auto" ' + (r.canManage ? 'checked' : '') + '> Được quản trị hệ thống</label><button class="btn primary" type="submit">Lưu</button></form>');
+    $('#role-edit-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target);
+      try { await api.patch('/api/roles/' + r.id, { name: fd.get('name'), level: Number(fd.get('level')), canApprove: !!fd.get('canApprove'), canManage: !!fd.get('canManage') }); closeModal(); await refreshAll(); renderScreen(); toast('Đã sửa chức vụ.'); }
+      catch (ex) { showError(ex); }
+    });
+  }));
+  $$('[data-role-del]', screen).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Xoá chức vụ này? Chỉ xoá được khi không còn ai giữ.')) return;
+    try { await api.del('/api/roles/' + b.dataset.roleDel); await refreshAll(); renderScreen(); toast('Đã xoá chức vụ.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-staff-role]', screen).forEach((b) => b.addEventListener('click', () => {
+    const s = staffById(b.dataset.staffRole);
+    openModal('<h1>Đổi chức vụ: ' + esc(s.name) + '</h1><form id="staff-role-form"><label>Chức vụ mới<select name="roleId">' + S.roles.map((r) => '<option value="' + esc(r.id) + '" ' + (r.id === s.roleId ? 'selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></label><button class="btn primary" type="submit">Lưu</button></form>');
+    $('#staff-role-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try { await api.patch('/api/staff/' + s.id, { roleId: new FormData(e.target).get('roleId') }); closeModal(); await refreshAll(); renderScreen(); toast('Đã đổi chức vụ.'); }
+      catch (ex) { showError(ex); }
+    });
+  }));
+  $$('[data-staff-reset]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/staff/' + b.dataset.staffReset + '/reset-password', {}); await refreshAll(); renderScreen(); toast('Đã đặt lại — nhân viên phải đổi mật khẩu ở lần đăng nhập sau.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-staff-disable]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/staff/' + b.dataset.staffDisable + '/set-disabled', { disabled: b.dataset.disabled !== 'true' }); await refreshAll(); renderScreen(); toast('Đã cập nhật trạng thái khoá.'); }
+    catch (ex) { showError(ex); }
+  }));
+  $$('[data-staff-token]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try {
+      const r = await api.post('/api/staff/' + b.dataset.staffToken + '/rotate-token', {});
+      openModal('<h1>Mã API mới</h1><p class="warnbox">Mã cũ đã hết hiệu lực. Mã mới chỉ hiện <strong>một lần duy nhất</strong> — ghi lại ngay.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+    } catch (ex) { showError(ex); }
+  }));
+  $$('[data-staff-del]', screen).forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Xoá nhân viên này? Hành động không hoàn tác được.')) return;
+    try { await api.del('/api/staff/' + b.dataset.staffDel); await refreshAll(); renderScreen(); toast('Đã xoá nhân viên.'); }
+    catch (ex) { showError(ex); }
+  }));
+}
+
+/* ----------------------------- Màn Ngân sách ------------------------------ */
+async function renderBudgets(screen) {
+  const rows = S.budgets.map((b) => {
+    const st = staffById(b.staffId); if (!st) return '';
+    const pct = b.budget ? Math.min(100, Math.round((b.used / b.budget) * 100)) : 0;
+    const state = b.resting ? '<span class="pill resting">Đang nghỉ</span>' : (b.budget && pct >= 80 ? '<span class="pill waiting">Sắp chạm (' + pct + '%)</span>' : '<span class="pill working">Bình thường</span>');
+    return '<tr><td><strong>' + esc(b.name) + '</strong></td>' +
+      '<td>' + (b.budget == null ? 'Chưa đặt mức' : fmtNum(b.budget)) + '</td>' +
+      '<td>' + fmtNum(b.used) + '</td>' +
+      '<td><div class="budgetbar"><i class="' + (pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '') + '" style="width:' + pct + '%"></i></div><span class="small">' + pct + '%</span></td>' +
+      '<td>' + state + '</td>' +
+      (isDirector() ? '<td><button class="btn small" type="button" data-budget-edit="' + esc(b.staffId) + '">Đặt mức / ghi nhận</button>' + (b.resting ? ' <button class="btn small primary" type="button" data-budget-topup="' + esc(b.staffId) + '">Nạp thêm 50%</button>' : '') + '</td>' : '<td>—</td>') + '</tr>';
+  }).join('');
+  screen.innerHTML = '<h1>Ngân sách token</h1>' +
+    '<p class="hint">Mức ngân sách do Giám đốc đặt cho từng người — không có mức chung cố định. 80% thì cảnh báo, 100% thì nhân viên tự nghỉ (không nhận việc mới, cầu nối dừng gửi). Nạp thêm +50% để cho làm tiếp. Số "đã dùng" do cầu nối đẩy lên theo nhịp tim, hoặc Giám đốc ghi nhận thủ công có nhật ký.</p>' +
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Người</th><th>Mức</th><th>Đã dùng</th><th>Tiến độ</th><th>Trạng thái</th>' + (isDirector() ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    (Session.demo ? '<p class="hint">Bản DEMO: số liệu mô phỏng trên trình duyệt này, không phải số thật.</p>' : '');
+  $$('[data-budget-edit]', screen).forEach((b) => b.addEventListener('click', () => {
+    const st = staffById(b.dataset.budgetEdit);
+    openModal('<h1>Ngân sách: ' + esc(st.name) + '</h1><form id="budget-form"><label>Mức ngân sách token (để trống = chưa đặt)<input name="budget" type="number" min="0" value="' + (st.budget == null ? '' : st.budget) + '"></label><label>Đã dùng (ghi nhận thủ công, có nhật ký)<input name="used" type="number" min="0" value="' + st.used + '"></label><button class="btn primary" type="submit">Lưu</button></form>');
+    $('#budget-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target);
+      try {
+        await api.patch('/api/budgets/' + st.id, { budget: fd.get('budget') === '' ? null : Number(fd.get('budget')), used: Number(fd.get('used')) });
+        closeModal(); await refreshAll(); renderScreen(); toast('Đã cập nhật ngân sách.');
+      } catch (ex) { showError(ex); }
+    });
+  }));
+  $$('[data-budget-topup]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/budgets/' + b.dataset.budgetTopup + '/topup', {}); await refreshAll(); renderScreen(); toast('Đã nạp thêm 50% và cho làm tiếp.'); }
+    catch (ex) { showError(ex); }
+  }));
+}
+
+/* ----------------------------- Màn Phòng chat ------------------------------ */
+function chatTargets() {
+  const list = [{ id: 'room', name: 'Phòng chung', sub: 'Cả team' }];
+  for (const s of S.staff) {
+    if (Session.me && s.id === Session.me.id) continue;
+    list.push({ id: s.id, name: s.name, sub: roleOfStaff(s).name + ' · ' + STATUS_META[effectiveStatus(s, S.approvals)].label });
+  }
+  return list;
+}
+function renderChatLog() {
+  const log = $('#chat-log'); if (!log) return;
+  const msgs = S.messages.filter((m) => {
+    if (S.chatTarget === 'room') return m.toId === 'room';
+    return (m.fromId === (Session.me && Session.me.id) && m.toId === S.chatTarget) || (m.fromId === S.chatTarget && m.toId === (Session.me && Session.me.id));
+  });
+  if (!msgs.length) { log.innerHTML = '<p class="hint">Chưa có tin nhắn nào ở đây. Bắt đầu trò chuyện — nhắn tự do, nhắc tên bằng @Tên hoặc [ASK:Tên] để người đó nhận thông báo ngay.</p>'; return; }
+  log.innerHTML = msgs.map((m) => {
+    const mine = Session.me && m.fromId === Session.me.id;
+    const taggedMe = m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id);
+    const job = m.jobId ? S.jobs.find((j) => j.id === m.jobId) : null;
+    return '<div class="msg' + (mine ? ' mine' : '') + '">' +
+      '<div class="msg-meta">' + esc(myName(m.fromId)) + ' · ' + esc(fmtTime(m.at)) +
+      (taggedMe ? ' <span class="msg-tag">Nhắc tên bạn</span>' : '') +
+      (job ? ' · Việc: ' + esc(job.name) : '') + '</div>' +
+      '<div>' + esc(m.text) + '</div>' +
+      (m.link ? '<a class="msg-link" href="' + esc(m.link.url) + '" target="_blank" rel="noopener">Link: ' + esc(m.link.title) + '</a>' : '') +
+      (m.taggedIds && m.taggedIds.length ? '<div class="small">Nhắc tới: ' + m.taggedIds.map((id) => esc(myName(id))).join(', ') + '</div>' : '') +
+      '</div>';
+  }).join('');
+  log.scrollTop = log.scrollHeight;
+}
+async function renderChat(screen) {
+  const targets = chatTargets();
+  if (!targets.some((t) => t.id === S.chatTarget)) S.chatTarget = 'room';
+  const cur = targets.find((t) => t.id === S.chatTarget);
+  screen.innerHTML = '<h1>Phòng chat</h1>' +
+    '<div class="card"><strong>Quy tắc phòng:</strong> trò chuyện tự do hai chiều — ai cũng có thể nhắn cho ai, mở chủ đề thoải mái. Nhắc tên bằng <code>@Tên</code> hoặc <code>[ASK:Tên]</code> thì người đó nhận thông báo <strong>ngay lập tức</strong>. Thời gian trả lời tuỳ câu hỏi, không ép thời hạn cố định. Việc thì theo kỷ luật: đã nhận → đang làm → hoàn thành kèm bằng chứng. Tin nhắn gắn vào việc sẽ hiện trong luồng của việc đó.</div>' +
+    '<div class="chat-layout"><div><h2>Người nhận</h2><div class="conv-list">' +
+    targets.map((t) => '<button type="button" class="conv-item' + (t.id === S.chatTarget ? ' active' : '') + '" data-chat-target="' + esc(t.id) + '">' +
+      '<span class="dot ' + (t.id === 'room' ? 'green' : STATUS_META[effectiveStatus(staffById(t.id), S.approvals)].dot) + '"></span>' +
+      '<span class="who"><b>' + esc(t.name) + '</b><span class="small muted">' + esc(t.sub) + '</span></span></button>').join('') +
+    '</div>' +
+    '<h2>Nhắc tên tôi</h2>' +
+    (S.messages.filter((m) => m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id)).slice(-5).reverse().map((m) => '<p class="small"><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text.slice(0, 80)) + '</p>').join('') || '<p class="hint">Chưa ai nhắc tên bạn.</p>') +
+    '</div>' +
+    '<div class="card chat-pane"><h2>' + esc(cur.name) + ' <span class="small">' + esc(cur.sub) + '</span></h2>' +
+    '<div class="chat-log" id="chat-log"></div>' +
+    '<form class="composer" id="chat-form">' +
+    '<label>Nhắc tên nhanh<select id="tag-pick"><option value="">— Không nhắc ai —</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select></label>' +
+    '<label>Tin nhắn<textarea id="chat-text" rows="3" required placeholder="Nhắn tự do… nhắc tên bằng @Tên để báo ngay"></textarea></label>' +
+    '<div class="row2"><label>Gắn vào việc<select id="chat-job"><option value="">— Không gắn việc —</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select></label>' +
+    '<label>Link đính kèm (link công khai của Muse)<input id="chat-link" type="url" placeholder="https://…"></label></div>' +
+    '<label>Tiêu đề link<input id="chat-link-title" placeholder="Tiêu đề ngắn cho link"></label>' +
+    '<button class="btn primary block" type="submit">Gửi</button></form></div></div>';
+  $$('[data-chat-target]', screen).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.chatTarget; renderScreen(); }));
+  renderChatLog();
+  const tagPick = $('#tag-pick');
+  tagPick.addEventListener('change', () => {
+    if (!tagPick.value) return;
+    const ta = $('#chat-text');
+    ta.value = (ta.value ? ta.value + ' ' : '') + '[ASK:' + tagPick.value + '] ';
+    ta.focus();
+  });
+  $('#chat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = $('#chat-text').value.trim();
+    if (!text) return;
+    const linkUrl = $('#chat-link').value.trim();
+    const body = { to: S.chatTarget, text, jobId: $('#chat-job').value || null };
+    if (linkUrl) body.link = { url: linkUrl, title: $('#chat-link-title').value.trim() || linkUrl };
+    try {
+      const msg = await api.post('/api/messages', body);
+      S.messages.push(msg);
+      renderChatLog();
+      $('#chat-text').value = ''; $('#chat-link').value = ''; $('#chat-link-title').value = '';
+      feedAdd('Đã gửi tin tới ' + cur.name + '.');
+    } catch (ex) { showError(ex); }
+  });
+}
+
+/* ------------------------------ Màn Nhật ký ------------------------------- */
+async function renderLogs(screen) {
+  if (!isDirector()) {
+    screen.innerHTML = '<h1>Nhật ký</h1><p class="hint">Nhật ký kiểm toán, cảnh báo và phiên đăng nhập chỉ Giám đốc mới xem được. Bạn có thể xem lịch sử phê duyệt của mình ở màn Phê duyệt và tin nhắn ở Phòng chat.</p>';
+    return;
+  }
+  const auditRows = S.audit.slice(-60).reverse().map((a) => '<tr><td>' + esc(fmtTime(a.at)) + '</td><td>' + esc(a.action) + '</td><td>' + esc(myName(a.actorId)) + '</td><td>' + esc(a.target || '—') + '</td><td>' + esc(a.result) + '</td></tr>').join('');
+  const alertRows = S.alerts.slice(-30).reverse().map((a) => '<tr><td>' + esc(fmtTime(a.at)) + '</td><td>' + esc(a.kind) + '</td><td>' + esc(a.text) + '</td></tr>').join('');
+  const sessionRows = S.sessions.map((s) => '<tr><td>' + esc(s.id) + '</td><td>' + esc(myName(s.staffId)) + '</td><td>' + esc(fmtTime(s.createdAt)) + '</td><td>' + esc(fmtTime(s.lastSeenAt)) + '</td><td><button class="btn small danger" type="button" data-revoke="' + esc(s.id) + '">Thu hồi</button></td></tr>').join('');
+  screen.innerHTML = '<h1>Nhật ký</h1>' +
+    '<h2>Cảnh báo</h2>' + (alertRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Loại</th><th>Nội dung</th></tr></thead><tbody>' + alertRows + '</tbody></table></div>' : '<p class="hint">Chưa có cảnh báo nào.</p>') +
+    '<h2>Phiên đăng nhập đang mở</h2>' + (sessionRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Phiên</th><th>Người</th><th>Tạo lúc</th><th>Thấy lần cuối</th><th></th></tr></thead><tbody>' + sessionRows + '</tbody></table></div>' : '<p class="hint">Không có phiên nào.</p>') +
+    '<h2>Nhật ký kiểm toán (60 dòng gần nhất)</h2>' + (auditRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Người</th><th>Đối tượng</th><th>Kết quả</th></tr></thead><tbody>' + auditRows + '</tbody></table></div>' : '<p class="hint">Chưa có dòng nhật ký nào.</p>');
+  $$('[data-revoke]', screen).forEach((b) => b.addEventListener('click', async () => {
+    try { await api.post('/api/sessions/' + b.dataset.revoke + '/revoke', {}); await refreshAll(); renderScreen(); toast('Đã thu hồi phiên.'); }
+    catch (ex) { showError(ex); }
+  }));
+}
+
+/* ---------------------------- Màn Cài đặt & kit --------------------------- */
+async function renderSettings(screen) {
+  screen.innerHTML = '<h1>Cài đặt &amp; kit</h1>' +
+    (Session.demo ? '<p class="warnbox"><strong>Bản DEMO ngoại tuyến.</strong> Dữ liệu chỉ nằm trên trình duyệt này. Nối máy chủ thật để dùng hệ thống thật.</p>' : '<p class="hint">Đang nối máy chủ tại ' + esc(apiBase() || 'cùng địa chỉ trang web') + '.</p>') +
+    '<div class="card"><h2>Địa chỉ máy chủ (API)</h2><form id="api-form"><label>API base URL — để trống nghĩa là cùng địa chỉ trang web<input name="apiBase" value="' + esc(Session.apiBase) + '" placeholder="https://may-chu-cua-ban:3101"></label><button class="btn" type="submit">Lưu và nối lại</button></form></div>' +
+    '<div class="card"><h2>Bộ kit cài cầu nối</h2><p class="hint">Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống: gửi nhịp tim, đọc trạng thái, nhận yêu cầu phê duyệt và trả quyết định. Hướng dẫn đầy đủ trong Tài liệu thiết kế.</p>' +
+    '<div class="toolbar">' + ['bridge.js', 'install.sh', 'install.bat', 'config.example.json', 'README.md'].map((f) => '<button class="btn small" type="button" data-kit="' + f + '">' + f + '</button>').join('') + '</div>' +
+    (Session.demo ? '<p class="hint">Tải kit cần nối máy chủ thật.</p>' : '') + '</div>' +
+    '<div class="card"><h2>Xuất dữ liệu</h2><p class="hint">Xuất toàn bộ dữ liệu hệ thống (chức vụ, nhân sự, việc, phê duyệt, ngân sách, tin nhắn, nhật ký) thành một file JSON để sao lưu.</p><button class="btn" type="button" id="export-btn">Tải file JSON</button></div>' +
+    (Session.demo ? '<div class="card"><h2>Bản demo</h2><p class="hint">Đổi danh tính để lái thử các vai trò.</p><div class="toolbar"><select id="demo-identity">' + DemoDB.load().staff.map((s) => '<option value="' + esc(s.id) + '" ' + (Session.me && s.id === Session.me.id ? 'selected' : '') + '>' + esc(s.name) + ' — ' + esc(demoRoleOf(DemoDB.data, s).name) + '</option>').join('') + '</select><button class="btn" type="button" id="demo-switch">Đổi danh tính</button><button class="btn danger" type="button" id="demo-reset">Đặt lại dữ liệu mẫu</button></div></div>' : '') +
+    '<div class="card"><h2>Phiên hiện tại</h2><dl class="kv"><div class="row"><dt>Người dùng</dt><dd>' + esc(Session.me ? Session.me.name : '—') + '</dd></div><div class="row"><dt>Vai trò</dt><dd>' + esc(myRole().name) + '</dd></div><div class="row"><dt>Loại phiên</dt><dd>' + (Session.demo ? 'Demo ngoại tuyến' : Session.meType === 'director' ? 'Giám đốc (mật khẩu + TOTP)' : 'Nhân viên') + '</dd></div></dl></div>';
+  $('#api-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = new FormData(e.target).get('apiBase').trim().replace(/\/$/, '');
+    localStorage.setItem('office.apiBase', v);
+    Session.apiBase = v;
+    toast('Đã lưu địa chỉ máy chủ. Đang nối lại…');
+    const ok = await probeServer();
+    if (ok) { await refreshAll(); renderScreen(); }
+  });
+  $$('[data-kit]', screen).forEach((b) => b.addEventListener('click', async () => {
+    if (Session.demo) { toast('Tải kit cần nối máy chủ thật.'); return; }
+    try {
+      const res = await fetch(apiBase() + '/api/kit/' + b.dataset.kit, { headers: { Authorization: 'Bearer ' + Session.token } });
+      if (!res.ok) throw new Error('Không tải được file kit (HTTP ' + res.status + ').');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = b.dataset.kit; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (ex) { showError(ex); }
+  }));
+  $('#export-btn').addEventListener('click', async () => {
+    try {
+      const data = Session.demo ? DemoDB.load() : await api.get('/api/backup');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'office-backup-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      toast('Đã tải file sao lưu.');
+    } catch (ex) { showError(ex); }
+  });
+  const sw = $('#demo-switch');
+  if (sw) sw.addEventListener('click', async () => {
+    const id = $('#demo-identity').value;
+    Session.me = DemoDB.data.staff.find((s) => s.id === id);
+    Session.meType = id === 's-chung' ? 'director' : 'staff';
+    await refreshAll(); renderScreen(); toast('Đã đổi danh tính demo: ' + Session.me.name + '.');
+  });
+  const rs = $('#demo-reset');
+  if (rs) rs.addEventListener('click', () => { DemoDB.reset(); location.reload(); });
+}
+
+/* ------------------------------ Màn Tài liệu ------------------------------ */
+function renderDocs(screen) {
+  screen.innerHTML = '<div class="docs"><h1>Tài liệu thiết kế</h1>' +
+    '<p class="hint">Nội dung phác thảo hệ thống được giữ ở đây — riêng một màn, không trộn vào các màn làm việc. Quyết định đã chốt của Giám đốc ghi rõ bên dưới.</p>' +
+    '<h2>Quyết định đã chốt (29/10/2026)</h2>' +
+    '<ul><li><strong>Ngân sách token:</strong> Giám đốc tự đặt/điều chỉnh cho từng người, không có mức chung cố định. Tài khoản điều phối được cấp thật 5.000.000.000 token.</li>' +
+    '<li><strong>Hộp phê duyệt:</strong> nhận MỌI yêu cầu cấp quyền của MỌI tài khoản Muse — cả đăng nhập, tải file, cài ứng dụng, không chỉ việc trong web. Quyết định ngay trên web, không cần mở ứng dụng Muse.</li>' +
+    '<li><strong>Báo khẩn:</strong> qua WhatsApp + biểu ngữ nổi bật trong trung tâm điều hành.</li>' +
+    '<li><strong>Tài khoản:</strong> mỗi tài khoản Muse là một nhân viên có tên đăng nhập + mật khẩu riêng; mỗi tài khoản cài một cầu nối mỏng.</li>' +
+    '<li><strong>Trao đổi tài liệu:</strong> qua link công khai của Muse (link + tiêu đề + tóm tắt ngắn), không dán nội dung vào phòng.</li>' +
+    '<li><strong>Vai trò linh hoạt:</strong> chức vụ theo từng việc, không gắn cứng theo người. Quyền luôn tính từ dữ liệu chức vụ hiện tại.</li></ul>' +
+    '<h2>Các mô-đun</h2>' +
+    '<table><thead><tr><th>Mô-đun</th><th>Việc nó làm</th></tr></thead><tbody>' +
+    '<tr><td>Quản trị tổ chức</td><td>Giám đốc quản lý chức vụ (cấp, được duyệt, được quản trị) và nhân viên (tạo, đặt lại mật khẩu, khoá, xoá, cấp mã API).</td></tr>' +
+    '<tr><td>Văn phòng 3D</td><td>Phòng làm việc trực quan: nhân vật, trạng thái, đèn đỏ khi có yêu cầu chờ, gọi họp, biên bản.</td></tr>' +
+    '<tr><td>Quản lý việc</td><td>Việc qua 4 cột, nhận nguyên tử, không tự duyệt, đính kèm rule và link công khai.</td></tr>' +
+    '<tr><td>Phê duyệt</td><td>Hàng đợi mọi yêu cầu cấp quyền; duyệt/từ chối có lý do; nhật ký kiểm toán; cấm tự duyệt ở mọi cấp.</td></tr>' +
+    '<tr><td>Phòng chat</td><td>Trò chuyện tự do hai chiều, nhắc tên [ASK:Tên] báo ngay, gắn tin vào việc, link đính kèm.</td></tr>' +
+    '<tr><td>Ngân sách token</td><td>Mức theo từng người, cảnh báo 80%, nghỉ ở 100%, nạp thêm 50%.</td></tr>' +
+    '<tr><td>Máy chủ + cầu nối</td><td>Máy chủ Node.js + SQLite (zero-dependency), SSE đẩy trực tiếp, cầu nối gửi nhịp tim và xin duyệt.</td></tr>' +
+    '</tbody></table>' +
+    '<h2>Ghi công (theo phác thảo gốc)</h2>' +
+    '<p>Dựa trên nghiên cứu 23 dự án mã nguồn mở. Năm dự án tham khảo chính: Claw-Empire (kiến trúc manager–worker + phê duyệt), Paperclip (approval + budget), BagIdea Office (phòng 3D + AI), Agent Office (bảng 2D /lite), Claw3D (văn phòng 3D theo thời gian thực). Ý tưởng lấy cảm hứng, triển khai viết mới cho hệ thống này — không sao chép mã.</p>' +
+    '<h2>Lộ trình</h2>' +
+    '<ol><li><strong>Giai đoạn 1:</strong> khung tổ chức + việc + phê duyệt + ngân sách (đang chạy).</li>' +
+    '<li><strong>Giai đoạn 2:</strong> phòng chat, họp, cầu nối đầy đủ cho mọi tài khoản.</li>' +
+    '<li><strong>Giai đoạn 3:</strong> báo cáo, thống kê, tích hợp thêm công cụ.</li></ol>' +
+    '<h2>Cài cầu nối (tóm tắt)</h2>' +
+    '<ol><li>Tải bộ kit ở màn Cài đặt &amp; kit (bridge.js, install.sh / install.bat, config.example.json).</li>' +
+    '<li>Xin Giám đốc cấp mã API (màn Nhân sự → Cấp mã API) — mã chỉ hiện một lần.</li>' +
+    '<li>Chạy <code>install.sh</code> (macOS/Linux) hoặc <code>install.bat</code> (Windows), nhập địa chỉ máy chủ + mã API.</li>' +
+    '<li>Cầu nối chạy nền, gửi nhịp tim mỗi 30 giây và xin duyệt khi cần.</li></ol>' +
+    '<p class="hint">Hướng dẫn chi tiết: xem file docs/HUONG-DAN-CAI-DAT.md trong kho mã nguồn.</p></div>';
+}
