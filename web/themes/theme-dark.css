@@ -1,0 +1,70 @@
+/* GIAO DIỆN 1 — "PHÒNG ĐIỀU HÀNH TỐI" (dark mission-control).
+ * Phòng điều hành làm việc 24/7: nền tối xanh navy, chữ sáng tương phản
+ * mạnh, điểm nhấn phát sáng nhẹ. Mọi trạng thái "đang chọn" đều đặt CẢ
+ * nền sáng VÀ chữ tối trong cùng rule — không bao giờ chữ trắng trên
+ * nền trắng. Huy hiệu chờ duyệt giữ màu đỏ, không thể bỏ qua. */
+:root{
+  --bg:#0b1220; --panel:#111c2e; --ink:#e8eef5; --text:#e6edf5; --muted:#94a8bd;
+  --line:#223349; --line2:#2e435f; --accent:#4da3ff; --accent-d:#7db9ff;
+  --navy:#0a0f1a; --navy2:#0e1828; --danger:#ff7a7a; --danger-bg:#3a1518;
+  --ok:#4ade80; --ok-bg:#0f2c1a; --warn:#fbbf24; --warn-bg:#33240a;
+  --chip:#1a2940; --radius:12px;
+  --green:#35d07f; --yellow:#e8b800; --red:#e5484d; --rest:#8fa3b8;
+  --field:#0f1a2b; --soft:#0f1930; --track:#223349; --mine:#14294a;
+  --stage-bg:#0d1520; --camrow-bg:rgba(13,20,32,.94);
+}
+body{font-weight:400}
+input,select,textarea{background:var(--field);border-color:var(--line2);color:var(--text)}
+input::placeholder,textarea::placeholder{color:#64748b}
+.btn{background:var(--panel);color:var(--text)}
+.btn:hover{border-color:#4a6384}
+.btn.primary{background:#2f81f7;border-color:#2f81f7;color:#fff}
+.btn.primary:hover{background:#4a93f8}
+.btn.danger{border-color:#7a2e2e;color:#ff8585}
+.tab{background:var(--panel)}
+/* Trạng thái "đang chọn": nền sáng + chữ tối (ngược với bản sáng). */
+.btn[aria-pressed="true"]{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.tab.active{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.sidebar a.active{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.sidebar a.active .nav-badge{background:#0b1220;color:#fff}
+.conv-item.active{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.conv-item.active .muted{color:#44566b}
+.fallback-item[aria-pressed="true"]{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.fallback-item[aria-pressed="true"] .who span{color:#44566b}
+.bottomnav a.active,.bottomnav button.active{background:#e8eef5;color:#0b1220}
+.stage .camrow button[aria-pressed="true"]{background:#e8eef5;border-color:#e8eef5;color:#0b1220}
+.topbar{border-bottom:1px solid #1b2a42}
+.topbar-status{color:#9fb4cc}
+.topbar-user .btn{color:#e6edf5;border-color:#2e435f}
+.env-badge{background:#f59e0b;color:#1c1005}
+.stage{background:var(--stage-bg)}
+.stage .stage-help,.stage .stage-credit{background:var(--panel)}
+.stage .stage-fallback{background:var(--soft)}
+.stage .camrow button{background:var(--camrow-bg);color:var(--text);border-color:var(--line2)}
+.kcol{background:var(--soft)}
+.jobcard{background:var(--panel)}
+.log li{background:var(--panel)}
+.msg{background:var(--panel)}
+.msg.mine{background:var(--mine);border-color:#2a4a73}
+.conv-item{background:var(--panel)}
+.fallback-item{background:var(--panel)}
+.modal{background:var(--panel)}
+.modal-backdrop{background:rgba(2,6,14,.72)}
+.bottomnav{background:var(--panel);border-top-color:var(--line2);box-shadow:0 -4px 18px rgba(0,0,0,.5)}
+.more-sheet{background:var(--panel);border-top-color:var(--line2)}
+.progress,.budgetbar{background:var(--track)}
+.pill.working{background:#0f2c1a;color:#4ade80}
+.pill.waiting{background:#33240a;color:#fbbf24}
+.pill.approval{background:#3a1518;color:#ff8585}
+.pill.resting{background:#1a2940;color:#b8c7da}
+.msg .msg-tag{background:#3a1518;color:#ff8585}
+.toast{background:#f1f5f9;color:#0b1220}
+.form-error{border-color:#7a2e2e}
+.warnbox{border-color:#6b5313}
+.alertbox{border-color:#7a2e2e}
+.server-state.ok{border-color:#1f5c33}
+.server-state.bad{border-color:#7a2e2e}
+.kv > div{border-bottom-color:var(--line)}
+.docs th{background:var(--chip)}
+table.tbl th,table.tbl td{border-bottom-color:var(--line)}
+.login-card{box-shadow:0 10px 32px rgba(0,0,0,.45)}
