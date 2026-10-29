@@ -1,39 +1,63 @@
-# TIẾN ĐỘ — Hệ thống AI nhân viên, Văn phòng 3D
+# TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## DONE — 100%
+## TRẠNG THÁI — REBUILD XONG, CHỜ DEPLOY + KIỂM CHỨNG 3D TRÊN TRÌNH DUYỆT THẬT
 
-Cập nhật lần cuối: 16:40, 29/10/2026 (giờ Sài Gòn).
+Cập nhật lần cuối: ~06:30, 30/10/2026 (giờ Sài Gòn).
 
-Xây dựng + kiểm tra đã hoàn tất. Chờ agent cha deploy (git/push/GitHub Pages) rồi kiểm tra lại trên site thật.
+## (1) Chuyện gì đã xảy ra
 
-## (1) Tổng thể: 100%
+- Bản build 29/10/2026 (17 file, trang dài trình bày lại phác thảo) bị Giám đốc
+  **từ chối** 30/10/2026 04:37 +07: không giống hệ thống, như landing page trải dài,
+  lỗi 1 đống — kèm ảnh chụp mobile 390px.
+- Rebuild 30/10/2026: thay toàn bộ `web/` bằng vỏ ứng dụng thật (đăng nhập trước,
+  9 màn hình làm việc, phòng chat mới), sửa 12 điểm ở `server/server.js` (scrypt,
+  submit, sửa chức vụ, họp, kit, chat, vá 500). Giữ `kit/`, `bridge.js`,
+  `healthcheck.js`. Không động vào phòng họp cũ `~/workspace/ai-company/`.
+- Kiểm tra: hợp đồng API 70/70 + trình duyệt thật 28/28 (mobile 390px). Chi tiết +
+  danh sách lỗi đã sửa + UNTESTED trong `BUILD-REPORT.md` (thay bản cũ).
 
-Tính theo thực tế: 17/17 file xong + 6/6 cổng kiểm tra đã chạy (cổng 4 và 6 có phần UNTESTED ghi rõ lý do — xem BUILD-REPORT.md §5). Hai lỗi phát hiện trong kiểm tra đã sửa và chạy lại đạt.
+## (2) DONE (rebuild)
 
-## (2) DONE
-
-- Web app: `web/index.html` (44.773 B), `web/app.js` (77.118 B), `web/style.css` (7.735 B) — văn phòng 3D (Three.js CDN), tổ chức/vai trò, việc + Kanban 4 cột, hộp phê duyệt toàn quyền, ngân sách, demo quyền, mô-đun A–H, ghi công, lộ trình, 3 quyết định hiển thị ĐÃ QUYẾT.
-- Máy chủ: `server/server.js` (46.909 B, zero-dependency, SQLite + fallback JSON), `server/bridge.js` (11.518 B), `server/healthcheck.js` (5.742 B), `server/package.json`, `server/office.service.example`.
-- Kit: `kit/bridge.js` (giống hệt server/bridge.js), `kit/config.example.json`, `kit/install.sh`, `kit/install.bat`, `kit/README.md`.
-- Tài liệu: `README.md`, `docs/HUONG-DAN-CAI-DAT.md` (tiếng Việt), `LICENSE`, `.gitignore`, `BUILD-REPORT.md` (bằng chứng kiểm tra đầy đủ).
-- 3 quyết định Giám đốc (23:23) + phụ lục 1 (23:26, phê duyệt toàn quyền gồm đăng nhập/tải file/cài app) + phụ lục 2 (23:27, tài khoản nhân viên + kit + chia sẻ link) — tất cả đã gộp vào build.
-- Kiểm tra: cổng 1–3 PASS; cổng 4 PASS mức DOM (16/16 ma trận quyền, tràn ngang 0px cả desktop lẫn mobile 390px); cổng 5 PASS; cổng 6 PASS (dry-run + cầu nối). 2 lỗi (guard 3D, thư mục file trạng thái healthcheck) đã sửa + chạy lại đạt.
-- Sửa lỗi healthcheck (16:35): tạo thư mục file trạng thái, kiểm tra lại với máy chủ chết — cảnh báo ghi đúng, hết lỗi ENOENT.
+- Vỏ ứng dụng: `web/index.html`, `web/app.js`, `web/style.css` — đăng nhập/TOTP/
+  cài đặt lần đầu, topbar + sidebar/bottom nav cố định, 9 màn: Văn phòng 3D (+dạng
+  2D dự phòng), Phòng chat (SSE live, [ASK:Tên], gắn việc, link), Việc (Kanban,
+  nhận nguyên tử, trình duyệt, cấm tự duyệt), Phê duyệt (mọi loại quyền), Nhân sự
+  & chức vụ (CRUD, token hiện 1 lần), Ngân sách (80%/100%/nạp 50%), Nhật ký,
+  Cài đặt & kit, Tài liệu.
+- Máy chủ: scrypt Giám đốc + cài đặt lần đầu, `submit`/`PATCH roles`/`meetings`/
+  `kit download`/chat đầy đủ, vá các lỗi 500 (TOTP/hash), `openDecisions` đếm thật.
+- 6 lỗi ảnh chụp Giám đốc đều đã sửa + kiểm chứng (trừ nhãn 3D trực quan — CDN chặn,
+  xem UNTESTED). 5 lỗi web khác tìm thấy khi kiểm thử cũng đã sửa.
+- Tài liệu: `README.md` cập nhật (chạy thật, scrypt, API, quyết định đã chốt),
+  `docs/HUONG-DAN-CAI-DAT.md` bổ sung mục rebuild, ảnh chụp kiểm chứng 390px tại
+  `docs/screenshots-390px/`.
+- DB thật (`server/data/office.db`) sau sự cố kiểm thử đã dọn sạch về seed gốc
+  (4 chức vụ, 2 rule, 5 nhân viên) — xem BUILD-REPORT.md §4.1.
 
 ## (3) DOING NOW
 
-Không còn việc đang làm. Chờ deploy.
+Không còn việc đang làm. Chờ agent cha: review, push repo `chungdenroi/ai-office-3d`,
+deploy, kiểm chứng trên site thật + trình duyệt thật có mạng.
 
 ## (4) NEXT (thuộc về agent cha / sau deploy)
 
-1. Git/push repo `chungdenroi/ai-office-3d`, bật GitHub Pages cho thư mục `web/`.
-2. Kiểm tra lại trên site thật có mạng: render 3D trực quan (5 nhân vật, bàn, phòng họp, bảng Kanban, đi bộ, nhảy ăn mừng), đường cài kit đầy đủ, `install.bat` trên Windows.
-3. Giai đoạn 2/3: nối web với API máy chủ; triển khai cầu nối cho từng tài khoản thật.
+1. Push các file đã đổi lên repo (KHÔNG push bằng git local — dùng gh-api put-file
+   như lần trước; file workflow Pages vẫn chỉ có ở local vì token thiếu quyền
+   `workflow`, Pages đang chạy chế độ legacy từ `/`).
+2. Kiểm tra lại trên site thật + trình duyệt thật có mạng, ƯU TIÊN: render 3D trực
+   quan (5 nhân vật, nhãn đọc được, camera, gọi họp, đi bộ/ăn mừng), vì đây là
+   phần UNTESTED duy nhất còn lại trong môi trường thử nghiệm (CDN bị chặn).
+3. Kiểm tra `install.bat` + đường cài kit đầy đủ trên Windows thật.
+4. Chạy máy chủ 24/7 trên máy điều phối (systemd `server/office.service.example`).
+5. Giai đoạn 4 (bộ việc kiểm thử đo chất lượng) — chưa làm.
 
-## (5) BLOCKERS
+## (5) BLOCKERS / UNTESTED
 
-Không có. Phần UNTESTED duy nhất là do sandbox chặn CDN jsDelivr (render 3D) và thiếu credential thật/máy Windows (cài đặt đầy đủ) — tất cả ghi rõ trong BUILD-REPORT.md, cần kiểm tra sau deploy.
+- Render 3D trực quan: UNTESTED (CDN jsDelivr bị chặn trong sandbox). Dạng 2D đã
+  kiểm chứng đầy đủ và tự bật khi 3D lỗi — hệ thống không bao giờ trắng trang.
+- Kit đầy đủ + Windows thật: UNTESTED (chỉ `--dry-run` Linux + vòng tròn bridge qua API).
+- Chạy 24/7 + hiệu năng đa phiên lớn: UNTESTED.
 
 ## (6) Cập nhật lần cuối
 
-16:40, 29/10/2026 (Asia/Saigon) — bản cuối: DONE 100%.
+~06:30, 30/10/2026 (Asia/Saigon) — rebuild xong, chờ deploy + kiểm chứng 3D thật.
