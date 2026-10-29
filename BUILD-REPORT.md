@@ -270,3 +270,89 @@ Nhân viên đăng nhập web bằng tài khoản Giám đốc tạo (`POST /api
 - `PROGRESS.md` — cập nhật trạng thái rebuild.
 - Không đổi: `server/bridge.js`, `server/healthcheck.js`, `kit/*`, `LICENSE`,
   `.gitignore`, `server/office.service.example`, `~/workspace/ai-company/**`.
+
+## 7. Sửa khung nhãn 3D 30/10 (chỉ `web/app.js` + `web/style.css` — CHƯA DEPLOY)
+
+Lỗi do Giám đốc chụp từ bản live 30/10 04:36 +07 (nhãn vượt mép trên ở góc
+Phòng họp, nhãn khổng lồ che nút ở góc Theo người) và kiểm chứng trình duyệt
+thật 05:36–05:40 +07. Toàn bộ sửa nằm trong `fitLabels()` (`web/app.js`
+dòng 1094–1299), camera (`applyCamera`, dòng 1062–1083), `makeLabel` (dòng
+898–930) và 2 dòng CSS. Không đổi login/shell/chat/màn hình khác, `server/`,
+`kit/`, `three.module.js`.
+
+### 7.1. Nguyên nhân gốc (4 lỗi, đều đã đo được, không đoán)
+
+1. **Nhãn tỉ lệ cố định, camera tới gần thì chiếu ra ngoài/khổng lồ.**
+   Nhãn là sprite tỉ lệ cố định (2,6 × 0,88) gắn trên đầu nhân vật; camera
+   Phòng họp nhìn thấp/gần nên nhãn chiếu lên trên mép khung, camera Theo
+   người rất gần nên nhãn của người được theo chiếm gần hết khung và che
+   hàng nút. Sửa: co giãn nhãn theo khoảng cách (mục tiêu ~40px ở khung
+   480px, kẹp 32–46px) + dời camera ra xa/hướng lên để đầu + nhãn vào khung.
+2. **Kẹp mép trên "không thể đạt được" đè mọi nhãn về một độ cao, phá tách
+   chồng.** Ở màn hẹp (390px) hàng nút camera xuống 2 hàng (~110px); nhãn
+   ở góc Từ trên/Phòng họp dù hạ tới sàn `MIN_Y` vẫn chiếu lên trên mép
+   dưới hàng nút — vì nhìn gần thẳng đứng, đổi độ cao gần như không đổi vị
+   trí chiếu (chỉ thu nhỏ). Kẹp cứng cũ (`Math.max(MIN_Y, …)`) đè tất cả
+   về sàn, triệt tiêu tách dọc, nhãn chồng nhau 80–95%. Sửa: `pushScreenY`
+   (dòng 1189) — hạ y trong `[MIN_Y, MAX_Y]`, phần vượt dịch dọc theo
+   hướng "xuống màn hình" trong không gian thế giới (`shiftY`, `applyShift`
+   dòng 1166); tách dọc và kẹp mép trên đều dùng chung cơ chế này.
+3. **Đo kích thước nhãn bằng khoảng cách lúc chưa dịch.** Độ dịch ngang có
+   thể kéo nhãn lại gần camera rất nhiều (góc Theo người: 4,98 → 2,64) nên
+   đo bằng khoảng cách cũ đánh giá sai kích thước tới 2 lần (hh đo 17px
+   trong khi thật 32px) và tách chồng tính sai. Sửa: `measure()` (dòng
+   1142) tính lại khoảng cách + tỉ lệ từ vị trí thật sau mỗi lần dịch.
+4. **Đua khởi tạo kép (Bug C) + bẫy min-content khi resize (tìm thêm lúc
+   kiểm thử).** (a) `enterApp()` vừa gán hash vừa gọi `renderScreen()`
+   nên `renderOffice` chạy 2 lần, 2 `init()` đua qua `loadThree()` bất
+   đồng bộ; cảnh sau được dựng nhưng `sync()` thấy ids không đổi nên
+   không dựng nhân vật — lần vào đầu chỉ có sàn + bàn. Sửa: bộ đếm thế hệ
+   `_initGen` (dòng 690, 724–726), `sync()` dựng lại khi `_builtScene`
+   khác cảnh hiện tại hoặc có nhân viên mà `chars` rỗng (dòng 963–988),
+   `enterApp()` chỉ gọi `renderScreen()` khi hash đã đúng. (b) Live
+   resize 1280 → 390px: `renderer.setSize()` ghi style inline 679px cho
+   canvas, canvas giữ cột lưới (grid item `min-width:auto`) ở 679px —
+   tràn ngang 694px, không tự hồi trong 6 giây. Sửa: `setSize(…, false)`
+   (dòng 753, 796; cỡ hiển thị do CSS `width/height:100%` quyết) +
+   `.office-layout>*{min-width:0}` và `.stage canvas{max-width:100%}`
+   (`web/style.css` dòng 111, 131).
+
+### 7.2. Thay đổi chính xác
+
+- `web/app.js` dòng 1062–1076: camera Góc tổng `(1,2; 7,6; 11,2)` nhìn
+  `(0,8; 0,5; -1,4)`; Phòng họp `(0,5; 4,3; 6,0)` nhìn `(0,5; 1,0; -0,8)`;
+  Theo người `(p.x+2,9; 3,2; p.z+4,4)` nhìn `(p.x; 1,6; p.z)`. Góc Từ trên
+  giữ nguyên `(0; 13,5; 0,6)`.
+- `web/app.js` dòng 898–930 (`makeLabel`): canvas nhãn 448×152 → 400×152,
+  thêm `fitFont` đo chữ và thu cỡ tên (56→32) / dòng phụ (36→22) để chữ
+  dài không tràn viên nhãn.
+- `web/app.js` dòng 1094–1299 (`fitLabels`, viết lại cơ chế): tỉ lệ nhãn
+  theo khoảng cách + nhãn không được theo nhỏ/mờ 0,78×, độ mờ 0,8; kẹp
+  mép trên đo bằng mép dưới THẬT của hàng nút; kẹp mép trái/phải TRƯỚC
+  khi tách chồng; tách dọc 2 lượt + lượt nâng; tách ngang có kiểm tra
+  biên (cho góc Từ trên); mọi lần đo đều tính lại từ vị trí thật; bỏ dòng
+  debug tạm `window.__dbgLabels` (grep = 0).
+- `web/style.css` dòng 111, 131: như §7.1(4b). Không dòng CSS nào khác đổi.
+
+### 7.3. Bằng chứng kiểm thử (script `/tmp/labeltest/audit.mjs` + `resize-settle.mjs` + `resize-late.mjs`, chrome-headless-shell 153 qua CDP, SwiftShader, file vendor cùng nguồn, chặn cache; ảnh chụp `/tmp/labeltest/audit/`)
+
+| Kiểm tra | 1280×900 | 390×844 |
+|---|---|---|
+| Vào lần đầu (profile mới, không reload): 5 nhân vật + 87 mesh, `ready:true` | PASS | PASS |
+| Góc tổng: nhãn trong khung, không đè nút | 0 vượt biên, chồng 13% (góc chạm, tên đọc được) | 0 vượt biên, chồng 14% |
+| Từ trên | 0 vượt biên, chồng 0% | 0 vượt biên, chồng 22% (Tuấn/Linh chạm góc, cả 2 tên đọc rõ — đã xem ảnh) |
+| Phòng họp (lỗi A gốc) | 0 vượt biên, chồng 0% | 0 vượt biên, chồng 0% |
+| Theo người (lỗi B gốc) | 0 vượt biên, chồng 0% (2 nhãn trong khung nhìn) | 0 vượt biên, chồng 0% |
+| Chuyển camera nhanh 3 vòng × 4 góc (120ms) + resize | canvas nguyên, không màn trắng | canvas nguyên, không màn trắng |
+| Resize sống 1280 → 390 (lấy mẫu 6 giây) | — | canvas 364×380, `docW = vw = 390`, không tràn ngang, không lỗi |
+| Nhân viên mới vào sau (đường `S.staff` + `renderScreen()`) | 5 → 6 nhân vật + nhãn, không reload | (cùng đường code) |
+
+- `node --check web/app.js`: PASS. Grep `TODO/FIXME/__dbgLabels/console.log`: sạch. Không secret mới (grep token/password chỉ ra code session có sẵn).
+- DB thật `server/data/office.db` không chạm (mtime 29/10 21:57, trước phiên làm việc); máy chủ thật không chạy trong đợt này (chế độ DEMO ngoại tuyến qua máy chủ tĩnh tạm — `/api/*` 404 là nhiễu dự kiến, không ảnh hưởng cảnh 3D).
+- Cạm bẫy gặp lúc kiểm thử (ghi để tránh lặp): file tĩnh mang mtime cũ nên Chrome dùng heuristic cache, không nhận CSS mới — kiểm thử resize đo nhầm "vẫn 679px" cho tới khi `Page.reload {ignoreCache:true}`; mọi số liệu cuối trong bảng trên đều đo sau khi chặn cache.
+
+### 7.4. UNTESTED thêm của đợt này (cộng vào §5)
+
+- Điện thoại thật (Safari iOS, cảm ứng kéo/chụm, xoay máy thật): kiểm chứng resize sống chỉ mới qua giả lập CDP — cổng kiểm chứng live sau deploy vẫn bắt buộc.
+- Khung hình camera Theo người về mặt thị giác (có theo đúng người, có mượt khi đi bộ): chỉ kiểm chứng nhãn không lỗi, chưa xem chuyển động theo thời gian.
+- Số nhân viên khác 5–6 người (đông hơn có thể lại chồng nhãn ở màn hẹp): chưa thử.
