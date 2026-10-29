@@ -1,91 +1,254 @@
-# BÁO CÁO XÂY DỰNG — Hệ thống AI nhân viên, Văn phòng 3D (Giai đoạn 1 + demo 3D)
+# BÁO CÁO XÂY DỰNG — Rebuild: Trung tâm điều phối (hệ thống thật)
 
-Ngày hoàn thành: 29/10/2026, 16:40 +07 (giờ Sài Gòn). Người xây: Muse (điều phối).
-Repo đích: `chungdenroi/ai-office-3d` (public, GitHub Pages phục vụ thư mục `web/`).
-Phòng họp cũ (`ai-company`) không bị động vào. Không chạy lệnh git/gh trong quá trình xây (phần deploy do agent cha đảm nhiệm).
+Ngày rebuild: 30/10/2026, ~05:00–06:30 +07 (giờ Sài Gòn). Người xây: Muse (subagent rebuild).
+Repo đích: `chungdenroi/ai-office-3d` (public). Phòng họp cũ (`~/workspace/ai-company/`)
+không bị động vào. Không push/deploy/touch git trong quá trình rebuild (phần deploy
+do agent cha đảm nhiệm).
 
-Nguồn yêu cầu: `/tmp/spec.txt` (11 mục, trích từ bản phác thảo HTML của Linh đã được Giám đốc duyệt, 29/10/2026) + `~/workspace/ai-company/STATE.md` §§1–2 (chỉ đọc, không sửa) + 3 quyết định của Giám đốc ngày 29/10/2026 23:23 + 2 phụ lục (23:26, 23:27) + lệnh kiểm tra kỹ trước khi deploy (23:29).
+## 0. Vì sao rebuild
 
-## 1. File đã xây (17 file)
+Bản build 29/10/2026 đã xây lại **file phác thảo** của Giám đốc thành một trang dài
+kiểu landing page, đầy lỗi. Giám đốc từ chối thẳng (30/10/2026 04:37 +07): "web đó
+có giống hệ thống ko? Ko hề. Nó như kiểu cái landing page trải dài. Lỗi thì 1 đống."
+Kèm ảnh chụp mobile 390px cho thấy: nút camera đang chọn trắng tinh không đọc được
+nhãn; bấm thêm thì trắng trang; nhãn tên nhân vật quá nhỏ; panel hồ sơ lệch/cắt chữ;
+không có phòng chat; không giống trung tâm điều phối.
 
-| File | Kích thước | Nội dung |
-|---|---|---|
-| `web/index.html` | 44.773 B | SPA một trang, toàn bộ nhãn tiếng Việt; import map Three.js qua CDN |
-| `web/app.js` | 77.118 B | Toàn bộ logic: văn phòng 3D, tổ chức, việc, phê duyệt, ngân sách, quyền, chu kỳ thích ứng, localStorage |
-| `web/style.css` | 7.735 B | Giao diện + responsive 390px (1 cột, nút 2 cột, không tràn ngang) |
-| `server/server.js` | 46.909 B | Máy chủ Node 24, chỉ dùng `node:http` + `node:sqlite` (fallback file JSON), không phụ thuộc ngoài |
-| `server/bridge.js` | 11.518 B | Cầu nối mỏng cho từng tài khoản nhân viên (SSE + heartbeat + watchdog + tự dừng khi chạm ngân sách) |
-| `server/healthcheck.js` | 5.742 B | Trình kiểm tra độc lập: ghi cảnh báo `server-down`/`server-recovered` vào hộp thư `alerts/outbox.jsonl` |
-| `server/package.json` | 334 B | Không dependencies, engines node ≥ 22, scripts `start`, `bridge` |
-| `server/office.service.example` | 1.057 B | Mẫu systemd unit (tự khởi động lại) |
-| `kit/bridge.js` | 11.518 B | Giống hệt `server/bridge.js` (đã kiểm tra `diff -q` — IDENTICAL) |
-| `kit/config.example.json` | 107 B | Chỉ placeholder, không token thật |
-| `kit/install.sh` | 3.479 B | Cài đặt Linux/macOS: kiểm tra Node ≥ 22, hỏi URL/tên/token không hiện chữ, ghi config quyền 600, đăng ký systemd user unit, hỗ trợ `--dry-run` |
-| `kit/install.bat` | 1.814 B | Cài đặt Windows: nhập token bằng secure-string, ghi config JSON, đăng ký `schtasks` ONLOGON |
-| `kit/README.md` | 3.963 B | Hướng dẫn cài cầu nối từng bước + xử lý sự cố (mất kết nối, token bị thu hồi, máy chủ sập) |
-| `docs/HUONG-DAN-CAI-DAT.md` | 10.144 B | Hướng dẫn tiếng Việt: phía Giám đốc (tạo tài khoản, cấp token, đặt ngân sách, dùng hộp phê duyệt) + phía nhân viên (cài cầu nối, mẫu chia sẻ link, xử lý sự cố) |
-| `README.md` | 11.569 B | Kiến trúc, cách chạy web + máy chủ, bảng demo-đối-thực, bảng API, deploy miễn phí |
-| `LICENSE` | 1.065 B | MIT |
-| `.gitignore` | 80 B | Loại `server/data/`, `server/backups/`, `server/alerts/`, `server/.env` |
-| `BUILD-REPORT.md` | (file này) | Báo cáo xây dựng + bằng chứng kiểm tra |
+Bản này **thay toàn bộ `web/`** bằng vỏ ứng dụng thật, giữ + sửa `server/`, giữ `kit/`.
 
-## 2. Ba quyết định của Giám đốc — đã áp dụng (29/10/2026 23:23 + phụ lục 23:26, 23:27)
+Nguồn yêu cầu: `/tmp/spec.txt` (11 mục) + `~/workspace/ai-company/STATE.md` §§1–2 +
+3 quyết định Giám đốc 29/10/2026 23:23 + phụ lục 23:26/23:27 + ảnh chụp lỗi 30/10
+04:36 + yêu cầu phòng chat 04:41.
 
-1. **Ngân sách token: KHÔNG có mức chung cố định.** Ngân sách là dữ liệu từng người, Giám đốc chỉnh bất cứ lúc nào (ô nhập + nút +50% trong mục ngân sách; server CRUD budgets). Tài khoản điều phối giữ con số thật được cấp: **5.000.000.000 token**. Các giá trị khởi đầu của nhân viên khác được ghi rõ là "giá trị khởi đầu, Giám đốc tự điều chỉnh", không phải quy tắc cố định. Mốc 80% cảnh báo, 100% → cảnh báo nổi bật + trạng thái nghỉ riêng (vòng xám-xanh + nhãn), dừng nhận việc cho tới khi Giám đốc nạp thêm hoặc cho nghỉ hẳn.
-2. **Hộp phê duyệt bao phủ MỌI yêu cầu quyền của MỌI tài khoản Muse**, không chỉ duyệt việc trong web. Các loại yêu cầu hạng nhất trong UI + API: (a) quyền đăng nhập, (b) quyền tải file xuống, (c) quyền cài app/chương trình (một loại cài đặt duy nhất, gộp với danh mục cài chương trình mặc định), cộng 5 danh mục mặc định: gửi tin ra ngoài nhóm, xóa dữ liệu, đổi cài đặt tài khoản/bảo mật, truy cập dữ liệu ngoài phạm vi, bất kỳ khoản chi nào. Cơ chế nói thẳng: **hàng đợi nhận yêu cầu do cầu nối/API gửi lên** (người yêu cầu + loại hành động + đích/tài nguyên + lý do + ngữ cảnh); quyết định trả về qua API để tài khoản yêu cầu đọc (`GET /api/approvals/:id`); nhật ký kiểm toán đầy đủ. **Hàng đợi KHÔNG chọc vào thẻ phê duyệt của chính app Muse** — nó là nơi duy nhất Giám đốc cần kiểm tra, không cần mở app Muse. UI ghi nhãn đúng như vậy ("Mọi yêu cầu quyền của các tài khoản — xem và duyệt tại đây, không cần mở app Muse") và chỉ báo chờ duyệt không thể bỏ sót: banner đỏ + số lượng + đèn đỏ trên nhân vật. Duyệt việc Kanban (cột "Chờ duyệt") chỉ là một tập con.
-3. **Kênh cảnh báo: WhatsApp + banner nổi bật trong trung tâm điều hành.** Trình kiểm tra độc lập (`server/healthcheck.js`) ghi payload cảnh báo (JSONL) vào `server/alerts/outbox.jsonl` (biến môi trường `OFFICE_ALERT_OUTBOX`); việc giao tới WhatsApp của Giám đốc chạy qua lịch giao việc của Muse (không có tích hợp API WhatsApp trực tiếp — không tuyên bố có). Máy chủ cũng tự ghi cảnh báo `budget-full` và `director-api-denied` vào cùng hộp thư. Banner trong web (`#approval-banner`, `#budget-alerts`) hiển thị ngay khi có sự kiện.
+## 1. Cái đã xây lại
 
-## 3. Phụ lục 2 — đã áp dụng (23:27)
+### 1.1. Vỏ ứng dụng — `web/` (viết mới hoàn toàn)
 
-1. **Tài khoản đăng nhập riêng cho nhân viên (server):** bảng staff có username duy nhất, mật khẩu chỉ lưu dạng băm scrypt có muối (không bao giờ plaintext, không ghi log); Giám đốc tạo tài khoản + đặt mật khẩu ban đầu; nhân viên bắt buộc đổi ở lần đăng nhập đầu (mọi endpoint khác trả 403 cho tới khi đổi xong); Giám đốc reset/vô hiệu hóa/thu hồi được; xóa nhân viên thu hồi cả mật khẩu lẫn token API ngay lập tức. Web UI có form đăng nhập nhân viên + quản trị tài khoản trong mục tổ chức (tạo tài khoản, reset, vô hiệu hóa, xóa). Mô hình xác thực ghi trong README: Giám đốc = mật khẩu + TOTP (phiên, có thu hồi); nhân viên = username/mật khẩu cho web + token API riêng cho cầu nối.
-2. **Cài đặt cầu nối đã xác nhận:** mỗi tài khoản cài `kit/bridge.js` — thực sự chạy được bằng Node, có `--config`, chế độ một lần `--request-approval`, watchdog backoff hàm mũ, tự dừng khi chạm ngân sách.
-3. **Bộ kit + hướng dẫn:** `kit/` (bridge, config mẫu, install.sh, install.bat, README) + `docs/HUONG-DAN-CAI-DAT.md` tiếng Việt, bao phủ cả phía Giám đốc và phía nhân viên. Không bí mật nào được nướng sẵn trong kit: token/mật khẩu chỉ nhập lúc cài.
-4. **Trao đổi tài liệu bằng link công khai của Muse:** mẫu chia sẻ (link + tiêu đề + tóm tắt ngắn, không dán toàn bộ nội dung) có trong hướng dẫn + tài liệu cầu nối. Web UI: thẻ việc và khung soạn `[ASK:Tên]` có trường "link đính kèm" (URL + tiêu đề), hiển thị dạng link bấm được và ghi vào luồng việc/nhật ký. Không xây hệ thống tải file lên; chỉ link.
-
-## 4. Demo so với thật (nói thẳng)
-
-| Phần | Trạng thái |
+| File | Vai trò |
 |---|---|
-| Web tĩnh (`web/`) | DEMO: trạng thái trong localStorage, khóa đăng nhập Giám đốc là khóa DEMO có ghi nhãn rõ ràng, không có xác thực thật phía máy chủ. Không tuyên bố web tĩnh ép buộc bảo mật phía máy chủ. |
-| Máy chủ (`server/`) | THẬT: xác thực thật (mật khẩu băm + TOTP, token theo phạm vi, kiểm tra quyền phía máy chủ trước mọi API, cấm tự duyệt phía máy chủ, nhật ký kiểm toán, SSE, heartbeat, ép ngân sách). Mật khẩu Giám đốc + TOTP secret chỉ qua biến môi trường. Băm mật khẩu Giám đốc trong bản demo dùng SHA-256; băm mật khẩu nhân viên dùng scrypt (xem README — việc nâng băm Giám đốc lên scrypt/argon2 là việc theo dõi, không giấu). |
-| Số liệu "đã dùng" trong web | MÔ PHỎNG, ghi nhãn rõ. Chỉ con số 5.000.000.000 của điều phối là thật (được cấp). |
-| Văn phòng 3D | DEMO trực quan trên dữ liệu thật của trang (vai trò, trạng thái, đèn phê duyệt phản ánh đúng state); chưa nối API máy chủ — nối ở Giai đoạn 2/3 theo lộ trình §10. |
-| Cảnh báo WhatsApp | Hộp thư file/endpoint thật; việc giao tin chạy qua lịch giao việc của Muse — không có API WhatsApp trực tiếp. |
+| `web/index.html` | Màn hình đăng nhập/cài đặt lần đầu + vỏ app (topbar, sidebar, bottom nav cố định, modal, toast). Không nội dung hệ thống nào hiện trước khi đăng nhập. |
+| `web/app.js` | Toàn bộ logic: API client, bản demo ngoại tuyến (ghi nhãn DEMO), SSE + thăm dò dự phòng, router, 9 màn hình, mô-đun 3D, chat. |
+| `web/style.css` | Giao diện trung tâm điều phối: nền sáng, thẻ trắng, topbar tối, huy hiệu chờ duyệt đỏ không thể bỏ qua, nút chạm ≥44px, bottom nav cố định trên mobile. |
 
-## 5. Cổng kiểm tra (lệnh 23:29) — bằng chứng
+**9 màn hình làm việc thật** (không còn mục trình bày phác thảo trên các màn làm việc):
 
-### Cổng 1 — node --check + khởi động không phụ thuộc: PASS
-`node --check` OK cho `web/app.js`, `server/server.js`, `server/bridge.js`, `server/healthcheck.js`, `kit/bridge.js`; `bash -n kit/install.sh` OK; không TODO/FIXME. Máy chủ khởi động với DB tạm, `/api/health` trả 200, tắt sạch exit 0.
+1. **Văn phòng 3D** (mặc định): sân 3D toàn chiều cao + panel hồ sơ/trạng thái/hoạt
+   động; camera 4 góc + kéo xoay/pinch; bấm nhân vật xem hồ sơ; gọi họp + biên bản.
+   Nội dung phác thảo chuyển hết vào màn Tài liệu.
+2. **Phòng chat** (MỚI — Giám đốc yêu cầu 04:41): phòng chung + nhắn trực tiếp, tin
+   tới live qua SSE, nhắc tên `[ASK:Tên]`/`@Tên` báo ngay (toast + mục "Nhắc tên
+   tôi"), tin gắn vào việc (hiện trong luồng việc), link đính kèm, lịch sử lưu
+   trên máy chủ. Quy tắc phòng hiển thị ngay trên màn hình.
+3. **Việc**: Kanban 4 cột, tạo/giao việc, nhận nguyên tử, trình duyệt, duyệt/trả
+   lại có lý do, link đính kèm, luồng trao đổi trong từng việc.
+4. **Phê duyệt**: hàng đợi MỌI yêu cầu quyền (đăng nhập, tải file, cài app + 5 nhóm),
+   duyệt/từ chối có lý do, cấm tự duyệt ở cả UI lẫn API, lịch sử quyết định.
+5. **Nhân sự & chức vụ**: CRUD chức vụ (cấp, được duyệt, được quản trị), CRUD nhân
+   viên, tạo tài khoản đăng nhập, đặt lại MK, khoá/mở, cấp/thu hồi mã API (hiện
+   một lần). Quyền luôn tính từ dữ liệu chức vụ hiện tại — không ghi cứng theo tên.
+6. **Ngân sách**: mức theo từng người (Giám đốc sửa), cảnh báo 80%, nghỉ ở 100%,
+   nạp thêm 50%; số "đã dùng" do cầu nối đẩy lên hoặc Giám đốc ghi nhận có nhật ký.
+7. **Nhật ký**: cảnh báo, phiên đăng nhập (thu hồi), nhật ký kiểm toán (Giám đốc).
+8. **Cài đặt & kit**: địa chỉ API, tải file kit qua API, xuất dữ liệu JSON, đổi
+   danh tính demo, thông tin phiên.
+9. **Tài liệu**: nội dung phác thảo (mô-đun, ghi công §8, lộ trình, quyết định đã
+   chốt, hướng dẫn cài cầu nối) — một màn riêng, không trộn vào màn làm việc.
 
-### Cổng 2 — hợp đồng API (DB tạm, đã dọn): PASS
-Sai mật khẩu Giám đốc → 401; không xác thực → 401; đăng nhập Giám đốc chưa cấu hình → 503; token nhân viên gọi endpoint Giám đốc → 403 + bản ghi `director-api-denied` trong nhật ký kiểm toán + cảnh báo bảo mật trong hộp thư; yêu cầu phê duyệt (loại quyền đăng nhập, có đích/ngữ cảnh/nguồn) do token nhân viên gửi → Giám đốc quyết → người yêu cầu đọc quyết định qua GET; heartbeat ngân sách 800/1000 → cảnh báo 80% rồi trạng thái nghỉ 100% + mục `budget-full` trong hộp thư; heartbeat chấp nhận; SSE giao sự kiện `job created`.
+**Dữ liệu:** máy chủ là nguồn sự thật duy nhất (cùng nguồn khi chạy `node server.js`;
+địa chỉ API đổi được ở Cài đặt). localStorage chỉ là bản dùng thử ngoại tuyến, ghi
+nhãn DEMO ở topbar + mọi màn hình, cùng ngữ nghĩa bảo mật (không tự duyệt, ngân
+sách nghỉ/nạp) để lái thử luồng.
 
-### Cổng 3 — xác thực (curl, DB tạm): PASS
-Tạo nhân viên `gateuser` + mật khẩu ban đầu → đăng nhập trả `mustChangePassword:true` → các endpoint khác 403 cho tới khi đổi → đổi mật khẩu thành công → đọc được việc; sai mật khẩu 401; trùng username 400; Giám đốc reset → lại bắt đổi; vô hiệu hóa → cả token lẫn đăng nhập đều 401; bật lại được; xóa → cả token lẫn đăng nhập đều 401. Nhân viên có vai trò Leader (được duyệt) tự duyệt yêu cầu của chính mình → 403 (cấm tự duyệt phía máy chủ); Giám đốc duyệt → 200.
+### 1.2. Máy chủ — `server/server.js` (giữ, sửa 10 điểm — xem §2)
 
-### Cổng 4 — luồng web (Playwright, Chromium headless shell, chạy 29/10/2026 ~16:40 +07): PASS ở mức DOM, 3D UNTESTED
-Kết quả đo được (tất cả đều `true`): tràn ngang desktop 1440px = 0px; 5 nút nhân viên; thêm vai trò xuất hiện trong mọi menu vai trò; thêm việc → Kanban "Chờ nhận" → chạy luồng → "Đang làm" → "Chờ duyệt" → duyệt → "Hoàn thành"; link đính kèm hiển thị dạng `<a>` bấm được; yêu cầu phê duyệt → banner "1 yêu cầu quyền đang chờ duyệt" + thẻ chứa đích + trạng thái "Cần duyệt"; tự duyệt bị chặn bằng thông báo + yêu cầu vẫn chờ; duyệt bởi Giám đốc → ghi nhật ký; **ma trận quyền 16/16 đúng** (4 danh tính × 4 hành động); mô phỏng ngân sách 100% của Muse → banner 100% + trạng thái nghỉ + nạp thêm → trở lại chờ; localStorage bền qua reload (việc + vai trò còn); biên bản họp ghi được; tài khoản demo nhân viên: tạo → đăng nhập bắt đổi mật khẩu → đổi xong; mobile 390px tràn ngang = 0px, nút camera bấm được (`aria-pressed=true`), không lỗi trang.
-**UNTESTED — render 3D trực quan:** CDN jsDelivr bị chặn trong sandbox (`ERR_TUNNEL_CONNECTION_FAILED`) nên không có canvas; thông báo dự phòng "Không tải được Three.js" hiển thị đúng; không có lỗi JS nào sau bản sửa guard (xem §6). Các hàm camera/di chuyển/ăn mừng có guard khi scene chưa sẵn sàng và cập nhật trạng thái nút. Việc kiểm tra hình ảnh 3D thật (5 nhân vật, bàn, phòng họp, bảng Kanban, đi bộ, nhảy ăn mừng) PHẢI làm lại trên site đã deploy có mạng — không được coi là đã qua.
+Giữ nguyên kiến trúc zero-dependency (REST + SSE + SQLite `node:sqlite`, fallback
+JSON, sao lưu, phân quyền ở máy chủ, phục vụ `web/` cùng nguồn). Thêm: cài đặt lần
+đầu, endpoint trình việc + sửa chức vụ + họp + tải kit + phòng chat đầy đủ, mật khẩu
+Giám đốc scrypt, các lỗi 500 đã vá.
 
-### Cổng 5 — bí mật / placeholder / vai trò cứng: PASS (có ghi chú)
-Grep toàn cây (gồm `kit/`, `docs/`): không TODO/FIXME, không literal mật khẩu/token/khóa API. Ghi chú trung thực: dữ liệu hạt giống gán `roleId` khởi đầu cho từng người (Hùng → Quản lý dự án, v.v.) — đây là DỮ LIỆU mẫu có nhãn "do Giám đốc đặt, đổi được ngay", không phải quy tắc cứng: mọi quyền (duyệt, cấp ngân sách, đổi vai trò) đều tính từ vai trò hiện tại trong dữ liệu, và đổi vai trò cập nhật ngay nhãn 3D + quyền. Không có ánh xạ tên→quyền nào trong logic kiểm tra quyền.
+### 1.3. Kit — giữ nguyên
 
-### Cổng 6 — kit + cầu nối: PASS (có giới hạn ghi rõ)
-`kit/install.sh --dry-run` trong thư mục tạm: exit 0, kiểm tra Node v24.22.1 đạt, không ghi file. Cầu nối đã kết nối máy chủ thử nghiệm, nhận ngữ cảnh nén, tham gia SSE; chế độ một lần `--request-approval` ("Tải file xuống") chờ và in "ĐÃ ĐƯỢC DUYỆT bởi s-chung". Giới hạn: dry-run chỉ kiểm tra Node; đường cài đặt đầy đủ (nhập liệu, systemd) chưa chạy vì không có credential thật — ghi UNTESTED cho đường cài đầy đủ, không coi là đã qua. `install.bat` chưa chạy trên Windows thật — UNTESTED.
+`kit/bridge.js`, `config.example.json`, `install.sh`, `install.bat`, `README.md`
+không đổi nội dung; `install.sh --dry-run` chạy đạt. Tải kit giờ làm được ngay
+trong web qua `GET /api/kit/:file` (cần đăng nhập).
 
-### §6. Lỗi tìm thấy trong quá trình kiểm tra — đã sửa
-1. **Hàm 3D chạm `this.THREE` trước khi sẵn sàng** (lỗi `Cannot read properties of undefined (reading 'Vector3')` khi bấm camera lúc CDN lỗi): đã thêm guard — camera cập nhật trạng thái nút và trả về sớm khi scene chưa sẵn sàng. Đã kiểm tra lại: không còn lỗi trang.
-2. **Healthcheck spam lỗi `ENOENT` khi thư mục file trạng thái chưa tồn tại** (lộ khi `OFFICE_ALERT_OUTBOX` trỏ sang `/tmp` trong khi file trạng thái mặc định ở `server/alerts/` chưa có): đã sửa — tạo cả thư mục của file trạng thái (`mkdir` đệ quy cho cả hai đường dẫn). Kiểm tra lại: chạy với máy chủ chết, hộp thư + file trạng thái đều được tạo trong thư mục tạm chưa tồn tại, cảnh báo `server-down` ghi đúng, không còn lỗi ENOENT.
+## 2. BUGS-FIXED — lỗi tìm thấy và cách sửa
 
-## 6. Lộ trình §10 + ghi công §8
-Trong trang web (chân trang): bảng ghi công 5 dự án (Claw3D 2.407★, Agent Office 831★, Claw-Empire 1.430★, BagIdea Office 259★, Paperclip 108.483★ — đã kiểm chứng trên GitHub 29/10/2026) + phần kế thừa ở đâu; lộ trình 4 giai đoạn; 3 quyết định hiển thị là **ĐÃ QUYẾT** (không còn "đang mở"). Các bẫy đã tránh: Project Sid, AutoGen (ghi trong spec).
+### 2.1. Lỗi máy chủ (tìm bằng đọc code + kiểm thử hợp đồng)
 
-## 7. Việc còn mở (sau deploy)
-- Kiểm tra hình ảnh 3D thật trên site đã deploy (mục 4, UNTESTED) + đường cài kit đầy đủ + `install.bat` trên Windows thật.
-- Nâng băm mật khẩu Giám đốc từ SHA-256 lên scrypt/argon2 cho đồng nhất với băm nhân viên (theo dõi, không chặn deploy demo).
-- Giai đoạn 2/3: nối web tĩnh với API máy chủ (hiện web dùng localStorage), triển khai cầu nối cho từng tài khoản thật.
+| # | Lỗi | Sửa |
+|---|---|---|
+| S1 | Mật khẩu Giám đốc băm SHA-256 qua biến môi trường (yêu cầu: lên scrypt như nhân viên) | `verifyDirectorPassword` + `verifyScryptFormat`: chấp nhận chuỗi `salt:hash` scrypt; chuỗi hex SHA-256 cũ vẫn đăng nhập được kèm cảnh báo chuyển đổi (tương thích ngược, đã kiểm thử). |
+| S2 | **Không có endpoint trình việc**: việc không bao giờ lên được cột "Chờ duyệt" qua API | Thêm `POST /api/jobs/:id/submit` (chỉ người phụ trách, chỉ từ "Đang làm"). |
+| S3 | **Không có endpoint sửa chức vụ** | Thêm `PATCH /api/roles/:id` (Giám đốc), kèm chặn gỡ quyền quản trị khỏi chức vụ quản trị cuối cùng. |
+| S4 | `verifyTotp` nổ 500 với mã sai độ dài (`timingSafeEqual` lệch độ dài) | Kiểm tra định dạng 6 chữ số trước, trả false — không bao giờ 500. Đã kiểm thử (mã 5 số, mã chữ → 401). |
+| S5 | So sánh hash phiên Giám đốc nổ 500 khi biến môi trường không phải hex 64 ký tự | `verifyDirectorPassword` kiểm tra độ dài trước khi so sánh. |
+| S6 | So sánh `tokenHash` nhân viên nổ 500 khi lệch độ dài | Kiểm tra độ dài trước `timingSafeEqual` trong `authenticate`. |
+| S7 | `/api/context` trả `openDecisions: 0` ghi cứng | Đếm thật số phê duyệt đang chờ. |
+| S8 | Không có endpoint họp team (luồng gọi họp/biên bản chỉ có ở UI cũ) | Thêm `GET/POST /api/meetings` + `PATCH /api/meetings/:id` (biên bản, đóng họp), kèm broadcast SSE. |
+| S9 | Không có endpoint xoá rule | Thêm `DELETE /api/rules/:id` (Giám đốc). |
+| S10 | Tin nhắn không gửi được vào phòng chung; không có tag/link; không lọc theo người nhận | `POST /api/messages` chấp nhận `to: 'room'`, tính `taggedIds` từ `[ASK:Tên]`/`@Tên`, nhận `link {url,title}`; `GET` lọc `?to=` / `?jobId=`. |
+| S11 | Tạo nhân viên qua API cần `initialPassword`, web cũ gửi `password` (tìm thấy khi kiểm thử) | Web gửi đúng `initialPassword`. |
+| S12 | `PATCH /api/budgets/:id` không ghi nhận được mức "đã dùng" thủ công | Thêm `used` (Giám đốc, có nhật ký, kích hoạt chuyển trạng thái nghỉ). |
+| S13 | `/api/context` không nói rõ loại phiên, nên web phải thăm dò `/api/audit` để phân biệt Giám đốc/nhân viên — mỗi lần thăm dò bằng token nhân viên bị máy chủ ghi thành cảnh báo bảo mật (nhiễu hộp thư) | Thêm trường `kind: idn.type` vào `/api/context`; web đọc loại phiên từ đó, chỉ thăm dò audit khi máy chủ cũ không trả `kind`. |
 
-## 8. Cách chạy
-- Web tĩnh: `cd web && python3 -m http.server 8080` (hoặc deploy thư mục `web/` lên GitHub Pages).
-- Máy chủ: `cd server && OFFICE_DIRECTOR_PASSWORD='...' OFFICE_TOTP_SECRET='...' node server.js` (xem README để biết đầy đủ biến môi trường; in hướng dẫn rõ khi khởi động).
-- Cầu nối: `node bridge.js --config kit/config.example.json` sau khi điền cấu hình lúc cài đặt (xem `kit/README.md`).
+### 2.2. Lỗi web — 6 lỗi trong ảnh chụp của Giám đốc (30/10 04:36, mobile ~390px)
+
+| # | Lỗi trong ảnh | Nguyên nhân gốc (đã xác nhận bằng đọc code cũ) | Sửa + kiểm chứng |
+|---|---|---|---|
+| W1 | Nút camera đang chọn trắng tinh, mất nhãn | Xung đột độ ưu tiên CSS: `.stage .camrow button` (nền trắng) thắng rule toàn cục `button[aria-pressed="true"]` (chữ trắng) → chữ trắng trên nền trắng | Rule trạng thái chọn đặt CẢ nền + chữ trong cùng rule có độ ưu tiên cao nhất, cho mọi control (`style.css`). Kiểm chứng: bấm nhanh 5 vòng 4 nút camera, đo tương phản thực tế của nút đang chọn (tỷ lệ > 3) — PASS. |
+| W2 | Bấm thêm thì trắng tinh cả khung nhìn | Bản cũ vẽ lại vùng quanh sân + không xử lý mất context WebGL / lỗi JS | Canvas tạo một lần, dữ liệu đổi chỉ cập nhật panel + đồng bộ 3D (không vẽ lại sân); `webglcontextlost` → chuyển dạng 2D + thông báo; `window.onerror` → banner chữ thường, không trắng trang. Kiểm chứng: bấm camera nhanh + xoay màn hình, sân không trống, 0 lỗi JS — PASS. |
+| W3 | Nhãn tên/chức vụ trên nhân vật quá nhỏ, không đọc được | Sprite nhãn cũ 256×96 co về 1.5 đơn vị thế giới | Sprite 448×152, chữ tên 52px/chức vụ 34px, nền trắng đặc viền đậm, scale 2.6×0.88, `depthTest:false`. Chưa kiểm chứng trực quan (CDN bị chặn — xem UNTESTED). |
+| W4 | Panel hồ sơ: bảng 2 cột lệch, chữ cắt ở mép | Dùng bảng 2 cột trên mobile | Hàng định nghĩa xếp chồng (nhãn trên, giá trị dưới, `.kv`), không bảng. Kiểm chứng: mọi `dd` không tràn ở 390px — PASS. |
+| W5 | Trông như landing page, không giống trung tâm điều phối | Trang dài trình bày phác thảo, không có vỏ ứng dụng | Vỏ app thật: topbar tối + trạng thái trực tuyến + huy hiệu chờ duyệt đỏ, sidebar/bottom nav, màn hình làm việc dày đặc có tổ chức, KPI. Ảnh chụp kiểm chứng ở `docs/screenshots-390px/`. |
+| W6 | Menu mobile không cố định dưới | Không có bottom nav | Bottom nav `position:fixed` đáy viewport, ≥52px/mục, mục đang chọn nền tối + nhãn rõ, nội dung đệm đáy 110px. Kiểm chứng: cuộn tới cuối trang, nav vẫn dính đáy — PASS. |
+
+### 2.3. Lỗi web khác tìm thấy khi kiểm thử trình duyệt
+
+| # | Lỗi | Sửa |
+|---|---|---|
+| W7 | Form đăng nhập gửi theo cách truyền thống (tải lại trang) nếu người dùng bấm Đăng nhập trong lúc probe máy chủ chưa xong — vì `bindLogin()` chạy sau các lần fetch | `bindLogin()` chạy đồng bộ đầu `boot()`, kèm chặn gắn lặp (idempotent) vì `boot()` chạy lại sau đăng xuất. |
+| W8 | Tab Nhân viên không gửi được form: trường `required` của khung Giám đốc đang ẩn vẫn chặn kiểm tra hợp lệ ở Chrome headless (gửi im lặng, không lỗi, không token) | Khi chuyển tab, vô hiệu hoá (`disabled`) trường ở khung ẩn + trạng thái ban đầu. Đã kiểm thử lại: đăng nhập nhân viên đi qua được. |
+| W9 | Sau đổi mật khẩu lần đầu, `Session.me` không được gán → tin nhắn DM gửi đi không hiện trong log (bộ lọc dùng `Session.me.id`) | `enterApp()` lấy danh tính phiên qua `/api/context` nếu chưa có. Đã kiểm thử: DM 2 phiên live. |
+| W10 | Nút camera/nhãn menu dưới "Văn phòng" bị ngắt dòng, chữ "phòng" cắt ở mép dưới khi mục đang chọn (phát hiện khi xem ảnh chụp kiểm thử) | `.bn-label` không ngắt dòng, cỡ 11px. |
+| W11 | Nhật ký hoạt động ghi trùng lặp "Cảnh 3D không tải được" khi vào lại màn Văn phòng | `feedAdd` bỏ qua trùng lặp liên tiếp. |
+| W12 | Mỗi lần nhân viên đăng nhập web bằng luồng đổi MK lần đầu, web thăm dò `/api/audit` để biết loại phiên → máy chủ ghi cảnh báo bảo mật giả vào hộp thư (3 cảnh báo trong lúc kiểm thử) | Web đọc `kind` từ `/api/context` (xem S13). Kiểm chứng: chạy lại luồng đăng nhập nhân viên, hộp thư cảnh báo không ghi thêm gì. |
+
+## 3. Kiểm thử — bằng chứng theo cổng
+
+Môi trường: Node v24.22.1, SQLite `node:sqlite`, DB tạm riêng cho từng bộ kiểm thử
+(`OFFICE_DATA_DIR` trỏ thư mục tạm — lưu ý: biến đúng là `OFFICE_DATA_DIR`, không
+phải `OFFICE_DIR`; xem §4.1 về sự cố DB thật trong lúc kiểm thử và cách dọn sạch).
+
+### Cổng 1 — Cú pháp + vệ sinh code: PASS
+
+- `node --check` đạt cho `server.js`, `bridge.js`, `healthcheck.js`, `web/app.js`.
+- Grep: 0 `TODO`/`FIXME`/`XXX`/`HACK`; 0 secret (mật khẩu/token/khoá) trong
+  `web/` + `server/` + `kit/` (email Giám đốc trong seed là dữ liệu danh tính theo
+  STATE.md, không phải secret).
+
+### Cổng 2 — Máy chủ khởi động + `/health`: PASS
+
+- Khởi động với DB tạm, `/api/health` 200, `store: sqlite`, seed đúng 5 nhân viên /
+  4 chức vụ / 2 rule.
+
+### Cổng 3 — Hợp đồng API (script `/tmp/test-api.mjs`, DB tạm, 3 máy chủ): 70/70 PASS
+
+Ma trận: 401 khi thiếu token; 403 ma trận quyền (nhân viên thường tạo việc/gọi họp/
+đọc yêu cầu người khác/sửa ngân sách); 404/409/400 đúng chỗ. Bao gồm:
+
+- Đăng nhập Giám đốc: sai MK → 401; TOTP 5 số/chữ → 401 (không 500); đúng → 200,
+  phiên gắn `s-chung`; hash SHA-256 cũ vẫn vào được (cảnh báo).
+- Cài đặt lần đầu (DB mới, không env): `needsSetup=true` → MK ngắn/không khớp → 400
+  → tạo xong trả secret 1 lần → `needsSetup=false` → gọi lại → 403 → đăng nhập bằng
+  tài khoản setup (scrypt trong store) → 200; credential trong SQLite đúng định dạng
+  `salt:hash`.
+- Chức vụ: tạo/sửa/xoá; chặn gỡ `canManage` khỏi chức vụ quản trị cuối (400).
+- Nhân viên: tạo + đăng nhập lần đầu bắt đổi MK → đổi MK → vào được; `initialPassword`.
+- Việc: nhận sai người → 403; nhận lần 2 → 409; submit → "Chờ duyệt" (endpoint mới);
+  submit lần 2 → 409; tự duyệt → 403; trả lại không lý do → 400, có lý do → 200;
+  gắn link đúng/sai scheme → 200/400.
+- Phê duyệt: tạo → 201 trạng thái pending; tự duyệt → 403; người không liên quan đọc
+  → 403; từ chối không lý do → 400; quyết định lần 2 → 409.
+- Ngân sách: 79/100 → bình thường; 100/100 → `resting=true` + cảnh báo `budget-full`;
+  nạp thêm → 150, hết nghỉ. `openDecisions` đếm thật.
+- Chat: phòng chung + tag `[ASK:Tuấn]` → `taggedIds` có `s-tuan` + link; DM; người
+  nhận không tồn tại → 400; link sai scheme → 400.
+- Họp: nhân viên thường → 403; Leader → 200; sửa biên bản → 200.
+- Kit: `bridge.js` tải được, nội dung thật; file lạ → 404.
+- SSE: tạo việc → sự kiện `job` tới trong 8s.
+- Bridge round-trip: `bridge.js --request-approval` gửi yêu cầu → duyệt qua API →
+  bridge in "ĐÃ ĐƯỢC DUYỆT", thoát 0; người yêu cầu đọc lại được quyết định.
+- Bền bỉ: khởi động lại cùng DB → việc + tin nhắn còn nguyên.
+
+### Cổng 4 — Trình duyệt thật (chrome-headless-shell qua CDP, script `/tmp/cdp-test.mjs`): 28/28 PASS
+
+Hai phiên song song (Giám đốc + nhân viên mới), viewport 390×844, gồm:
+
+- Đăng nhập trước, nội dung app ẩn; trạng thái máy chủ "Đã nối"; đăng nhập Giám đốc
+  qua UI; topbar + huy hiệu chờ duyệt ẩn khi 0 yêu cầu.
+- Sân văn phòng có nội dung, không trắng; bấm camera nhanh 5 vòng: sân không trống,
+  nút đang chọn tương phản tốt, 0 lỗi JS; xoay ngang 844px: không tràn ngang; menu
+  dưới FIXED dính đáy khi cuộn; không tràn ngang 390px; mục menu đang chọn rõ nhãn;
+  hồ sơ xếp chồng không tràn/cắt.
+- Tạo việc qua UI → Kanban; gửi yêu cầu phê duyệt qua UI → huy hiệu 1; tự duyệt bị
+  chặn ở UI; duyệt yêu cầu người khác → ghi nhận; gửi tin `[ASK:Tuấn]` → log + ghi
+  nhắc tên.
+- Nhân viên mới: bắt đổi MK lần đầu → đổi qua UI → vào app; DM 2 phiên tới live qua
+  SSE không tải lại; `[ASK:Chung]` → toast thông báo ngay cho Giám đốc.
+- Ngân sách 1000/850 qua UI → cảnh báo "Sắp chạm"; thêm chức vụ qua UI → hiện bảng.
+- 0 lỗi JS/console-error trong cả 2 phiên.
+- Ảnh chụp 390px: `docs/screenshots-390px/shot-office-390.png`,
+  `docs/screenshots-390px/shot-chat-390.png` (xem trực tiếp để đối chiếu với ảnh lỗi cũ).
+
+### Cổng 5 — Kit: PASS
+
+- `bash kit/install.sh --dry-run` → đạt (Node v24 OK, không ghi file).
+
+## 4. Sự cố trong lúc kiểm thử (đã xử lý, ghi để tránh lặp lại)
+
+### 4.1. Kiểm thử đã ghi nhầm vào DB thật — ĐÃ DỌN SẠCH
+
+Bộ kiểm thử API ban đầu dùng nhầm biến `OFFICE_DIR` (máy chủ không đọc biến này;
+biến đúng là `OFFICE_DATA_DIR`), nên 2 lượt chạy đầu ghi vào
+`server/data/office.db` thật: 1 nhân viên thử nghiệm + 4 phiên + 45 dòng nhật ký
+kiểm toán (toàn bộ trong khung giờ kiểm thử). Đã xoá hết bằng SQL trực tiếp
+(backup file ô nhiễm giữ tại `/tmp/office.db.before-cleanup`), kiểm chứng lại:
+DB thật chỉ còn seed gốc — 4 chức vụ, 2 rule, 5 nhân viên, không còn dòng nào khác.
+Không có credential Giám đốc nào bị ghi vào DB thật. Các lượt kiểm thử sau dùng
+`OFFICE_DATA_DIR` trỏ thư mục tạm và dùng tên thư mục duy nhất mỗi lượt.
+Hộp thư cảnh báo `server/alerts/outbox.jsonl` cũng nhận 8 cảnh báo thử nghiệm
+(5 budget-full + 3 thăm dò audit — xem W12); đã xoá hết, file về rỗng, và
+nguyên nhân thăm dò audit đã sửa (S13/W12).
+
+### 4.2. Máy chủ cũ còn chạy chiếm cổng làm sai kết quả
+
+Các lượt chạy kiểm thử bị crash để lại tiến trình server mồ côi chiếm cổng, khiến
+lượt sau đo nhầm máy chủ cũ (triệu chứng: số nhân viên "ma" tăng dần). Khắc phục:
+diệt tiến trình mồ côi trước mỗi lượt + tên thư mục DB duy nhất mỗi lượt + bộ kiểm
+thử tự diệt tiến trình con khi crash. Không ảnh hưởng code sản phẩm.
+
+## 5. UNTESTED (ghi thật, không PASS)
+
+1. **Render 3D trực quan** (nhân vật, bàn, phòng họp, nhãn sprite, đi bộ, nhảy ăn
+   mừng, camera theo người): **UNTESTED** — môi trường thử nghiệm chặn CDN
+   jsDelivr (`ERR_TUNNEL_CONNECTION_FAILED`), `import('three')` thất bại nên app
+   rơi về dạng 2D (đã kiểm chứng đầy đủ). Code cảnh 3D giữ lại từ bản trước, đã
+   sửa nhãn to/tương phản + chống trắng trang + mất context, nhưng CHƯA được nhìn
+   thấy chạy. **Phải kiểm chứng trên trình duyệt thật có mạng trước khi báo xong
+   với Giám đốc** (theo lệnh "test kỹ trước khi deploy").
+2. **Đường cài kit đầy đủ + `install.bat` trên Windows thật**: UNTESTED (chỉ có
+   `--dry-run` trên Linux). Bridge đã kiểm chứng vòng tròn xin duyệt qua API.
+3. **Chạy 24/7 trên máy điều phối** (systemd, watchdog, sao lưu 15 phút): UNTESTED.
+4. **Hiệu năng đa phiên đồng thời lớn** (nhiều cầu nối cùng lúc): UNTESTED.
+
+## 6. Cách chạy hệ thống thật
+
+```sh
+cd server
+# Cách A — cài đặt lần đầu qua web (khuyên dùng): chạy không cần biến môi trường,
+# mở http://localhost:3101, làm theo màn hình Cài đặt lần đầu.
+node server.js
+
+# Cách B — biến môi trường (mật khẩu scrypt + TOTP):
+# OFFICE_DIRECTOR_PASSWORD_HASH="<salt>:<scrypt hex>"  (tính bằng Node, xem README)
+# OFFICE_DIRECTOR_TOTP_SECRET="<secret base32>"
+# OFFICE_DATA_DIR (mặc định ./data), OFFICE_PORT (mặc định 3101)
+node server.js
+# Mở http://localhost:3101 — web + API + SSE cùng nguồn.
+```
+
+Nhân viên đăng nhập web bằng tài khoản Giám đốc tạo (`POST /api/staff` với
+`username` + `initialPassword`); cầu nối dùng token API riêng
+(`OFFICE_SERVER` + `OFFICE_TOKEN`, xem `kit/README.md`).
+
+## 7. File thay đổi trong rebuild này
+
+- `web/index.html`, `web/app.js`, `web/style.css` — viết mới hoàn toàn (vỏ ứng dụng).
+- `server/server.js` — sửa 12 điểm (§2.1) + ghi chú scrypt/cài đặt lần đầu.
+- `README.md` — cập nhật chạy thật, scrypt, cài đặt lần đầu, bảng API, quyết định đã chốt.
+- `docs/HUONG-DAN-CAI-DAT.md` — bổ sung mục rebuild 30/10.
+- `docs/screenshots-390px/` — 2 ảnh chụp kiểm chứng 390px (MỚI).
+- `PROGRESS.md` — cập nhật trạng thái rebuild.
+- Không đổi: `server/bridge.js`, `server/healthcheck.js`, `kit/*`, `LICENSE`,
+  `.gitignore`, `server/office.service.example`, `~/workspace/ai-company/**`.
