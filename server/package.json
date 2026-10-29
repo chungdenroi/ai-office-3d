@@ -1,0 +1,1 @@
+{"description":"Máy chủ trung tâm hệ thống AI nhân viên — văn phòng 3D điều hành (Enteesee). Node thuần, không dependency.","engines":{"node":">=22"},"license":"MIT","main":"server.js","name":"ai-office-3d-server","scripts":{"bridge":"node bridge.js","start":"node server.js"},"type":"commonjs","version":"1.0.0"}
