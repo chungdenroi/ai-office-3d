@@ -186,14 +186,17 @@ Bản web cũ (một trang dài trình bày lại phác thảo) đã bị Giám 
   nhắn tới live qua SSE không cần tải lại, nhắc tên `[ASK:Tên]`/`@Tên` báo ngay
   cho người được nhắc, tin gắn vào việc, link đính kèm (link công khai của
   Muse). Mọi tin đều mang danh tính người gửi đã xác thực.
-- Văn phòng 3D: nếu thư viện 3D qua CDN không tải được, tự chuyển sang **dạng
-  danh sách 2D** đầy đủ thao tác — không bao giờ trắng trang.
+- Văn phòng 3D: thư viện Three.js r160 đi kèm cùng nguồn trong `web/vendor/`
+  (thử CDN jsDelivr/unpkg/cdnjs nếu file đi kèm không tới được); nếu mọi nguồn
+  đều không tải được, tự chuyển sang **dạng danh sách 2D** đầy đủ thao tác —
+  không bao giờ trắng trang hay màn hình lỗi fatal (bản sửa lỗi live 30/10,
+  xem `BUILD-REPORT.md` §2.4).
 - Mật khẩu Giám đốc dùng **scrypt** (định dạng `salt:hash`); chuỗi SHA-256 cũ
   vẫn đăng nhập được kèm cảnh báo — hãy chuyển sang scrypt theo README.
 - Tải bộ kit ngay trong màn Cài đặt & kit (cần đăng nhập): `bridge.js`,
   `install.sh`, `install.bat`, `config.example.json`, `README.md`.
 
 Kiểm tra sau rebuild: hợp đồng API tự động 70/70 + trình duyệt thật 28/28
-(mobile 390px), xem `BUILD-REPORT.md`. Phần chưa kiểm chứng: render 3D trực
-quan (CDN bị chặn trong môi trường thử nghiệm), cài kit đầy đủ trên Windows
-thật.
+(mobile 390px) + bản sửa lỗi 3D live 15/15 (xem `BUILD-REPORT.md` §3 Cổng 6).
+Phần chưa kiểm chứng: render 3D trên trình duyệt/điện thoại thật của Giám đốc,
+cài kit đầy đủ trên Windows thật.
