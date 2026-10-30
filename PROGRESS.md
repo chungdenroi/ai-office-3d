@@ -1,5 +1,11 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
+## (0h) MỚI NHẤT 31/10 — Sửa email Auth: bỏ miền giả .internal → vnhairmarket.com
+
+- Lỗi: "Cài đặt lần đầu" báo `Email address "director@office.internal" is invalid` dù Giám đốc không nhập email nào — app tự điền miền giả `.internal`, Supabase Auth từ chối. Gốc: thiết kế migration dùng email giả làm định danh Auth, chưa từng thử tạo tài khoản thật.
+- Sửa: miền đăng nhập đổi sang miền thật của công ty `vnhairmarket.com` (có MX): Giám đốc `director@vnhairmarket.com`, nhân viên `<username>@vnhairmarket.com`. Đổi `web/supabase.js` (DIRECTOR_EMAIL, authEmailFor), `kit/bridge.js`, seed 003 + ghi chú 001, README, HUONG-DAN-CAI-DAT. Dữ liệu live: UPDATE 5 hàng staff sang miền mới, đã kiểm chứng SELECT đủ 5. `node --check` PASS.
+- Chờ: deploy + Giám đốc thử lại "Cài đặt lần đầu" (nhập lại mật khẩu).
+
 ## TRẠNG THÁI — SỬA RESPONSIVE MOBILE + RÚT GỌN ĐĂNG NHẬP XONG (CHƯA DEPLOY), CHỜ DEPLOY + GIÁM ĐỐC KIỂM TRÊN ĐIỆN THOẠI THẬT
 
 ## (0g) MỚI NHẤT 31/10 — Rà và rút gọn chữ toàn app (lượt riêng sau §13, theo yêu cầu Giám đốc 30/10 23:47 "nhiều chữ quá, tối giản bớt")
