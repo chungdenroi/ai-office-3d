@@ -101,6 +101,9 @@ function log(...parts) { console.log(`[bridge ${stamp()} ${NAME}]`, ...parts); }
 const CONFIG_PATH = flags.config || process.env.OFFICE_CONFIG || '';
 const BRIDGE_DIR = CONFIG_PATH ? path.dirname(path.resolve(CONFIG_PATH)) : process.cwd();
 const INBOX_EVENTS_FILE = path.join(BRIDGE_DIR, 'inbox-events.jsonl');
+/* PID file để watchdog (cron/hook) kiểm tra cầu nối còn sống không mà
+ * không nhầm với tiến trình shell chứa chuỗi lệnh (pgrep -f hay bắt nhầm). */
+try { fs.writeFileSync(path.join(BRIDGE_DIR, 'bridge.pid'), String(process.pid)); } catch (_) { /* không chặn khởi động */ }
 function writeInboxEvent(row) {
   if (!row || !row.id) return;
   try {
