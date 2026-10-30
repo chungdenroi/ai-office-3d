@@ -36,14 +36,15 @@ DEMO — không bao giờ hiện dữ liệu mẫu như dữ liệu thật.
 ## 2. Thiết kế Auth
 
 - **Giám đốc**: một Auth user + TOTP MFA của Supabase Auth (AAL2).
-  Email nội bộ cố định `director@office.internal` (không phải email thật,
-  không gửi mail). App không hỏi email ở tab Giám đốc — chỉ hỏi mật khẩu +
+  Email cố định `director@vnhairmarket.com` (miền thật của công ty —
+  Supabase từ chối miền giả .internal; app không gửi mail tới địa chỉ
+  này). App không hỏi email ở tab Giám đốc — chỉ hỏi mật khẩu +
   mã 6 số, email do app tự điền phía dưới. Cài đặt lần đầu tạo Auth user
   → gắn vào hàng `s-chung` (chỉ gắn khi `auth_user_id` còn NULL) → đăng ký
   TOTP → **xác minh TOTP ngay trong lượt cài đặt** (nút "Xác minh mã" chặn
   nút "tới màn hình đăng nhập" cho tới khi xác minh xong). Cài đặt dở dang
   thì lần đăng nhập sau hiện mã TOTP mới để quét + xác minh lại.
-- **Nhân viên**: Auth user với email nội bộ `<username>@office.internal`
+- **Nhân viên**: Auth user với email `<username>@vnhairmarket.com`
   (username chỉ chữ không dấu/số/dấu chấm/gạch dưới/gạch ngang; liên hệ
   thật nằm ở cột `account`). Giám đốc tạo hàng staff (đã có `auth_email`);
   nhân viên kích hoạt bằng đăng nhập lần đầu với username + mật khẩu tự
