@@ -253,6 +253,7 @@ deploy, kiểm chứng trên site thật + trình duyệt thật có mạng.
 
 ## (6) Cập nhật lần cuối
 
-~01:10, 30/10/2026 (Asia/Saigon) — tích hợp thiết kế Obsidian của
-ChatGPT + mật độ vận hành học từ ảnh đối thủ xong, chờ deploy + kiểm
-chứng trên trình duyệt/điện thoại thật.
+~06:40, 31/10/2026 (Asia/Saigon) — Giám đốc đăng nhập thành công
+06:17; sửa xong tin nhắn nhân đôi + thiết kế lại màn Chat (BUILD-REPORT
+§16), đã deploy + kiểm chứng live/headless; Giám đốc chỉ cần tải lại
+trang rồi gửi thử 1 tin để xác nhận hết nhân đôi ở chế độ Supabase.
