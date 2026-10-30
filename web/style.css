@@ -426,3 +426,43 @@ table.tbl tbody tr:hover{background:var(--bg-hover)}
   *,*::before,*::after{scroll-behavior:auto !important;animation-duration:.01ms !important;transition-duration:.01ms !important}
   .topbar-status::before,.approval-badge::before{animation:none}
 }
+
+/* ------------- Mobile ≤640px: bảng thành thẻ xếp dọc (fix 30/10) ---------- */
+/* Lỗi ở ảnh điện thoại 30/10: bảng 5-6 cột bị bóp trong 390px, tiêu đề cột
+ * vỡ thành từng chữ xếp dọc ("C H Ứ C V Ụ"), email vỡ giữa từ, 5 nút thao
+ * tác chồng thành cột dài, tiêu đề trang bị cắt do trang tràn ngang.
+ * Gốc rễ: table width:100% + overflow-wrap:anywhere cho phép cột co tới
+ * 1 ký tự thay vì tràn/cuộn. Sửa bằng cách bỏ hẳn bố cục bảng ở màn hẹp:
+ * mỗi hàng thành 1 thẻ, mỗi ô có nhãn lấy từ data-label (app.js gắn sẵn),
+ * nút thao tác xếp lưới 2 cột, cao tối thiểu 44px. Desktop không đổi. */
+@media (max-width:640px){
+  .tbl-wrap{overflow:visible;border:0;background:transparent}
+  table.tbl,table.tbl tbody,table.tbl tr,table.tbl td{display:block;width:100%}
+  table.tbl thead{display:none}
+  table.tbl tr{margin-bottom:12px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;overflow:hidden}
+  table.tbl td{padding:10px 14px;border-bottom:1px solid var(--border-subtle);overflow-wrap:break-word}
+  table.tbl td:last-child{border-bottom:0}
+  table.tbl td::before{display:block;content:attr(data-label);margin-bottom:2px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  table.tbl td.tbl-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  table.tbl td.tbl-actions::before{grid-column:1/-1;margin-bottom:0}
+  table.tbl td.tbl-actions .btn{min-height:44px;width:100%;font-size:12px;white-space:normal;text-align:center;line-height:1.3}
+  /* Bảng Tài liệu: cùng kiểu thẻ, giữ nguyên viền desktop ở màn lớn. */
+  .docs table,.docs table tbody,.docs table tr,.docs table td{display:block;width:100%}
+  .docs table thead{display:none}
+  .docs table tr{margin-bottom:12px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;overflow:hidden}
+  .docs table td{border:0;border-bottom:1px solid var(--border-subtle);padding:10px 14px;overflow-wrap:break-word}
+  .docs table td:last-child{border-bottom:0}
+  .docs table td::before{display:block;content:attr(data-label);margin-bottom:2px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  /* Đầu mục vận hành: nhãn + giờ cập nhật được phép xuống dòng, không đẩy
+   * trang tràn ngang ở màn rất hẹp. */
+  .ops-head{flex-wrap:wrap}
+  .ops-head span{white-space:normal}
+}
+
+/* Màn rất hẹp (≤380px): hàng topbar tràn ~26px khi có cả huy hiệu DEMO +
+ * huy hiệu chờ duyệt + nút Đăng xuất — nút Đăng xuất bị cắt mất ở mép phải
+ * (đo được ở 360px, nút tới x=372). Ẩn huy hiệu DEMO ở cỡ này (trạng thái
+ * DEMO vẫn hiện ở màn Cài đặt); ở 390px huy hiệu vẫn hiện bình thường. */
+@media (max-width:380px){
+  .env-badge{display:none}
+}
