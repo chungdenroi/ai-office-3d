@@ -2244,8 +2244,8 @@ async function renderChat(screen) {
     '<div class="chat-log" id="chat-log"></div>' +
     '<form class="composer" id="chat-form">' +
     '<div class="composer-tools">' +
-    '<select id="tag-pick" title="Nhắc tên nhanh"><option value="">@ Nhắc tên nhanh</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select>' +
-    '<select id="chat-job" title="Gắn vào việc"><option value="">Gắn vào việc…</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select>' +
+    '<select id="tag-pick" title="Nhắc tên nhanh"><option value="">@ Nhắc tên</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select>' +
+    '<select id="chat-job" title="Gắn vào việc"><option value="">Gắn việc…</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select>' +
     '<button type="button" class="btn small" id="chat-link-toggle" aria-expanded="false">＋ Link</button>' +
     '</div>' +
     '<div class="composer-linkrow" id="chat-link-row" hidden><input id="chat-link" type="url" placeholder="https://…"><input id="chat-link-title" placeholder="Tiêu đề link"></div>' +
