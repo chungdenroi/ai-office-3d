@@ -7,6 +7,10 @@ Tài liệu này dành cho cả hai phía: **Giám đốc** (người quản lý
 > đốc quản lý — hệ thống không fix cứng ai làm gì. Không ai tự duyệt việc hay
 > yêu cầu của chính mình.
 
+> **Chạy trên MacBook của Giám đốc qua Tailscale (không cần thẻ, không tốn
+> phí): xem `macbook/HUONG-DAN-MACBOOK.md`. Thứ tự bắt buộc: tạo mã đăng
+> nhập trên `localhost` trước, rồi mới đăng nhập Tailscale.**
+
 ---
 
 ## 1. Mô hình xác thực (ai đăng nhập bằng gì)
