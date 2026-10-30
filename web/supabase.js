@@ -184,9 +184,9 @@
       await sb().auth.signOut().catch(() => {});
       throw err(400, 'Supabase đang bắt xác nhận email nên chưa tạo được phiên. Giám đốc tắt "Confirm email" trong Dashboard → Authentication → Providers → Email rồi thử lại.');
     }
-    // Gắn hàng s-chung (chỉ gắn khi chưa gắn — nguyên tử qua điều kiện).
-    const { data: linked, error: linkErr } = await sb().from('staff')
-      .update({ auth_user_id: user.id }).eq('id', DIRECTOR_STAFF_ID).is('auth_user_id', null).select('id');
+    // Gắn hàng s-chung qua RPC claim_staff (SECURITY DEFINER, vượt RLS —
+    // UPDATE trực tiếp bị chặn dù policy cho phép, đã gãy 2 lần 06:00 31/10).
+    const { data: linked, error: linkErr } = await sb().rpc('claim_staff', { p_staff_id: DIRECTOR_STAFF_ID });
     if (linkErr || !linked || !linked.length) {
       await sb().auth.signOut().catch(() => {});
       throw err(403, 'Hệ thống đã có tài khoản Giám đốc — cài đặt lần đầu chỉ chạy một lần duy nhất.');
@@ -262,9 +262,8 @@
         await sb().auth.signOut().catch(() => {});
         throw err(400, 'Supabase đang bắt xác nhận email nên chưa kích hoạt được. Giám đốc tắt "Confirm email" trong Dashboard → Authentication → Providers → Email rồi thử lại.');
       }
-      // Gắn có điều kiện: chỉ gắn khi hàng còn trống và email khớp JWT.
-      const { data: linked, error: linkErr } = await sb().from('staff')
-        .update({ auth_user_id: user.id }).eq('auth_email', email).is('auth_user_id', null).select('id,role_id,must_change_password,disabled');
+      // Gắn có điều kiện qua RPC claim_staff (SECURITY DEFINER — xem setupDirector).
+      const { data: linked, error: linkErr } = await sb().rpc('claim_staff', { p_email: email });
       if (linkErr || !linked || !linked.length) {
         await sb().auth.signOut().catch(() => {});
         throw err(401, 'Tên đăng nhập này chưa được Giám đốc tạo tài khoản, hoặc đã có người khác kích hoạt.');
