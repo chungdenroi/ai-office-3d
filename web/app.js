@@ -898,7 +898,7 @@ const Office3D = {
     const gen = ++this._initGen;
     const THREE = await this.loadThree();
     if (gen !== this._initGen || this.mount !== mount) return { ok: false, aborted: true };
-    if (!THREE) return { ok: false, reason: 'Không tải được thư viện 3D (file đi kèm và các CDN đều không tới được). Dạng 2D vẫn làm việc đầy đủ.' };
+    if (!THREE) return { ok: false, reason: 'Không tải được thư viện 3D. Dạng 2D vẫn làm việc đầy đủ.' };
     this.three = THREE;
     try {
       return this.buildStage(mount, THREE);
@@ -977,7 +977,7 @@ const Office3D = {
     const canvas = renderer.domElement;
     const onLost = (e) => {
       e.preventDefault();
-      this.showStageError('Khung vẽ 3D bị hệ thống thu hồi (thường do thiếu bộ nhớ trên điện thoại). Đã chuyển sang dạng 2D — dữ liệu không mất.');
+      this.showStageError('Khung vẽ 3D bị thu hồi (thường do thiếu bộ nhớ). Đã chuyển sang dạng 2D — dữ liệu không mất.');
       this.dispose();
       renderOfficeFallback();
     };
@@ -1637,8 +1637,8 @@ function updateOpsStrip() {
   strip.innerHTML =
     '<div class="kpi-item"><div><div class="kpi-num teal">' + c.working + '</div><div class="kpi-label">Đang làm việc</div><div class="kpi-sub">' + S.staff.length + ' nhân sự · ' + c.waiting + ' đang chờ · ' + c.resting + ' đang nghỉ</div></div>' + kpiIco('<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5"/>') + '</div>' +
     '<div class="kpi-item"><div><div class="kpi-num teal">' + c.running + '</div><div class="kpi-label">Việc đang chạy</div><div class="kpi-sub">' + c.open + ' việc đang mở · ' + c.pend + ' chờ duyệt</div></div>' + kpiIco('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16m0-11h13"/>') + '</div>' +
-    '<div class="kpi-item"><div><div class="kpi-num ' + (c.pend ? 'amber' : '') + '">' + c.pend + '</div><div class="kpi-label">Chờ phê duyệt</div><div class="kpi-sub">' + (c.pend ? 'Từ ' + c.pendPeople + ' người · không ai tự duyệt' : 'Không có yêu cầu nào đang chờ') + '</div></div>' + kpiIco('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>') + '</div>' +
-    '<div class="kpi-item"><div><div class="kpi-num ' + (c.maxPct != null && c.maxPct >= 80 ? 'amber' : '') + '">' + (c.maxPct == null ? '—' : c.maxPct + '%') + '</div><div class="kpi-label">Ngân sách dùng nhiều nhất</div><div class="kpi-sub">' + (c.budgeted ? c.budgeted + ' người đã đặt mức · ' + c.over80 + ' người ≥ 80%' : 'Chưa ai đặt mức ngân sách') + '</div></div>' + kpiIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>') + '</div>';
+    '<div class="kpi-item"><div><div class="kpi-num ' + (c.pend ? 'amber' : '') + '">' + c.pend + '</div><div class="kpi-label">Chờ phê duyệt</div><div class="kpi-sub">' + (c.pend ? 'Từ ' + c.pendPeople + ' người' : 'Không có yêu cầu nào đang chờ') + '</div></div>' + kpiIco('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>') + '</div>' +
+    '<div class="kpi-item"><div><div class="kpi-num ' + (c.maxPct != null && c.maxPct >= 80 ? 'amber' : '') + '">' + (c.maxPct == null ? '—' : c.maxPct + '%') + '</div><div class="kpi-label">Ngân sách cao nhất</div><div class="kpi-sub">' + (c.budgeted ? c.budgeted + ' người đã đặt mức · ' + c.over80 + ' người ≥ 80%' : 'Chưa ai đặt mức ngân sách') + '</div></div>' + kpiIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>') + '</div>';
   const upd = $('#ops-updated');
   if (upd) upd.textContent = S.lastSyncAt ? 'Cập nhật ' + fmtClock(S.lastSyncAt) : '';
 }
@@ -1680,11 +1680,11 @@ function officePanelHTML() {
     profile = '<div class="card"><h2>Hồ sơ đang chọn</h2>' +
       '<dl class="kv">' +
       '<div class="row"><dt>Tên</dt><dd>' + esc(st.name) + '</dd></div>' +
-      '<div class="row"><dt>Chức vụ hiện tại</dt><dd>' + esc(roleOfStaff(st).name) + '</dd></div>' +
+      '<div class="row"><dt>Chức vụ</dt><dd>' + esc(roleOfStaff(st).name) + '</dd></div>' +
       '<div class="row"><dt>Trạng thái</dt><dd><span class="pill ' + STATUS_META[es].cls + '">' + STATUS_META[es].label + '</span></dd></div>' +
       '<div class="row"><dt>Tài khoản</dt><dd>' + esc(st.account || '—') + '</dd></div>' +
-      '<div class="row"><dt>Việc đang phụ trách</dt><dd>' + (myJobs.length ? myJobs.map((j) => esc(j.name) + ' (' + esc(j.status) + ' · ' + (j.progress || 0) + '%)').join('<br>') : 'Không có việc đang làm') + '</dd></div>' +
-      (mainJob ? '<div class="row"><dt>Tiến độ việc chính</dt><dd><div class="progress"><i style="width:' + mainProg + '%"></i></div><span class="small">' + mainProg + '% — ' + esc(mainJob.name) + '</span></dd></div>' : '') +
+      '<div class="row"><dt>Việc đang làm</dt><dd>' + (myJobs.length ? myJobs.map((j) => esc(j.name) + ' (' + esc(j.status) + ' · ' + (j.progress || 0) + '%)').join('<br>') : 'Không có việc đang làm') + '</dd></div>' +
+      (mainJob ? '<div class="row"><dt>Tiến độ</dt><dd><div class="progress"><i style="width:' + mainProg + '%"></i></div><span class="small">' + mainProg + '% — ' + esc(mainJob.name) + '</span></dd></div>' : '') +
       '<div class="row"><dt>Ngân sách</dt><dd>' + (pct == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + pct + '% · còn ' + fmtNum(budgetLeft(st)) + ')') + budgetBar + '</dd></div>' +
       '<div class="row"><dt>Đã hoàn thành</dt><dd>' + doneCount + ' việc</dd></div>' +
       '</dl>' +
@@ -1704,7 +1704,7 @@ function officePanelHTML() {
         '<span class="run-top"><b>' + esc(j.name) + '</b><span class="pill small ' + (j.status === 'Đang làm' ? 'working' : j.status === 'Chờ duyệt' ? 'approval' : 'waiting') + '">' + esc(j.status) + '</span></span>' +
         '<span class="run-meta">' + esc(myName(j.assigneeId)) + ' · ' + prog + '%</span>' +
         '<span class="mini-progress" aria-hidden="true"><i style="width:' + prog + '%"></i></span></button>';
-    }).join('') + '</div>' : '<p class="hint">Chưa có việc nào đang chạy — mọi việc đã xong hoặc đang chờ nhận.</p>') +
+    }).join('') + '</div>' : '<p class="hint">Chưa có việc nào đang chạy.</p>') +
     '<div class="toolbar"><button class="btn small ghost" type="button" data-goto-jobs="">Xem tất cả việc</button></div></div>';
   const meeting = S.meetings[S.meetings.length - 1];
   return '<div class="grid" style="gap:12px">' + profile +
@@ -1748,7 +1748,7 @@ function fillMobileSheet(st) {
     '<div><strong>' + esc(st.name) + '</strong><span>' + esc(roleOfStaff(st).name) + '</span></div>' +
     '<span class="pill ' + meta.cls + '" style="margin-left:auto">' + meta.label + '</span></div>' +
     '<dl class="kv" style="margin-top:12px">' +
-    '<div class="row"><dt>Tác vụ hiện tại</dt><dd>' + (job ? esc(job.name) + ' (' + esc(job.status) + ')' : 'Không có việc đang làm') + '</dd></div>' +
+    '<div class="row"><dt>Việc hiện tại</dt><dd>' + (job ? esc(job.name) + ' (' + esc(job.status) + ')' : 'Không có việc đang làm') + '</dd></div>' +
     (job ? '<div class="row"><dt>Tiến độ</dt><dd><div class="progress"><i style="width:' + prog + '%"></i></div><span class="small">' + prog + '%</span></dd></div>' : '') +
     '<div class="row"><dt>Ngân sách</dt><dd>' + (pct == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + pct + '% · còn ' + fmtNum(budgetLeft(st)) + ')') + '</dd></div>' +
     '<div class="row"><dt>Đã hoàn thành</dt><dd>' + doneCount + ' việc</dd></div></dl>' +
@@ -1779,7 +1779,7 @@ function renderOfficeFallback() {
       '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span>' + presenceLine(s) + '</span>' +
       (lamp ? '<span class="lamp"></span>' : '') + '<span aria-hidden="true">›</span></button>';
   }).join('');
-  box.innerHTML = '<div class="stage-fallback"><p class="hint"><strong>Dạng danh sách 2D</strong> — cùng dữ liệu, cùng thao tác như bản 3D. Bấm một người để xem hồ sơ.</p>' +
+  box.innerHTML = '<div class="stage-fallback"><p class="hint"><strong>Dạng danh sách 2D</strong> — bấm một người để xem hồ sơ.</p>' +
     '<div class="fallback-list">' + items + '</div>' +
     '<div class="toolbar"><button class="btn small" type="button" id="retry-3d">Thử lại cảnh 3D</button></div></div>';
   bindOfficePanel(box);
@@ -1795,7 +1795,7 @@ async function renderOffice(screen) {
   try { if (sessionStorage.getItem('office.force2d') === '1') use2D = true; } catch { /* bỏ qua */ }
   screen.innerHTML =
     '<div class="page-heading"><div><h1>Văn phòng 3D</h1>' +
-    '<p class="hint">Nhìn một cái là biết xưởng đang làm gì — mọi con số từ dữ liệu thật, cập nhật theo thời gian thực' + (Session.demo ? ' — bản DEMO ngoại tuyến' : '') + '.</p></div></div>' +
+    '<p class="hint">Số liệu thật, cập nhật theo thời gian thực.</p></div></div>' +
     '<div class="ops-head"><strong>Xưởng đang làm gì</strong><span id="ops-updated"></span></div>' +
     '<div class="kpi" id="ops-strip"></div>' +
     '<div class="office-layout"><section>' +
@@ -1809,8 +1809,8 @@ async function renderOffice(screen) {
     '<button type="button" data-cam="meeting" aria-pressed="false">Phòng họp</button>' +
     '<button type="button" data-cam="follow" aria-pressed="false">Theo người</button>' +
     '</div>' +
-    '<div class="stage-help">Kéo để xoay · Cuộn/pinch để thu phóng · Bấm nhân vật để xem hồ sơ</div>' +
-    '<div class="stage-credit">' + (Session.demo ? 'Dữ liệu mẫu chạy ngay trong trình duyệt — bản DEMO ngoại tuyến.' : 'Dữ liệu thật từ máy chủ — không phải bản vẽ tĩnh.') + '</div>' +
+    '<div class="stage-help">Kéo để xoay · Cuộn để thu phóng · Bấm nhân vật xem hồ sơ</div>' +
+    '<div class="stage-credit">' + (Session.demo ? 'Dữ liệu mẫu — bản DEMO ngoại tuyến.' : 'Dữ liệu thật từ máy chủ.') + '</div>' +
     '<div class="stage-error" id="stage-error" hidden></div>' +
     '</div>' +
     '<div id="meeting-box"></div>' +
@@ -1835,13 +1835,13 @@ async function renderOffice(screen) {
       feedAdd('Đã gọi họp team (' + S.staff.length + ' người).');
       renderMeetingBox();
       refreshOfficePanel();
-      toast('Đã gọi họp — cả team đang di chuyển vào phòng họp.');
+      toast('Đã gọi họp.');
     } catch (e) { showError(e); }
   });
   renderMeetingBox();
   if (use2D) { renderOfficeFallback(); return; }
   const box = $('#stage-box');
-  box.innerHTML = '<p class="hint" style="padding:16px">Đang tải cảnh 3D… Nếu thư viện 3D không tải được, hệ thống tự chuyển sang dạng danh sách 2D đầy đủ thao tác.</p>';
+  box.innerHTML = '<p class="hint" style="padding:16px">Đang tải cảnh 3D…</p>';
   let res;
   try { res = await Office3D.init(box); }
   catch (e) { res = { ok: false, reason: 'Không dựng được cảnh 3D. Dạng 2D vẫn làm việc đầy đủ.' }; }
@@ -1869,7 +1869,7 @@ function renderMeetingBox() {
   const mt = S.meetingActive || S.meetings[S.meetings.length - 1];
   if (!mt || mt.status !== 'open') { box.innerHTML = ''; return; }
   box.innerHTML = '<div class="card"><h2>Biên bản họp: ' + esc(mt.title) + '</h2>' +
-    '<p class="hint">Biên bản ghi bằng tay theo thiết kế đã chốt — sau khi lưu, có thể tạo việc ngay từ biên bản.</p>' +
+    '<p class="hint">Sau khi lưu, có thể tạo việc ngay từ biên bản.</p>' +
     '<label>Biên bản<textarea id="meeting-minutes" rows="4">' + esc(mt.minutes || '') + '</textarea></label>' +
     '<div class="toolbar"><button class="btn primary" type="button" id="save-minutes">Lưu biên bản</button>' +
     '<button class="btn" type="button" id="job-from-minutes">Tạo việc từ biên bản</button>' +
@@ -1928,12 +1928,12 @@ function openJobDetail(jobId) {
     '<div class="row"><dt>Mô tả</dt><dd>' + esc(job.desc || '—') + '</dd></div>' +
     '<div class="row"><dt>Rule đính kèm</dt><dd>' + esc((S.rules.find((r) => r.id === job.ruleId) || {}).text || '—') + '</dd></div>' +
     '</dl>' +
-    '<h2>Link đính kèm (link công khai của Muse)</h2>' +
+    '<h2>Link đính kèm</h2>' +
     ((job.links || []).map((l) => '<p><a href="' + esc(l.url) + '" target="_blank" rel="noopener">' + esc(l.title) + '</a> <span class="small">— ' + esc(myName(l.by)) + '</span></p>').join('') || '<p class="hint">Chưa có link.</p>') +
     (canAttach ? '<form id="job-link-form"><label>Link mới<input name="url" type="url" placeholder="https://…" required></label><label>Tiêu đề<input name="title" placeholder="Tiêu đề ngắn"></label><button class="btn small" type="submit">Gắn link</button></form>' : '') +
     '<h2>Trao đổi trong việc này</h2>' +
-    (thread.map((m) => '<p><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text) + ' <span class="small">' + esc(fmtTime(m.at)) + '</span></p>').join('') || '<p class="hint">Chưa có tin nhắn nào gắn vào việc này.</p>') +
-    '<form id="job-msg-form"><label>Gửi tin vào luồng việc này<textarea name="text" required rows="2"></textarea></label><button class="btn small primary" type="submit">Gửi</button></form>' +
+    (thread.map((m) => '<p><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text) + ' <span class="small">' + esc(fmtTime(m.at)) + '</span></p>').join('') || '<p class="hint">Chưa có tin nhắn nào.</p>') +
+    '<form id="job-msg-form"><label>Gửi tin<textarea name="text" required rows="2"></textarea></label><button class="btn small primary" type="submit">Gửi</button></form>' +
     '<div class="toolbar"><button class="btn small" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đóng</button></div>');
   const lf = $('#job-link-form');
   if (lf) lf.addEventListener('submit', async (e) => {
@@ -1967,15 +1967,15 @@ async function renderJobs(screen) {
       (items.map(jobCardHTML).join('') || '<p class="hint">Không có việc.</p>') + '</section>';
   }).join('');
   screen.innerHTML = '<h1>Việc</h1>' +
-    '<p class="hint">Luồng việc: Chờ nhận → người phụ trách nhận → Đang làm → trình duyệt → Chờ duyệt → Leader/Giám đốc duyệt → Hoàn thành. Nhận việc là nguyên tử: hai người cùng nhận, chỉ một người được. Không ai được tự duyệt việc của mình.</p>' +
+    '<p class="hint">Chờ nhận → Đang làm → Chờ duyệt → Hoàn thành. Nhận việc chỉ một người được. Không tự duyệt việc của mình.</p>' +
     (canCreate ? '<div class="card"><h2>Thêm / giao việc mới</h2><form id="job-form">' +
       '<label>Tên việc<input name="name" required value="' + esc(draft.name || '') + '"></label>' +
       '<label>Mô tả<textarea name="desc" rows="2">' + esc(draft.desc || '') + '</textarea></label>' +
       '<div class="row2"><label>Người phụ trách<select name="assigneeId">' + staffOpts + '</select></label>' +
       '<label>Người kiểm tra<select name="reviewerId">' + staffOpts + '</select></label></div>' +
       '<label>Rule đính kèm<select name="ruleId"><option value="">— Không có —</option>' + S.rules.map((r) => '<option value="' + esc(r.id) + '">' + esc(r.text) + '</option>').join('') + '</select></label>' +
-      '<label>Link đính kèm (không bắt buộc)<input name="link" type="url" placeholder="https://…"></label>' +
-      '<button class="btn primary" type="submit">Tạo việc</button></form></div>' : '<p class="hint">Bạn chưa có quyền tạo việc (cần chức vụ có quyền duyệt hoặc Giám đốc).</p>') +
+      '<label>Link đính kèm<input name="link" type="url" placeholder="https://…"></label>' +
+      '<button class="btn primary" type="submit">Tạo việc</button></form></div>' : '<p class="hint">Bạn chưa có quyền tạo việc.</p>') +
     '<div class="kanban">' + cols + '</div>';
   const form = $('#job-form');
   if (form) form.addEventListener('submit', async (e) => {
@@ -2000,7 +2000,7 @@ async function renderJobs(screen) {
     catch (ex) { showError(ex); }
   }));
   $$('[data-job-return]', screen).forEach((b) => b.addEventListener('click', () => {
-    openModal('<h1>Trả lại việc</h1><p class="hint">Trả lại bắt buộc có lý do — người phụ trách đọc lý do để sửa.</p>' +
+    openModal('<h1>Trả lại việc</h1><p class="hint">Trả lại cần có lý do.</p>' +
       '<form id="return-form"><label>Lý do<textarea name="reason" required rows="3"></textarea></label>' +
       '<button class="btn primary" type="submit">Trả lại việc</button></form>');
     $('#return-form').addEventListener('submit', async (e) => {
@@ -2019,14 +2019,14 @@ async function renderApprovals(screen) {
   const decided = S.approvals.filter((a) => a.status !== 'pending').slice(-20).reverse();
   const canDecide = (ap) => {
     if (!myRole().canApprove) return 'Chức vụ hiện tại không có quyền duyệt.';
-    if (Session.me && Session.me.id === ap.requesterId) return 'Cấm tự duyệt yêu cầu của chính mình — kể cả Giám đốc.';
+    if (Session.me && Session.me.id === ap.requesterId) return 'Không tự duyệt yêu cầu của mình — kể cả Giám đốc.';
     return null;
   };
   screen.innerHTML = '<h1>Phê duyệt</h1>' +
-    '<p class="hint">Hộp phê duyệt nhận <strong>mọi</strong> yêu cầu cấp quyền của <strong>mọi</strong> tài khoản Muse — đăng nhập, tải file, cài ứng dụng và 5 nhóm còn lại. Quyết định ngay tại đây, không cần mở ứng dụng Muse. Từ chối bắt buộc có lý do. Không ai tự duyệt yêu cầu của mình.</p>' +
+    '<p class="hint">Mọi yêu cầu cấp quyền của mọi tài khoản Muse đều về đây — quyết định ngay tại đây. Từ chối cần có lý do. Không tự duyệt yêu cầu của mình.</p>' +
     '<div class="card"><h2>Gửi yêu cầu mới</h2><form id="ap-form">' +
     '<label>Hành động<select name="action">' + APPROVAL_ACTIONS.map((a) => '<option>' + esc(a) + '</option>').join('') + '</select></label>' +
-    '<label>Mục tiêu / đối tượng<input name="target" placeholder="VD: file bao-cao.pdf, ứng dụng X, tài khoản…"></label>' +
+    '<label>Mục tiêu<input name="target" placeholder="VD: file bao-cao.pdf, ứng dụng X…"></label>' +
     '<label>Lý do<textarea name="reason" required rows="2"></textarea></label>' +
     '<label>Việc liên quan<select name="jobId"><option value="">— Không có —</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select></label>' +
     '<button class="btn primary" type="submit">Gửi yêu cầu</button></form></div>' +
@@ -2040,11 +2040,11 @@ async function renderApprovals(screen) {
         (ap.jobId ? '<div class="row"><dt>Việc liên quan</dt><dd>' + esc((S.jobs.find((j) => j.id === ap.jobId) || {}).name || '—') + '</dd></div>' : '') +
         (ap.source ? '<div class="row"><dt>Nguồn</dt><dd>' + esc(ap.source) + '</dd></div>' : '') + '</dl>' +
         (block ? '<p class="hint">' + esc(block) + '</p>' :
-          '<form class="decide-form" data-ap="' + esc(ap.id) + '"><label>Ghi chú quyết định (bắt buộc khi từ chối)<input name="note"></label>' +
+          '<form class="decide-form" data-ap="' + esc(ap.id) + '"><label>Ghi chú (bắt buộc khi từ chối)<input name="note"></label>' +
           '<div class="toolbar"><button class="btn primary" type="submit" data-decision="approved">Duyệt</button>' +
           '<button class="btn danger" type="submit" data-decision="rejected">Từ chối</button></div></form>') +
         '</div>';
-    }).join('') : '<p class="hint">Không có yêu cầu nào đang chờ. Đèn đỏ trong văn phòng sẽ tắt khi hết yêu cầu chờ.</p>') +
+    }).join('') : '<p class="hint">Không có yêu cầu nào đang chờ.</p>') +
     '<h2>Đã quyết định gần đây</h2>' +
     (decided.map((ap) => '<div class="card"><strong>' + esc(ap.action) + '</strong> — ' + (ap.status === 'approved' ? 'Đã duyệt' : 'Đã từ chối') + ' bởi ' + esc(myName(ap.decidedBy)) + ' · ' + esc(fmtTime(ap.decidedAt || ap.at)) + (ap.note ? '<div class="hint">Ghi chú: ' + esc(ap.note) + '</div>' : '') + '</div>').join('') || '<p class="hint">Chưa có quyết định nào.</p>');
   $('#ap-form').addEventListener('submit', async (e) => {
@@ -2087,11 +2087,11 @@ async function renderPeople(screen) {
         '<button class="btn small danger" type="button" data-staff-del="' + esc(s.id) + '">Xoá</button></td>' : '<td data-label="Thao tác">—</td>') + '</tr>';
   }).join('');
   screen.innerHTML = '<h1>Nhân sự &amp; chức vụ</h1>' +
-    '<p class="hint">Chức vụ là dữ liệu, không gắn cứng với người: đổi chức vụ của một người thì quyền của người đó đổi theo ngay. Mọi quyền trong hệ thống đều tính từ bảng chức vụ hiện tại. ' + (director ? '' : 'Bạn đang xem với quyền chỉ đọc — chỉ Giám đốc mới sửa được.') + '</p>' +
+    '<p class="hint">Đổi chức vụ thì quyền đổi theo ngay. ' + (director ? '' : 'Chỉ đọc — chỉ Giám đốc mới sửa được.') + '</p>' +
     '<h2>Chức vụ</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tên</th><th>Cấp</th><th>Được duyệt</th><th>Được quản trị</th><th>Người giữ</th>' + (director ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + roleRows + '</tbody></table></div>' +
-    (director ? '<div class="card"><h2>Thêm chức vụ</h2><form id="role-form"><label>Tên chức vụ<input name="name" required></label><div class="row2"><label>Cấp (số càng nhỏ càng cao)<input name="level" type="number" value="3" min="1" max="9"></label></div><label><input type="checkbox" name="canApprove" style="width:auto"> Được duyệt việc / yêu cầu</label><label><input type="checkbox" name="canManage" style="width:auto"> Được quản trị hệ thống</label><button class="btn primary" type="submit">Thêm chức vụ</button></form></div>' : '') +
+    (director ? '<div class="card"><h2>Thêm chức vụ</h2><form id="role-form"><label>Tên chức vụ<input name="name" required></label><div class="row2"><label>Cấp (số nhỏ càng cao)<input name="level" type="number" value="3" min="1" max="9"></label></div><label><input type="checkbox" name="canApprove" style="width:auto"> Được duyệt</label><label><input type="checkbox" name="canManage" style="width:auto"> Được quản trị</label><button class="btn primary" type="submit">Thêm chức vụ</button></form></div>' : '') +
     '<h2>Nhân viên</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Người</th><th>Chức vụ</th><th>Trạng thái</th><th>Đăng nhập</th>' + (director ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + staffRows + '</tbody></table></div>' +
-    (director ? '<div class="card"><h2>Thêm nhân viên</h2><form id="staff-form"><div class="row2"><label>Tên hiển thị<input name="name" required></label><label>Tài khoản / email<input name="account"></label></div><label>Chức vụ<select name="roleId">' + S.roles.map((r) => '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>').join('') + '</select></label><div class="row2"><label>Tên đăng nhập<input name="username" placeholder="Để trống = chưa có tài khoản"></label><label>Mật khẩu ban đầu<input name="password" type="password" placeholder="Từ 8 ký tự"></label></div><label>Ngân sách token ban đầu (để trống = chưa đặt)<input name="budget" type="number" min="0"></label><button class="btn primary" type="submit">Thêm nhân viên</button></form></div>' : '');
+    (director ? '<div class="card"><h2>Thêm nhân viên</h2><form id="staff-form"><div class="row2"><label>Tên hiển thị<input name="name" required></label><label>Tài khoản / email<input name="account"></label></div><label>Chức vụ<select name="roleId">' + S.roles.map((r) => '<option value="' + esc(r.id) + '">' + esc(r.name) + '</option>').join('') + '</select></label><div class="row2"><label>Tên đăng nhập<input name="username" placeholder="Để trống = chưa có tài khoản"></label><label>Mật khẩu ban đầu<input name="password" type="password" placeholder="Từ 8 ký tự"></label></div><label>Ngân sách token ban đầu<input name="budget" type="number" min="0"></label><button class="btn primary" type="submit">Thêm nhân viên</button></form></div>' : '');
   const rf = $('#role-form');
   if (rf) rf.addEventListener('submit', async (e) => {
     e.preventDefault(); const fd = new FormData(rf);
@@ -2104,14 +2104,14 @@ async function renderPeople(screen) {
     try {
       const r = await api.post('/api/staff', { name: fd.get('name'), account: fd.get('account'), roleId: fd.get('roleId'), username: fd.get('username') || undefined, initialPassword: fd.get('password') || undefined, budget: fd.get('budget') ? Number(fd.get('budget')) : undefined });
       await refreshAll(); renderScreen();
-      if (r.token) openModal('<h1>Đã tạo nhân viên</h1><p class="warnbox">Mã API token chỉ hiện <strong>một lần duy nhất</strong>. Ghi lại và đưa cho nhân viên qua kênh an toàn — mã này không hiện lại.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      if (r.token) openModal('<h1>Đã tạo nhân viên</h1><p class="warnbox">Mã API chỉ hiện <strong>một lần</strong>. Ghi lại và đưa cho nhân viên qua kênh an toàn.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
       else if (r.activationNote) openModal('<h1>Đã tạo nhân viên</h1><p>' + esc(r.activationNote) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã rõ</button></div>');
       else toast('Đã thêm nhân viên.');
     } catch (ex) { showError(ex); }
   });
   $$('[data-role-edit]', screen).forEach((b) => b.addEventListener('click', () => {
     const r = S.roles.find((x) => x.id === b.dataset.roleEdit);
-    openModal('<h1>Sửa chức vụ: ' + esc(r.name) + '</h1><form id="role-edit-form"><label>Tên<input name="name" value="' + esc(r.name) + '" required></label><label>Cấp<input name="level" type="number" value="' + r.level + '" min="1" max="9"></label><label><input type="checkbox" name="canApprove" style="width:auto" ' + (r.canApprove ? 'checked' : '') + '> Được duyệt việc / yêu cầu</label><label><input type="checkbox" name="canManage" style="width:auto" ' + (r.canManage ? 'checked' : '') + '> Được quản trị hệ thống</label><button class="btn primary" type="submit">Lưu</button></form>');
+    openModal('<h1>Sửa chức vụ: ' + esc(r.name) + '</h1><form id="role-edit-form"><label>Tên<input name="name" value="' + esc(r.name) + '" required></label><label>Cấp<input name="level" type="number" value="' + r.level + '" min="1" max="9"></label><label><input type="checkbox" name="canApprove" style="width:auto" ' + (r.canApprove ? 'checked' : '') + '> Được duyệt</label><label><input type="checkbox" name="canManage" style="width:auto" ' + (r.canManage ? 'checked' : '') + '> Được quản trị</label><button class="btn primary" type="submit">Lưu</button></form>');
     $('#role-edit-form').addEventListener('submit', async (e) => {
       e.preventDefault(); const fd = new FormData(e.target);
       try { await api.patch('/api/roles/' + r.id, { name: fd.get('name'), level: Number(fd.get('level')), canApprove: !!fd.get('canApprove'), canManage: !!fd.get('canManage') }); closeModal(); await refreshAll(); renderScreen(); toast('Đã sửa chức vụ.'); }
@@ -2143,7 +2143,7 @@ async function renderPeople(screen) {
   $$('[data-staff-token]', screen).forEach((b) => b.addEventListener('click', async () => {
     try {
       const r = await api.post('/api/staff/' + b.dataset.staffToken + '/rotate-token', {});
-      if (r.token) openModal('<h1>Mã API mới</h1><p class="warnbox">Mã cũ đã hết hiệu lực. Mã mới chỉ hiện <strong>một lần duy nhất</strong> — ghi lại ngay.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      if (r.token) openModal('<h1>Mã API mới</h1><p class="warnbox">Mã cũ đã hết hiệu lực. Mã mới chỉ hiện <strong>một lần</strong> — ghi lại ngay.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
       else if (r.note) openModal('<h1>Cầu nối Supabase</h1><p>' + esc(r.note) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã rõ</button></div>');
       else toast('Đã cập nhật.');
     } catch (ex) { showError(ex); }
@@ -2169,12 +2169,12 @@ async function renderBudgets(screen) {
       (isDirector() ? '<td data-label="Thao tác" class="tbl-actions"><button class="btn small" type="button" data-budget-edit="' + esc(b.staffId) + '">Đặt mức / ghi nhận</button>' + (b.resting ? ' <button class="btn small primary" type="button" data-budget-topup="' + esc(b.staffId) + '">Nạp thêm 50%</button>' : '') + '</td>' : '<td data-label="Thao tác">—</td>') + '</tr>';
   }).join('');
   screen.innerHTML = '<h1>Ngân sách token</h1>' +
-    '<p class="hint">Mức ngân sách do Giám đốc đặt cho từng người — không có mức chung cố định. 80% thì cảnh báo, 100% thì nhân viên tự nghỉ (không nhận việc mới, cầu nối dừng gửi). Nạp thêm +50% để cho làm tiếp. Số "đã dùng" do cầu nối đẩy lên theo nhịp tim, hoặc Giám đốc ghi nhận thủ công có nhật ký.</p>' +
+    '<p class="hint">Giám đốc đặt mức cho từng người, không có mức chung. 80% cảnh báo, 100% tự nghỉ. Nạp thêm +50% để làm tiếp. Số “đã dùng” do cầu nối đẩy lên, hoặc Giám đốc ghi nhận thủ công.</p>' +
     '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Người</th><th>Mức</th><th>Đã dùng</th><th>Tiến độ</th><th>Trạng thái</th>' + (isDirector() ? '<th>Thao tác</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-    (Session.demo ? '<p class="hint">Bản DEMO: số liệu mô phỏng trên trình duyệt này, không phải số thật.</p>' : '');
+    (Session.demo ? '<p class="hint">Bản DEMO: số liệu mô phỏng, không phải số thật.</p>' : '');
   $$('[data-budget-edit]', screen).forEach((b) => b.addEventListener('click', () => {
     const st = staffById(b.dataset.budgetEdit);
-    openModal('<h1>Ngân sách: ' + esc(st.name) + '</h1><form id="budget-form"><label>Mức ngân sách token (để trống = chưa đặt)<input name="budget" type="number" min="0" value="' + (st.budget == null ? '' : st.budget) + '"></label><label>Đã dùng (ghi nhận thủ công, có nhật ký)<input name="used" type="number" min="0" value="' + st.used + '"></label><button class="btn primary" type="submit">Lưu</button></form>');
+    openModal('<h1>Ngân sách: ' + esc(st.name) + '</h1><form id="budget-form"><label>Mức ngân sách token<input name="budget" type="number" min="0" value="' + (st.budget == null ? '' : st.budget) + '"></label><label>Đã dùng<input name="used" type="number" min="0" value="' + st.used + '"></label><button class="btn primary" type="submit">Lưu</button></form>');
     $('#budget-form').addEventListener('submit', async (e) => {
       e.preventDefault(); const fd = new FormData(e.target);
       try {
@@ -2204,7 +2204,7 @@ function renderChatLog() {
     if (S.chatTarget === 'room') return m.toId === 'room';
     return (m.fromId === (Session.me && Session.me.id) && m.toId === S.chatTarget) || (m.fromId === S.chatTarget && m.toId === (Session.me && Session.me.id));
   });
-  if (!msgs.length) { log.innerHTML = '<p class="hint">Chưa có tin nhắn nào ở đây. Bắt đầu trò chuyện — nhắn tự do, nhắc tên bằng @Tên hoặc [ASK:Tên] để người đó nhận thông báo ngay.</p>'; return; }
+  if (!msgs.length) { log.innerHTML = '<p class="hint">Chưa có tin nhắn nào. Nhắc tên bằng @Tên hoặc [ASK:Tên] để báo ngay.</p>'; return; }
   log.innerHTML = msgs.map((m) => {
     const mine = Session.me && m.fromId === Session.me.id;
     const taggedMe = m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id);
@@ -2225,7 +2225,7 @@ async function renderChat(screen) {
   if (!targets.some((t) => t.id === S.chatTarget)) S.chatTarget = 'room';
   const cur = targets.find((t) => t.id === S.chatTarget);
   screen.innerHTML = '<h1>Phòng chat</h1>' +
-    '<div class="card"><strong>Quy tắc phòng:</strong> trò chuyện tự do hai chiều — ai cũng có thể nhắn cho ai, mở chủ đề thoải mái. Nhắc tên bằng <code>@Tên</code> hoặc <code>[ASK:Tên]</code> thì người đó nhận thông báo <strong>ngay lập tức</strong>. Thời gian trả lời tuỳ câu hỏi, không ép thời hạn cố định. Việc thì theo kỷ luật: đã nhận → đang làm → hoàn thành kèm bằng chứng. Tin nhắn gắn vào việc sẽ hiện trong luồng của việc đó.</div>' +
+    '<div class="card"><strong>Quy tắc phòng:</strong> nhắc tên bằng <code>@Tên</code> hoặc <code>[ASK:Tên]</code> thì người đó nhận thông báo <strong>ngay</strong>. Thời gian trả lời tuỳ câu hỏi, không ép thời hạn. Tin nhắn gắn vào việc sẽ hiện trong luồng của việc đó.</div>' +
     '<div class="chat-layout"><div><h2>Người nhận</h2><div class="conv-list">' +
     targets.map((t) => '<button type="button" class="conv-item' + (t.id === S.chatTarget ? ' active' : '') + '" data-chat-target="' + esc(t.id) + '">' +
       '<span class="dot ' + (t.id === 'room' ? 'green' : STATUS_META[effectiveStatus(staffById(t.id), S.approvals)].dot) + '"></span>' +
@@ -2238,10 +2238,10 @@ async function renderChat(screen) {
     '<div class="chat-log" id="chat-log"></div>' +
     '<form class="composer" id="chat-form">' +
     '<label>Nhắc tên nhanh<select id="tag-pick"><option value="">— Không nhắc ai —</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select></label>' +
-    '<label>Tin nhắn<textarea id="chat-text" rows="3" required placeholder="Nhắn tự do… nhắc tên bằng @Tên để báo ngay"></textarea></label>' +
+    '<label>Tin nhắn<textarea id="chat-text" rows="3" required placeholder="Nhắn tin…"></textarea></label>' +
     '<div class="row2"><label>Gắn vào việc<select id="chat-job"><option value="">— Không gắn việc —</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select></label>' +
-    '<label>Link đính kèm (link công khai của Muse)<input id="chat-link" type="url" placeholder="https://…"></label></div>' +
-    '<label>Tiêu đề link<input id="chat-link-title" placeholder="Tiêu đề ngắn cho link"></label>' +
+    '<label>Link đính kèm<input id="chat-link" type="url" placeholder="https://…"></label></div>' +
+    '<label>Tiêu đề link<input id="chat-link-title" placeholder="Tiêu đề ngắn"></label>' +
     '<button class="btn primary block" type="submit">Gửi</button></form></div></div>';
   $$('[data-chat-target]', screen).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.chatTarget; renderScreen(); }));
   renderChatLog();
@@ -2272,7 +2272,7 @@ async function renderChat(screen) {
 /* ------------------------------ Màn Nhật ký ------------------------------- */
 async function renderLogs(screen) {
   if (!isDirector()) {
-    screen.innerHTML = '<h1>Nhật ký</h1><p class="hint">Nhật ký kiểm toán, cảnh báo và phiên đăng nhập chỉ Giám đốc mới xem được. Bạn có thể xem lịch sử phê duyệt của mình ở màn Phê duyệt và tin nhắn ở Phòng chat.</p>';
+    screen.innerHTML = '<h1>Nhật ký</h1><p class="hint">Chỉ Giám đốc mới xem được nhật ký.</p>';
     return;
   }
   const auditRows = S.audit.slice(-60).reverse().map((a) => '<tr><td data-label="Thời gian">' + esc(fmtTime(a.at)) + '</td><td data-label="Hành động">' + esc(a.action) + '</td><td data-label="Người">' + esc(myName(a.actorId)) + '</td><td data-label="Đối tượng">' + esc(a.target || '—') + '</td><td data-label="Kết quả">' + esc(a.result) + '</td></tr>').join('');
@@ -2281,7 +2281,7 @@ async function renderLogs(screen) {
   screen.innerHTML = '<h1>Nhật ký</h1>' +
     '<h2>Cảnh báo</h2>' + (alertRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Loại</th><th>Nội dung</th></tr></thead><tbody>' + alertRows + '</tbody></table></div>' : '<p class="hint">Chưa có cảnh báo nào.</p>') +
     '<h2>Phiên đăng nhập đang mở</h2>' + (sessionRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Phiên</th><th>Người</th><th>Tạo lúc</th><th>Thấy lần cuối</th><th></th></tr></thead><tbody>' + sessionRows + '</tbody></table></div>' : '<p class="hint">Không có phiên nào.</p>') +
-    '<h2>Nhật ký kiểm toán (60 dòng gần nhất)</h2>' + (auditRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Người</th><th>Đối tượng</th><th>Kết quả</th></tr></thead><tbody>' + auditRows + '</tbody></table></div>' : '<p class="hint">Chưa có dòng nhật ký nào.</p>');
+    '<h2>Nhật ký kiểm toán</h2>' + (auditRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Hành động</th><th>Người</th><th>Đối tượng</th><th>Kết quả</th></tr></thead><tbody>' + auditRows + '</tbody></table></div>' : '<p class="hint">Chưa có dòng nhật ký nào.</p>');
   $$('[data-revoke]', screen).forEach((b) => b.addEventListener('click', async () => {
     try { await api.post('/api/sessions/' + b.dataset.revoke + '/revoke', {}); await refreshAll(); renderScreen(); toast('Đã thu hồi phiên.'); }
     catch (ex) { showError(ex); }
@@ -2291,15 +2291,15 @@ async function renderLogs(screen) {
 /* ---------------------------- Màn Cài đặt & kit --------------------------- */
 async function renderSettings(screen) {
   const apiCard = isSb()
-    ? '<div class="card"><h2>Địa chỉ Supabase</h2><p class="hint">Đang nối Supabase — Project URL và anon key nằm trong file web/config.js (do người tạo project điền, không sửa ở đây). Máy chủ Node cũ không còn dùng nữa.</p></div>'
-    : '<div class="card"><h2>Địa chỉ máy chủ (API)</h2><form id="api-form"><label>API base URL — để trống nghĩa là cùng địa chỉ trang web<input name="apiBase" value="' + esc(Session.apiBase) + '" placeholder="https://may-chu-cua-ban:3101"></label><button class="btn" type="submit">Lưu và nối lại</button></form></div>';
+    ? '<div class="card"><h2>Địa chỉ Supabase</h2><p class="hint">Project URL và anon key nằm trong web/config.js — không sửa ở đây.</p></div>'
+    : '<div class="card"><h2>Địa chỉ máy chủ (API)</h2><form id="api-form"><label>API base URL (để trống = cùng địa chỉ trang web)<input name="apiBase" value="' + esc(Session.apiBase) + '" placeholder="https://may-chu-cua-ban:3101"></label><button class="btn" type="submit">Lưu và nối lại</button></form></div>';
   screen.innerHTML = '<h1>Cài đặt &amp; kit</h1>' +
-    (Session.demo ? '<p class="warnbox"><strong>Bản DEMO ngoại tuyến.</strong> Dữ liệu chỉ nằm trên trình duyệt này. Nối máy chủ thật để dùng hệ thống thật.</p>' : (isSb() ? '<p class="hint">Đang nối Supabase.</p>' : '<p class="hint">Đang nối máy chủ tại ' + esc(apiBase() || 'cùng địa chỉ trang web') + '.</p>')) +
+    (Session.demo ? '<p class="warnbox"><strong>Bản DEMO ngoại tuyến.</strong> Dữ liệu chỉ nằm trên trình duyệt này.</p>' : (isSb() ? '<p class="hint">Đang nối Supabase.</p>' : '<p class="hint">Đang nối máy chủ tại ' + esc(apiBase() || 'cùng địa chỉ trang web') + '.</p>')) +
     apiCard +
-    '<div class="card"><h2>Bộ kit cài cầu nối</h2><p class="hint">Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống: gửi nhịp tim, đọc trạng thái, nhận yêu cầu phê duyệt và trả quyết định. Hướng dẫn đầy đủ trong Tài liệu thiết kế.</p>' +
+    '<div class="card"><h2>Bộ kit cài cầu nối</h2><p class="hint">Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống. Hướng dẫn đầy đủ trong Tài liệu thiết kế.</p>' +
     '<div class="toolbar">' + ['bridge.js', 'install.sh', 'install.bat', 'config.example.json', 'README.md'].map((f) => '<button class="btn small" type="button" data-kit="' + f + '">' + f + '</button>').join('') + '</div>' +
     (Session.demo ? '<p class="hint">Tải kit cần nối máy chủ thật.</p>' : '') + '</div>' +
-    '<div class="card"><h2>Xuất dữ liệu</h2><p class="hint">Xuất toàn bộ dữ liệu hệ thống (chức vụ, nhân sự, việc, phê duyệt, ngân sách, tin nhắn, nhật ký) thành một file JSON để sao lưu.</p><button class="btn" type="button" id="export-btn">Tải file JSON</button></div>' +
+    '<div class="card"><h2>Xuất dữ liệu</h2><p class="hint">Xuất toàn bộ dữ liệu hệ thống thành một file JSON để sao lưu.</p><button class="btn" type="button" id="export-btn">Tải file JSON</button></div>' +
     (Session.demo ? '<div class="card"><h2>Bản demo</h2><p class="hint">Đổi danh tính để lái thử các vai trò.</p><div class="toolbar"><select id="demo-identity">' + DemoDB.load().staff.map((s) => '<option value="' + esc(s.id) + '" ' + (Session.me && s.id === Session.me.id ? 'selected' : '') + '>' + esc(s.name) + ' — ' + esc(demoRoleOf(DemoDB.data, s).name) + '</option>').join('') + '</select><button class="btn" type="button" id="demo-switch">Đổi danh tính</button><button class="btn danger" type="button" id="demo-reset">Đặt lại dữ liệu mẫu</button></div></div>' : '') +
     '<div class="card"><h2>Phiên hiện tại</h2><dl class="kv"><div class="row"><dt>Người dùng</dt><dd>' + esc(Session.me ? Session.me.name : '—') + '</dd></div><div class="row"><dt>Vai trò</dt><dd>' + esc(myRole().name) + '</dd></div><div class="row"><dt>Loại phiên</dt><dd>' + (Session.demo ? 'Demo ngoại tuyến' : Session.meType === 'director' ? 'Giám đốc (mật khẩu + TOTP)' : 'Nhân viên') + '</dd></div></dl></div>';
   const apiForm = $('#api-form');
@@ -2358,34 +2358,34 @@ async function renderSettings(screen) {
 /* ------------------------------ Màn Tài liệu ------------------------------ */
 function renderDocs(screen) {
   screen.innerHTML = '<div class="docs"><h1>Tài liệu thiết kế</h1>' +
-    '<p class="hint">Nội dung phác thảo hệ thống được giữ ở đây — riêng một màn, không trộn vào các màn làm việc. Quyết định đã chốt của Giám đốc ghi rõ bên dưới.</p>' +
+    '<p class="hint">Phác thảo hệ thống — quyết định đã chốt ở bên dưới.</p>' +
     '<h2>Quyết định đã chốt (29/10/2026)</h2>' +
-    '<ul><li><strong>Ngân sách token:</strong> Giám đốc tự đặt/điều chỉnh cho từng người, không có mức chung cố định. Tài khoản điều phối được cấp thật 5.000.000.000 token.</li>' +
-    '<li><strong>Hộp phê duyệt:</strong> nhận MỌI yêu cầu cấp quyền của MỌI tài khoản Muse — cả đăng nhập, tải file, cài ứng dụng, không chỉ việc trong web. Quyết định ngay trên web, không cần mở ứng dụng Muse.</li>' +
+    '<ul><li><strong>Ngân sách token:</strong> Giám đốc tự đặt cho từng người, không mức chung. Tài khoản điều phối: 5.000.000.000 token.</li>' +
+    '<li><strong>Hộp phê duyệt:</strong> nhận MỌI yêu cầu cấp quyền của MỌI tài khoản Muse. Quyết định ngay trên web.</li>' +
     '<li><strong>Báo khẩn:</strong> qua WhatsApp + biểu ngữ nổi bật trong trung tâm điều hành.</li>' +
-    '<li><strong>Tài khoản:</strong> mỗi tài khoản Muse là một nhân viên có tên đăng nhập + mật khẩu riêng; mỗi tài khoản cài một cầu nối mỏng.</li>' +
-    '<li><strong>Trao đổi tài liệu:</strong> qua link công khai của Muse (link + tiêu đề + tóm tắt ngắn), không dán nội dung vào phòng.</li>' +
-    '<li><strong>Vai trò linh hoạt:</strong> chức vụ theo từng việc, không gắn cứng theo người. Quyền luôn tính từ dữ liệu chức vụ hiện tại.</li></ul>' +
+    '<li><strong>Tài khoản:</strong> mỗi tài khoản Muse là một nhân viên có tên đăng nhập + mật khẩu riêng, cài một cầu nối mỏng.</li>' +
+    '<li><strong>Trao đổi tài liệu:</strong> qua link công khai của Muse, không dán nội dung vào phòng.</li>' +
+    '<li><strong>Vai trò linh hoạt:</strong> chức vụ theo từng việc, không gắn cứng theo người.</li></ul>' +
     '<h2>Các mô-đun</h2>' +
     '<table><thead><tr><th>Mô-đun</th><th>Việc nó làm</th></tr></thead><tbody>' +
-    '<tr><td data-label="Mô-đun">Quản trị tổ chức</td><td data-label="Việc nó làm">Giám đốc quản lý chức vụ (cấp, được duyệt, được quản trị) và nhân viên (tạo, đặt lại mật khẩu, khoá, xoá, cấp mã API).</td></tr>' +
-    '<tr><td data-label="Mô-đun">Văn phòng 3D</td><td data-label="Việc nó làm">Phòng làm việc trực quan: nhân vật, trạng thái, đèn đỏ khi có yêu cầu chờ, gọi họp, biên bản.</td></tr>' +
-    '<tr><td data-label="Mô-đun">Quản lý việc</td><td data-label="Việc nó làm">Việc qua 4 cột, nhận nguyên tử, không tự duyệt, đính kèm rule và link công khai.</td></tr>' +
-    '<tr><td data-label="Mô-đun">Phê duyệt</td><td data-label="Việc nó làm">Hàng đợi mọi yêu cầu cấp quyền; duyệt/từ chối có lý do; nhật ký kiểm toán; cấm tự duyệt ở mọi cấp.</td></tr>' +
-    '<tr><td data-label="Mô-đun">Phòng chat</td><td data-label="Việc nó làm">Trò chuyện tự do hai chiều, nhắc tên [ASK:Tên] báo ngay, gắn tin vào việc, link đính kèm.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Quản trị tổ chức</td><td data-label="Việc nó làm">Quản lý chức vụ và nhân viên (tạo, đặt lại mật khẩu, khoá, xoá, cấp mã API).</td></tr>' +
+    '<tr><td data-label="Mô-đun">Văn phòng 3D</td><td data-label="Việc nó làm">Nhân vật, trạng thái, đèn đỏ khi có yêu cầu chờ, gọi họp, biên bản.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Quản lý việc</td><td data-label="Việc nó làm">Việc 4 cột, nhận nguyên tử, không tự duyệt, đính kèm rule và link.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Phê duyệt</td><td data-label="Việc nó làm">Hàng đợi mọi yêu cầu cấp quyền; duyệt/từ chối có lý do; cấm tự duyệt.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Phòng chat</td><td data-label="Việc nó làm">Nhắc tên [ASK:Tên] báo ngay, gắn tin vào việc, link đính kèm.</td></tr>' +
     '<tr><td data-label="Mô-đun">Ngân sách token</td><td data-label="Việc nó làm">Mức theo từng người, cảnh báo 80%, nghỉ ở 100%, nạp thêm 50%.</td></tr>' +
-    '<tr><td data-label="Mô-đun">Máy chủ + cầu nối</td><td data-label="Việc nó làm">Máy chủ Node.js + SQLite (zero-dependency), SSE đẩy trực tiếp, cầu nối gửi nhịp tim và xin duyệt.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Máy chủ + cầu nối</td><td data-label="Việc nó làm">Máy chủ Node.js + SQLite, SSE đẩy trực tiếp, cầu nối gửi nhịp tim và xin duyệt.</td></tr>' +
     '</tbody></table>' +
     '<h2>Ghi công (theo phác thảo gốc)</h2>' +
-    '<p>Dựa trên nghiên cứu 23 dự án mã nguồn mở. Năm dự án tham khảo chính: Claw-Empire (kiến trúc manager–worker + phê duyệt), Paperclip (approval + budget), BagIdea Office (phòng 3D + AI), Agent Office (bảng 2D /lite), Claw3D (văn phòng 3D theo thời gian thực). Ý tưởng lấy cảm hứng, triển khai viết mới cho hệ thống này — không sao chép mã.</p>' +
+    '<p>Dựa trên nghiên cứu 23 dự án mã nguồn mở (Claw-Empire, Paperclip, BagIdea Office, Agent Office, Claw3D). Ý tưởng lấy cảm hứng, triển khai viết mới — không sao chép mã.</p>' +
     '<h2>Lộ trình</h2>' +
     '<ol><li><strong>Giai đoạn 1:</strong> khung tổ chức + việc + phê duyệt + ngân sách (đang chạy).</li>' +
     '<li><strong>Giai đoạn 2:</strong> phòng chat, họp, cầu nối đầy đủ cho mọi tài khoản.</li>' +
     '<li><strong>Giai đoạn 3:</strong> báo cáo, thống kê, tích hợp thêm công cụ.</li></ol>' +
     '<h2>Cài cầu nối (tóm tắt)</h2>' +
-    '<ol><li>Tải bộ kit ở màn Cài đặt &amp; kit (bridge.js, install.sh / install.bat, config.example.json).</li>' +
+    '<ol><li>Tải bộ kit ở màn Cài đặt &amp; kit.</li>' +
     '<li>Xin Giám đốc cấp mã API (màn Nhân sự → Cấp mã API) — mã chỉ hiện một lần.</li>' +
     '<li>Chạy <code>install.sh</code> (macOS/Linux) hoặc <code>install.bat</code> (Windows), nhập địa chỉ máy chủ + mã API.</li>' +
-    '<li>Cầu nối chạy nền, gửi nhịp tim mỗi 30 giây và xin duyệt khi cần.</li></ol>' +
+    '<li>Cầu nối chạy nền, gửi nhịp tim mỗi 30 giây.</li></ol>' +
     '<p class="hint">Hướng dẫn chi tiết: xem file docs/HUONG-DAN-CAI-DAT.md trong kho mã nguồn.</p></div>';
 }
