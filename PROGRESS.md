@@ -1,8 +1,39 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — 3 PHƯƠNG ÁN GIAO DIỆN XONG (CHƯA DEPLOY), CHỜ GIÁM ĐỐC NHÌN VÀ CHỌN
+## TRẠNG THÁI — THIẾT KẾ HIỆN ĐẠI XONG (CHƯA DEPLOY), CHỜ KIỂM CHỨNG LIVE + GIÁM ĐỐC NHÌN
 
-## (0) MỚI NHẤT 30/10 — 3 phương án giao diện (Giám đốc chê "xấu" 06:41 +07)
+## (0c) MỚI NHẤT 30/10 — Thiết kế lại hiện đại (Giám đốc chê 3 bản theme "như trung tâm điều phối những năm 2000, thiết kế quá cổ" 06:58 +07)
+
+- KHÔNG tô màu lại: viết lại toàn bộ ngôn ngữ thiết kế trong `web/style.css`
+  (hệ token mới: nền #FAFAF9, sidebar mực #0C111D, một màu nhấn indigo-600,
+  viền sợi tóc, thẻ trắng bo 12–14px + một bóng mềm, chữ Inter, số liệu tối
+  giản, nút chính màu mực, Kanban phẳng, bubble chat hiện đại, thanh góc nhìn
+  3D thành viên thuốc nổi). Chỉ đổi lớp hình ảnh: cấu trúc, màn hình, luồng,
+  máy chủ, nội dung tiếng Việt đều không đổi.
+- `web/index.html`: bỏ cơ chế `?theme=...` (3 file theme cũ còn trên đĩa nhưng
+  không còn được tải — giao diện hiện đại là mặc định duy nhất); thêm thuộc
+  tính `data-icon` cho 9 mục sidebar (icon vẽ bằng CSS).
+- `web/app.js`: chỉ đổi bảng màu mặc định của cảnh 3D (ban ngày dịu, sàn
+  trung tính ấm, gỗ trầm) + nhãn 3D hiện đại (nền trắng bóng mềm, viền nhạt,
+  chữ Inter, dòng phụ xám). Không đổi hình học, camera, hành vi.
+- 7 ảnh chụp thật từ máy chủ thật (DB tạm, demo mode, headless-shell + CDP):
+  đăng nhập/văn phòng/việc/chat × 1440px + văn phòng/chat/việc × 390px tại
+  `docs/redesign-modern/`, đã xem từng ảnh. Sửa 2 điểm sau khi xem ảnh:
+  (1) vòng focus tím bao quanh toàn bộ nội dung do `#screen` được focus —
+  đã tắt riêng cho `#screen`; (2) viên thuốc góc nhìn tự xuống 2 hàng ở
+  desktop do `left:50%` giới hạn chiều rộng — đã thêm `width:max-content`.
+  Đo được: không tràn ngang 390px, menu dưới cố định đúng đáy, cảnh 3D chạy,
+  0 lỗi JS (chỉ còn log probe API cố tình trỏ tới cổng không tới được).
+  Chi tiết: `BUILD-REPORT.md` §9.
+- Còn tồn tại từ trước, KHÔNG do đợt này: dòng phụ của nhãn 3D ở góc tổng
+  vẫn chồng nhau một phần (đã ghi từ các đợt trước).
+- CHƯA DEPLOY: agent cha push bằng gh-api put-file (KHÔNG git local):
+  `web/index.html`, `web/app.js`, `web/style.css`, `BUILD-REPORT.md`,
+  `PROGRESS.md`, `docs/redesign-modern/*.png`. Sau đó kiểm chứng live bắt
+  buộc (desktop + 390px thật) rồi mới đưa Giám đốc nhìn. Hệ token nên nếu
+  Giám đốc gửi ảnh tham chiếu thì chỉ cần đổi token là khớp được.
+
+## (0) 3 phương án giao diện (Giám đốc chê "xấu" 06:41 +07) — ĐÃ BỊ THAY BẰNG (0c)
 
 - Làm 3 hướng nhìn thật trên ứng dụng thật, chọn bằng `?theme=dark|light|warm`:
   (1) dark "Phòng điều hành tối", (2) light "Sáng sạch hiện đại",
