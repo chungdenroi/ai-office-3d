@@ -683,11 +683,13 @@ document.addEventListener('DOMContentLoaded', boot);
  * camera chuyển cảnh không bao giờ xoá khung hình, mất context WebGL thì
  * chuyển sang dạng 2D thay vì trang trắng, canvas chỉ tạo một lần và
  * không bị vẽ lại khi dữ liệu đổi. */
-/* Bảng màu cảnh 3D theo giao diện (?theme=...): chỉ đổi ánh sáng và màu
- * vật liệu của cảnh, không đổi hình học hay hành vi. 'default' giữ nguyên
- * y hệt các màu cũ — không tham số theme thì cảnh không đổi một chút nào. */
+/* Bảng màu cảnh 3D: ánh sáng ban ngày dịu, sàn trung tính ấm, gỗ trầm —
+ * theo hệ thống thiết kế hiện đại (30/10). Chỉ đổi ánh sáng và màu vật
+ * liệu của cảnh, không đổi hình học hay hành vi. Các bảng dark/light/warm
+ * của đợt theme cũ còn lại nhưng không còn được chọn (đã bỏ cơ chế
+ * ?theme=...); 'default' là bảng duy nhất dùng. */
 const SCENE_PALETTES = {
-  default: { bg: 0xdfe9f2, hemiSky: 0xffffff, hemiGround: 0x9db3c8, hemiInt: 1.15, sun: 0xffffff, sunInt: 1.6, floor: 0xe8ddc9, wall: 0xf6f3ec, wall2: 0xeef1f4, rug: 0x4c6e8c, table: 0x8a5a33, tableLeg: 0x5b3b22, chair: 0x2f6f4f, shelf: 0x7a5230, pot: 0xb4632a, bush: 0x3d7a4d, glass: 0xbfd9e8, boardFrame: 0x24425c, deskTop: 0x9c6b3f, deskLeg: 0x5b3b22, screen: 0x1d2b3a },
+  default: { bg: 0xe9e9e3, hemiSky: 0xffffff, hemiGround: 0xcfc8bc, hemiInt: 1.25, sun: 0xfff3dd, sunInt: 1.45, floor: 0xddd5c6, wall: 0xf7f5f0, wall2: 0xefede7, rug: 0xd6d0c2, table: 0x8a6a48, tableLeg: 0x6b5138, chair: 0x5f7166, shelf: 0x8a6a48, pot: 0xa87f5f, bush: 0x6f8a6d, glass: 0xd9e4e9, boardFrame: 0x3a3f45, deskTop: 0xb08d63, deskLeg: 0x6b5138, screen: 0x2b3238 },
   dark: { bg: 0x0e1622, hemiSky: 0x8fb4dd, hemiGround: 0x1a2233, hemiInt: 1.0, sun: 0xffd9a0, sunInt: 1.15, floor: 0x4a3826, wall: 0x1c2735, wall2: 0x202e42, rug: 0x274b63, table: 0x6b4a2a, tableLeg: 0x3d2a18, chair: 0x2f5c46, shelf: 0x5a3d22, pot: 0x8a5a2b, bush: 0x2f6b3f, glass: 0x7fa8c8, boardFrame: 0x101c2c, deskTop: 0x7a5230, deskLeg: 0x3d2a18, screen: 0x0d1620 },
   light: { bg: 0xe8f1f8, hemiSky: 0xffffff, hemiGround: 0xbcd3e6, hemiInt: 1.25, sun: 0xffffff, sunInt: 1.7, floor: 0xefe7d6, wall: 0xffffff, wall2: 0xf4f7fa, rug: 0x5b8ab5, table: 0x9c6b3f, tableLeg: 0x6b4a2a, chair: 0x3f7d5a, shelf: 0x8a5a33, pot: 0xc06a30, bush: 0x4da35f, glass: 0xcfe8f5, boardFrame: 0x2c4a66, deskTop: 0xb0814e, deskLeg: 0x6b4a2a, screen: 0x22384e },
   warm: { bg: 0xf3e9d2, hemiSky: 0xfff2d8, hemiGround: 0xd8b98a, hemiInt: 1.15, sun: 0xffdf9e, sunInt: 1.5, floor: 0xc9a06a, wall: 0xf7ecd7, wall2: 0xefe3cc, rug: 0x7a4a3a, table: 0x7a4a22, tableLeg: 0x4a2e15, chair: 0x3d6b45, shelf: 0x6b4423, pot: 0xa85a2a, bush: 0x4a7d3a, glass: 0xe8d9b0, boardFrame: 0x3a2e1e, deskTop: 0x8a5a2b, deskLeg: 0x4a2e15, screen: 0x2a3a2e },
@@ -697,7 +699,7 @@ const Office3D = {
   chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
   orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
   _raf: 0, _ro: null, _handlers: [], _builtIds: '', _builtScene: null, _initGen: 0,
-  /* Bảng màu cảnh theo giao diện đang chọn (?theme=...). */
+  /* Bảng màu cảnh của hệ thống thiết kế hiện tại (luôn 'default'). */
   pal() {
     const t = (typeof window !== 'undefined' && window.__THEME) || 'default';
     return SCENE_PALETTES[t] || SCENE_PALETTES.default;
@@ -921,23 +923,28 @@ const Office3D = {
     const ctx = canvas.getContext('2d');
     const round = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
     ctx.clearRect(0, 0, 400, 152);
-    round(4, 6, 392, 140, 26); ctx.fillStyle = 'rgba(255,255,255,0.97)'; ctx.fill();
-    ctx.lineWidth = 5; ctx.strokeStyle = '#111827'; ctx.stroke();
+    /* Nhãn hiện đại: nền trắng gần đặc + bóng mềm, viền sợi tóc nhạt, chữ
+     * Inter — không còn viền đậm 5px kiểu cũ. */
+    round(4, 8, 392, 136, 26);
+    ctx.shadowColor = 'rgba(16,24,40,0.18)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)'; ctx.fill();
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.lineWidth = 3; ctx.strokeStyle = '#e3e6ea'; ctx.stroke();
     /* Co chữ vừa khung: tên/chức vụ dài (VD: "Đang nghỉ (ngân sách)")
      * không được vẽ tràn ra ngoài hộp — đo rồi hạ cỡ chữ tới khi vừa. */
     const fitFont = (text, start, min, weight) => {
       let size = start;
-      ctx.font = weight + ' ' + size + 'px system-ui, sans-serif';
-      while (size > min && ctx.measureText(text).width > 368) { size -= 2; ctx.font = weight + ' ' + size + 'px system-ui, sans-serif'; }
+      ctx.font = weight + ' ' + size + 'px Inter, system-ui, sans-serif';
+      while (size > min && ctx.measureText(text).width > 368) { size -= 2; ctx.font = weight + ' ' + size + 'px Inter, system-ui, sans-serif'; }
       return size;
     };
     ctx.fillStyle = '#111827'; ctx.textAlign = 'center';
-    const nameSize = fitFont(name, 56, 32, '800');
-    ctx.font = '800 ' + nameSize + 'px system-ui, sans-serif';
+    const nameSize = fitFont(name, 52, 30, '650');
+    ctx.font = '650 ' + nameSize + 'px Inter, system-ui, sans-serif';
     ctx.fillText(name, 200, 68);
     const sub = roleName + (statusLabel ? ' · ' + statusLabel : '');
-    const subSize = fitFont(sub, 36, 22, '600');
-    ctx.fillStyle = '#374151'; ctx.font = '600 ' + subSize + 'px system-ui, sans-serif';
+    const subSize = fitFont(sub, 34, 20, '550');
+    ctx.fillStyle = '#6b7280'; ctx.font = '550 ' + subSize + 'px Inter, system-ui, sans-serif';
     ctx.fillText(sub, 200, 118);
     const tex = new T.CanvasTexture(canvas);
     tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
