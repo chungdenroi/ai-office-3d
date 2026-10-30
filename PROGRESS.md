@@ -2,6 +2,26 @@
 
 ## TRẠNG THÁI — SỬA RESPONSIVE MOBILE + RÚT GỌN ĐĂNG NHẬP XONG (CHƯA DEPLOY), CHỜ DEPLOY + GIÁM ĐỐC KIỂM TRÊN ĐIỆN THOẠI THẬT
 
+## (0g) MỚI NHẤT 31/10 — Rà và rút gọn chữ toàn app (lượt riêng sau §13, theo yêu cầu Giám đốc 30/10 23:47 "nhiều chữ quá, tối giản bớt")
+
+- Chỉ cắt chữ trong `web/app.js` (duy nhất 1 file đổi, ~35 chỗ, cả 9
+  màn): tiêu đề phụ, mô tả, ghi chú, helper text, empty state, nhãn
+  form, placeholder. Không đổi layout/màu/chức năng, không đụng
+  responsive §13, không sửa `web/supabase.js`, `web/config.js`,
+  `web/index.html` (màn đăng nhập không đụng lại — ảnh login trước/sau
+  giống hệt từng byte). Quy tắc vận hành giữ đủ ý (không tự duyệt,
+  nhận việc chỉ một người, 80%/100%, mức do Giám đốc đặt từng người).
+- Đo trên màn (`.hint` + `.warnbox`): 1840 → 1018 ký tự (-45%). Vd:
+  Việc 4 dòng → 2 dòng; Tài liệu intro 3 dòng → 1 dòng; Nhân sự 3 dòng
+  → 1 dòng; Phê duyệt ~230 ký tự → ~130.
+- Kiểm chứng headless CDP (trước + sau, profile mới mỗi lượt): 9/9 màn
+  PASS ở cả 390px và 360px (0 tràn ngang, 0 lỗi JS); đã xem bằng mắt 3
+  cặp trước/sau (Việc, Tài liệu, Nhân sự) — layout nguyên vẹn. Bằng
+  chứng `docs/text-trim/` (38 PNG + 2 `measurements-*.json`). Chi tiết:
+  `BUILD-REPORT.md` §14.
+- Chưa deploy (parent deploy). Modal/toast/confirm rút ngắn chưa bấm
+  thử từng cái trên headless; chưa kiểm chứng Safari thật.
+
 ## (0f) MỚI NHẤT 30/10 — Sửa responsive mobile + rút gọn chữ đăng nhập (theo ảnh điện thoại + yêu cầu "nhiều chữ quá" của Giám đốc 23:43–23:47)
 
 - Gốc lỗi: bảng `width:100%` + `overflow-wrap:anywhere` ép cột hẹp tới
