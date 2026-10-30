@@ -718,3 +718,111 @@ cũ (`server/`) chuyển thành legacy (không chạy, không sửa, không xoá
 `web/vendor/supabase.min.js`, `kit/*`, `docs/HUONG-DAN-CAI-DAT.md`,
 `supabase/*`, `server/LEGACY.md`, `BUILD-REPORT.md`, `PROGRESS.md`.
 (cộng dồn với §9.6/§10/§11.4: `web/style.css`, `docs/ops-density/*.png`.)
+
+## 13. Sửa responsive mobile + rút gọn chữ đăng nhập 30/10 (CHƯA DEPLOY)
+
+Kích hoạt: Giám đốc gửi 2 ảnh chụp điện thoại (~390px, màn Nhân sự, 23:43
++07) — "Responsive tệ quá"; sau đó yêu cầu rút gọn chữ màn đăng nhập
+(23:47, "nhiều chữ quá, nhìn rối rắm").
+
+### 13.1. Lỗi trên ảnh của Giám đốc (trước sửa)
+
+- Bảng Nhân viên: tiêu đề cột vỡ thành từng chữ xếp dọc ("C H Ứ C V Ụ",
+  "Đ Ặ N G N H Ậ P", "gi a m d o c"), email `teddysk559@gmail.com` vỡ
+  giữa từ, 5 nút thao tác chồng thành cột dài.
+- Bảng Chức vụ: tiêu đề trang bị cắt ("Nnan sự & cnuc vụ"), tên chức vụ
+  vỡ ("Giá m đốc", "Quả n lý", "Thự c thi"), "1 người" vỡ thành
+  "1 ngườ i", tiêu đề cột vỡ dọc.
+- Nguyên nhân gốc: `table.tbl{width:100%}` +
+  `overflow-wrap:anywhere` trên `th,td` — cột bị ép hẹp tới 1 ký tự thay
+  vì tràn/cuộn; bảng rộng ép document rộng hơn viewport nên tiêu đề trang
+  bị cắt theo.
+
+### 13.2. Cách sửa (chỉ `web/app.js` + `web/style.css` + `web/index.html`)
+
+- `web/app.js` (5 lần sửa, chỉ markup, handler không đổi): thêm
+  `data-label="<tên cột>"` cho MỌI `<td>` của cả 7 bảng trong app —
+  Chức vụ, Nhân viên, Ngân sách, Cảnh báo, Phiên đăng nhập, Nhật ký
+  kiểm toán, Tài liệu — và `class="tbl-actions"` cho mọi ô thao tác.
+  `node --check` PASS; grep xác nhận mọi `<td` đều có data-label.
+- `web/style.css`: khối `@media (max-width:640px)` mới — `.tbl-wrap`
+  bỏ khung cuộn; `table.tbl` thành block, `thead` ẩn, mỗi `tr` là 1 thẻ
+  (nền surface, bo 12px), mỗi `td` là 1 khối với nhãn
+  `td::before{content:attr(data-label)}` phía trên giá trị;
+  `overflow-wrap:break-word` (thay `anywhere` ở mobile — chỉ ngắt từ
+  khi bắt buộc); `td.tbl-actions` thành lưới 2 cột, nút `min-height:44px,
+  width:100%`; cùng cách xử lý cho bảng Tài liệu; `.ops-head` được
+  phép xuống dòng (chống tràn ở màn rất hẹp). Layout desktop không đổi.
+- Lỗi còn lại sau vòng 1 (phát hiện bằng đo, không phải bằng mắt): ở
+  360px nút "Đăng xuất" ở topbar bị cắt mất 12px (tới x=372) vì hàng
+  topbar tràn ~26px khi có cả huy hiệu DEMO + huy hiệu chờ duyệt.
+  Sửa: `@media (max-width:380px){.env-badge{display:none}}` — trạng
+  thái DEMO vẫn hiện ở màn Cài đặt; ở 390px huy hiệu vẫn hiện bình
+  thường. (Ở 390px vốn đã vừa, chỉ 360–375px mới tràn.)
+- `web/index.html` — rút gọn chữ đăng nhập (chỉ cắt chữ, không đổi
+  layout/màu/chức năng): xoá 3 gạch đầu dòng giới thiệu dài (Văn phòng
+  3D trực tiếp / Hộp phê duyệt mọi quyền / Ngân sách token) và rút đoạn
+  giới thiệu còn 1 dòng ngắn "Hệ thống AI nhân viên — Công ty
+  Enteesee."; xoá dòng phụ trùng lặp trong thẻ đăng nhập; rút ngắn câu
+  gợi ý ở màn Cài đặt lần đầu ("Chưa có tài khoản Giám đốc. Đặt mật
+  khẩu và quét mã xác thực — chỉ làm một lần duy nhất."). Thẻ đăng nhập
+  giữ nguyên: tab Giám đốc/Nhân viên, ô mật khẩu, mã 6 số, nút Đăng
+  nhập, nút Cài đặt lần đầu, nút bản DEMO. Không sửa `web/supabase.js`,
+  `web/config.js`.
+- Rà chữ toàn app (tiêu đề phụ, mô tả, ghi chú, empty state) là lượt
+  riêng sau, theo yêu cầu 23:47 — KHÔNG làm trong lượt này.
+
+### 13.3. Kiểm chứng (headless Chromium/CDP, ảnh thật — không tuyên bố suông)
+
+- Harness: `chrome-headless-shell` (Playwright) + script CDP
+  `/tmp/verify-responsive.mjs`, phục vụ file thật qua
+  `python3 -m http.server 8901` trên `/tmp/verify-web/` (symlink tới
+  `web/` + `config.js` giữ chỗ để vào chế độ DEMO). Dữ liệu DEMO
+  phong phú seed vào localStorage `office.demo.v1` (chỉ trong profile
+  headless): 4 chức vụ, 5 nhân viên (gồm email dài test + Linh
+  mustChangePassword), 2 việc, 2 phê duyệt (1 chờ), 2 tin nhắn, 3 nhật
+  ký, 2 cảnh báo, 2 phiên.
+- Đo mỗi màn ở 390px và 360px: `scrollWidth == innerWidth` (0 tràn
+  ngang), phần tử vượt viewport, h1 nguyên vẹn, `td` hẹp <40px, chiều
+  cao tối thiểu nút thao tác, lỗi JS. Kết quả vòng cuối (sau cả 2 sửa):
+  **9/9 màn PASS ở cả 390px và 360px** — overflow=0, offenders=0,
+  h1 16..374 (390px) / 12..348 (360px), 0 td hẹp, nút thao tác
+  min-height 44px, 0 lỗi JS. Chi tiết:
+  `docs/responsive-fix-390px/measurements.json`.
+- Kiểm tra bằng mắt các ảnh đã đọc: `people-390.png` (thẻ Chức vụ/
+  Nhân viên, nhãn rõ, "1 người"/"Giám đốc" nguyên vẹn, Sửa/Xoá lưới
+  2 cột), `budgets-390.png` (thanh tiến độ + nút "Đặt mức / ghi nhận"
+  44px), `logs-390.png` (thẻ cảnh báo + phiên, token dài ngắt hợp
+  lý), `docs-390.png` (thẻ mô-đun), `chat-390.png` (phòng chat +
+  người nhận), `office-360.png` (topbar đủ chỗ: ◆ + "1 chờ duyệt" +
+  "Đăng xuất" nguyên vẹn, huy hiệu DEMO ẩn), `login-390.png` (chỉ còn
+  ◆ + "Trung tâm điều phối" + 1 dòng ngắn, tới thẳng thẻ đăng nhập,
+  toàn bộ form vừa 1 màn hình 390px).
+- Sự cố kiểm chứng (đã xử lý, ghi lại để khỏi lặp): vòng 2 chụp
+  `login-390.png` vẫn hiện HTML cũ dù file đã sửa — do profile
+  Chrome tái dùng phục vụ `index.html` từ cache. Đã kiểm tra bằng
+  `curl` (máy chủ trả đúng bản mới), xoá profile headless và chạy lại
+  từ đầu — ảnh vòng 3 mới là bản đúng. Bài học: mỗi lượt kiểm chứng
+  dùng profile Chrome mới (hoặc tắt cache), không tái dùng profile cũ
+  khi file vừa đổi.
+- Dọn dẹp: máy chủ http 8901 đã tắt, không còn tiến trình
+  chrome-headless-shell nào; không động `server/data/office.db`.
+
+### 13.4. Lỗi mobile còn tồn / chưa kiểm chứng
+
+- Không còn lỗi nào biết ở 390px/360px trên 9 màn (đo + nhìn).
+- Chưa kiểm chứng: Safari điện thoại thật (cảm ứng, xoay, pinch);
+  >6 nhân viên ở 390px; màn đăng nhập live sau khi Giám đốc lấy được
+  bản mới (điện thoại anh vẫn xem bản cũ do cache github.io — mở tab
+  ẩn danh / đóng hẳn Safari / xoá dữ liệu web github.io).
+- Cosmetic cũ (không thuộc lượt này, đã ghi từ trước): nhãn 3D đôi khi
+  chạm mép ở góc tổng; bảng Kanban trong cảnh 3D là 4 khối màu trơn
+  không chữ; nhân vật 3D đơn giản, chỉ bấm được vào đầu.
+
+### 13.5. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/index.html`, `web/app.js`, `web/style.css`,
+`docs/responsive-fix-390px/` (19 PNG + `measurements.json`),
+`BUILD-REPORT.md`, `PROGRESS.md`.
+(cộng dồn với §12.4: `web/supabase.js`, `web/config.js`, `kit/*`,
+`supabase/*`, `server/LEGACY.md`, `docs/HUONG-DAN-CAI-DAT.md`.)
