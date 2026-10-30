@@ -1,0 +1,772 @@
+{
+  "360": {
+    "office": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Văn phòng 3D"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "chat": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Phòng chat"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "jobs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Việc"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "approvals": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Phê duyệt"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "people": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Nhân sự & chức vụ"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 4
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 5
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Xoá"
+        }
+      ],
+      "cardRows": 9,
+      "errs": []
+    },
+    "budgets": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Ngân sách token"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 5
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Đặt mức / ghi nhận"
+        }
+      ],
+      "cardRows": 5,
+      "errs": []
+    },
+    "logs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Nhật ký"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 2
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 2
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 3
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Thu hồi"
+        },
+        {
+          "h": 44,
+          "w": 149,
+          "label": "Thu hồi"
+        }
+      ],
+      "cardRows": 7,
+      "errs": []
+    },
+    "settings": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Cài đặt & kit"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "docs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Tài liệu thiết kế"
+      },
+      "tables": [],
+      "docsTables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 7
+        }
+      ],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    }
+  },
+  "390": {
+    "office": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Văn phòng 3D"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "chat": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Phòng chat"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "jobs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Việc"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "approvals": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Phê duyệt"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "people": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Nhân sự & chức vụ"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 4
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 5
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Sửa"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đổi chức vụ"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt lại MK"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Khoá"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Cấp mã API"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Xoá"
+        }
+      ],
+      "cardRows": 9,
+      "errs": []
+    },
+    "budgets": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Ngân sách token"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 5
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt mức / ghi nhận"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Đặt mức / ghi nhận"
+        }
+      ],
+      "cardRows": 5,
+      "errs": []
+    },
+    "logs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Nhật ký"
+      },
+      "tables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 2
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 2
+        },
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 3
+        }
+      ],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Thu hồi"
+        },
+        {
+          "h": 44,
+          "w": 160,
+          "label": "Thu hồi"
+        }
+      ],
+      "cardRows": 7,
+      "errs": []
+    },
+    "settings": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Cài đặt & kit"
+      },
+      "tables": [],
+      "docsTables": [],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    },
+    "docs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Tài liệu thiết kế"
+      },
+      "tables": [],
+      "docsTables": [
+        {
+          "display": "block",
+          "thead": "none",
+          "rows": 7
+        }
+      ],
+      "narrowTds": 0,
+      "actionBtns": [],
+      "cardRows": 0,
+      "errs": []
+    }
+  }
+}
