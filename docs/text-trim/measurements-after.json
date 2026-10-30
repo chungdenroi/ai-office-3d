@@ -1,0 +1,324 @@
+{
+  "360": {
+    "office": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 244,
+        "text": "Văn phòng 3D"
+      },
+      "hints": [
+        "Số liệu thật, cập nhật theo thời gian thực.",
+        "Cảnh 3D đã sẵn sàng."
+      ],
+      "errs": []
+    },
+    "chat": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Phòng chat"
+      },
+      "hints": [],
+      "errs": []
+    },
+    "jobs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Việc"
+      },
+      "hints": [
+        "Chờ nhận → Đang làm → Chờ duyệt → Hoàn thành. Nhận việc chỉ một người được. Không tự duyệt việc của mình.",
+        "Không có việc.",
+        "Không có việc."
+      ],
+      "errs": []
+    },
+    "approvals": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Phê duyệt"
+      },
+      "hints": [
+        "Mọi yêu cầu cấp quyền của mọi tài khoản Muse đều về đây — quyết định ngay tại đây. Từ chối cần có lý do. Không tự duyệt yêu cầu của mình.",
+        "Ghi chú: Đồng ý."
+      ],
+      "errs": []
+    },
+    "people": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Nhân sự & chức vụ"
+      },
+      "hints": [
+        "Đổi chức vụ thì quyền đổi theo ngay."
+      ],
+      "errs": []
+    },
+    "budgets": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Ngân sách token"
+      },
+      "hints": [
+        "Giám đốc đặt mức cho từng người, không có mức chung. 80% cảnh báo, 100% tự nghỉ. Nạp thêm +50% để làm tiếp. Số “đã dùng” do cầu nối đẩy lên, hoặc Giám đốc ghi nhận thủ công.",
+        "Bản DEMO: số liệu mô phỏng, không phải số thật."
+      ],
+      "errs": []
+    },
+    "logs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Nhật ký"
+      },
+      "hints": [],
+      "errs": []
+    },
+    "settings": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Cài đặt & kit"
+      },
+      "hints": [
+        "Bản DEMO ngoại tuyến. Dữ liệu chỉ nằm trên trình duyệt này.",
+        "Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống. Hướng dẫn đầy đủ trong Tài liệu thiết kế.",
+        "Tải kit cần nối máy chủ thật.",
+        "Xuất toàn bộ dữ liệu hệ thống thành một file JSON để sao lưu.",
+        "Đổi danh tính để lái thử các vai trò."
+      ],
+      "errs": []
+    },
+    "docs": {
+      "iw": 360,
+      "docScrollWidth": 360,
+      "bodyScrollWidth": 360,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 12,
+        "right": 348,
+        "text": "Tài liệu thiết kế"
+      },
+      "hints": [
+        "Phác thảo hệ thống — quyết định đã chốt ở bên dưới.",
+        "Hướng dẫn chi tiết: xem file docs/HUONG-DAN-CAI-DAT.md trong kho mã nguồn."
+      ],
+      "errs": []
+    }
+  },
+  "390": {
+    "office": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 248,
+        "text": "Văn phòng 3D"
+      },
+      "hints": [
+        "Số liệu thật, cập nhật theo thời gian thực.",
+        "Cảnh 3D đã sẵn sàng."
+      ],
+      "errs": []
+    },
+    "chat": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Phòng chat"
+      },
+      "hints": [],
+      "errs": []
+    },
+    "jobs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Việc"
+      },
+      "hints": [
+        "Chờ nhận → Đang làm → Chờ duyệt → Hoàn thành. Nhận việc chỉ một người được. Không tự duyệt việc của mình.",
+        "Không có việc.",
+        "Không có việc."
+      ],
+      "errs": []
+    },
+    "approvals": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Phê duyệt"
+      },
+      "hints": [
+        "Mọi yêu cầu cấp quyền của mọi tài khoản Muse đều về đây — quyết định ngay tại đây. Từ chối cần có lý do. Không tự duyệt yêu cầu của mình.",
+        "Ghi chú: Đồng ý."
+      ],
+      "errs": []
+    },
+    "people": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Nhân sự & chức vụ"
+      },
+      "hints": [
+        "Đổi chức vụ thì quyền đổi theo ngay."
+      ],
+      "errs": []
+    },
+    "budgets": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Ngân sách token"
+      },
+      "hints": [
+        "Giám đốc đặt mức cho từng người, không có mức chung. 80% cảnh báo, 100% tự nghỉ. Nạp thêm +50% để làm tiếp. Số “đã dùng” do cầu nối đẩy lên, hoặc Giám đốc ghi nhận thủ công.",
+        "Bản DEMO: số liệu mô phỏng, không phải số thật."
+      ],
+      "errs": []
+    },
+    "logs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Nhật ký"
+      },
+      "hints": [],
+      "errs": []
+    },
+    "settings": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Cài đặt & kit"
+      },
+      "hints": [
+        "Bản DEMO ngoại tuyến. Dữ liệu chỉ nằm trên trình duyệt này.",
+        "Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống. Hướng dẫn đầy đủ trong Tài liệu thiết kế.",
+        "Tải kit cần nối máy chủ thật.",
+        "Xuất toàn bộ dữ liệu hệ thống thành một file JSON để sao lưu.",
+        "Đổi danh tính để lái thử các vai trò."
+      ],
+      "errs": []
+    },
+    "docs": {
+      "iw": 390,
+      "docScrollWidth": 390,
+      "bodyScrollWidth": 390,
+      "docOverflow": 0,
+      "offenders": [],
+      "offenderCount": 0,
+      "h1": {
+        "left": 16,
+        "right": 374,
+        "text": "Tài liệu thiết kế"
+      },
+      "hints": [
+        "Phác thảo hệ thống — quyết định đã chốt ở bên dưới.",
+        "Hướng dẫn chi tiết: xem file docs/HUONG-DAN-CAI-DAT.md trong kho mã nguồn."
+      ],
+      "errs": []
+    }
+  }
+}
