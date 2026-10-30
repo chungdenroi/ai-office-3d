@@ -55,6 +55,11 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
           <p class="warnbox"><strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.</p>
           <p><label>Mã bí mật (ghi lại cẩn thận)<input id="setup-secret" readonly></label></p>
           <p class="hint" id="setup-otpauth"></p>
+          <div id="setup-verify-wrap" hidden>
+            <p><label>Mã 6 số từ ứng dụng xác thực<input id="setup-code" inputmode="numeric" maxlength="6" placeholder="123456"></label></p>
+            <button class="btn block" id="setup-verify" type="button">Xác minh mã</button>
+            <p class="hint">Chế độ Supabase bắt xác minh mã ngay trong lượt cài đặt — chưa xác minh thì chưa tới được màn hình đăng nhập.</p>
+          </div>
           <button class="btn primary block" id="setup-done" type="button">Tôi đã lưu mã — tới màn hình đăng nhập</button>
         </div>
       </div>
@@ -85,6 +90,7 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
           <button class="btn primary block" type="submit">Đổi mật khẩu và vào hệ thống</button>
         </form>
         <button class="btn ghost block" id="demo-enter" type="button" hidden>Vào bản dùng thử ngoại tuyến (không có máy chủ)</button>
+        <button class="btn ghost block" id="sb-setup-link" type="button" hidden>Cài đặt lần đầu (chưa có tài khoản Giám đốc)</button>
         <p class="hint demo-note" id="demo-note" hidden>Bản dùng thử chỉ chạy trên trình duyệt này, dữ liệu mẫu lưu ở máy của bạn, không nối máy chủ thật. Mọi màn hình đều ghi rõ “DEMO”.</p>
       </div>
     </div>
@@ -170,6 +176,9 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="modal-root" hidden></div>
 <noscript><p style="padding:16px">Hệ thống này cần JavaScript. Hãy bật JavaScript rồi tải lại trang.</p></noscript>
+<script src="config.js"></script>
+<script src="vendor/supabase.min.js"></script>
+<script src="supabase.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
