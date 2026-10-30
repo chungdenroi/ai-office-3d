@@ -16,11 +16,11 @@ for /f "tokens=*" %%v in ('node --version') do echo Node.js OK: %%v
 if not exist "%DEST%" mkdir "%DEST%"
 copy /Y bridge.js "%DEST%\bridge.js" >nul
 
-set /p SERVER="Dia chi may chu [http://localhost:3101]: "
-if "%SERVER%"=="" set "SERVER=http://localhost:3101"
-set /p NAME="Ten cua ban (dung ten trong he thong): "
-echo Nhap Token API cua ban (Giam doc cap, chi hien mot lan):
-powershell -NoProfile -Command "$t = Read-Host -AsSecureString 'Token'; $p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($t)); @{ server='%SERVER%'; name='%NAME%'; token=$p } | ConvertTo-Json | Set-Content -Path '%DEST%\config.json' -Encoding UTF8"
+set /p SB_URL="Supabase Project URL (vd https://xyzcompany.supabase.co): "
+set /p SB_ANON="Supabase anon key (Project Settings - API - anon public): "
+set /p NAME="Ten dang nhap cua ban (vd linh): "
+echo Nhap mat khau cua ban (nhap khong hien man hinh):
+powershell -NoProfile -Command "$p = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host -AsSecureString 'Mat khau'))); @{ supabaseUrl='%SB_URL%'; anonKey='%SB_ANON%'; username='%NAME%'; password=$p } | ConvertTo-Json | Set-Content -Path '%DEST%\config.json' -Encoding UTF8"
 echo Da ghi cau hinh.
 
 echo.
@@ -28,12 +28,12 @@ echo Dang ky tu chay khi dang nhap (Scheduled Task):
 schtasks /Create /TN "AI Office Bridge" /TR "node \"%DEST%\bridge.js\" --config \"%DEST%\config.json\"" /SC ONLOGON /RL LIMITED /F
 schtasks /Run /TN "AI Office Bridge"
 echo.
-echo Thu kiem tra may chu...
-curl -fsS --max-time 10 "%SERVER%/api/health" >nul 2>&1
+echo Thu kiem tra Supabase...
+curl -fsS --max-time 10 "%SB_URL%/auth/v1/health" >nul 2>&1
 if errorlevel 1 (
-  echo CANH BAO: chua noi duoc may chu (%SERVER%). Kiem tra dia chi + may chu co dang chay khong (xem kit\README).
+  echo CANH BAO: chua noi duoc Supabase (%SB_URL%). Kiem tra Project URL + mang (xem kit\README).
 ) else (
-  echo May chu phan hoi OK.
+  echo Supabase phan hoi OK.
 )
 echo XONG. Cau noi dang chay nen va tu hoi phuc khi mat mang.
 endlocal
