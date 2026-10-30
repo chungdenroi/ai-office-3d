@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mẫu launchd cho máy chủ Trung tâm điều phối (chạy ở quyền user, không sudo).
+  setup-macbook.sh thay @NODE_BIN@ và @SERVER_DIR@ bằng đường dẫn thật.
+  Không chứa mật khẩu/secret — mã đăng nhập Giám đốc tạo ở lần cài đặt đầu tiên.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.enteesee.office</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@NODE_BIN@</string>
+    <string>server.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@SERVER_DIR@</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>@SERVER_DIR@/logs/office.log</string>
+  <key>StandardErrorPath</key>
+  <string>@SERVER_DIR@/logs/office.log</string>
+</dict>
+</plist>
