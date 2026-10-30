@@ -1,8 +1,37 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — THIẾT KẾ HIỆN ĐẠI XONG (CHƯA DEPLOY), CHỜ KIỂM CHỨNG LIVE + GIÁM ĐỐC NHÌN
+## TRẠNG THÁI — THIẾT KẾ OBSIDIAN + MẬT ĐỘ VẬN HÀNH XONG (CHƯA DEPLOY), CHỜ KIỂM CHỨNG LIVE + GIÁM ĐỐC NHÌN
 
-## (0c) MỚI NHẤT 30/10 — Thiết kế lại hiện đại (Giám đốc chê 3 bản theme "như trung tâm điều phối những năm 2000, thiết kế quá cổ" 06:58 +07)
+## (0d) MỚI NHẤT 30/10 — Tích hợp thiết kế Obsidian của ChatGPT + mật độ vận hành học từ ảnh đối thủ (CHƯA DEPLOY)
+
+- Obsidian (theo nhận xét của ChatGPT về bản hiện đại): token tối
+  `#090E17/#0C1320/#111B29`, sidebar nhóm WORKSPACE/OPERATIONS/SYSTEM +
+  icon SVG vẽ tay, topbar 64px 3 vùng, nút chuẩn, login split layout,
+  cảnh 3D graphite + đèn viền teal tiết chế + nhãn kính tối, FOV 38.
+  Không CDN, không Google Fonts, không tên "NEXUS", không dữ liệu giả.
+  Sửa 5 lỗi đo được khi xem ảnh chụp (nhãn Theo người phóng to, nhãn
+  chạm nhau, lệch 220px ở 390px, rộng 446px do cột auto, thẻ 490px do
+  chuỗi min-content). Chi tiết: `BUILD-REPORT.md` §10.
+- Mật độ vận hành (học từ ảnh hệ thống bên khác Giám đốc gửi — chỉ lấy
+  ý tưởng, không sao chép bố cục/dữ liệu, không lặp lỗi nhãn chồng):
+  dải "Xưởng đang làm gì" (người đang làm/việc đang chạy/chờ duyệt/
+  ngân sách dùng nhiều nhất + giờ cập nhật, vẽ lại theo SSE/thăm dò);
+  mỗi người hiện việc đang làm + tiến độ + token (còn N) ở danh sách
+  phòng, hồ sơ, trang trượt mobile; thẻ "Việc đang chạy" (tối đa 4);
+  nhãn 3D của người đang chọn thêm dòng việc đang làm. Mọi số từ dữ
+  liệu đã có — khoảng trống (flow, phiên studio/chat, thời lượng việc)
+  ghi nhận trong `BUILD-REPORT.md` §11.2, không bịa.
+- Kiểm chứng: máy chủ thật + DB tạm + headless-shell/CDP, dữ liệu demo
+  gieo riêng trong profile thử (xóa cùng profile). 0 lỗi JS, nhãn
+  trong khung cả 4 góc, 390px không tràn (`appSW == 390`), menu dưới
+  cố định. Ảnh bằng chứng trong `/tmp/nexus-test/shots/` (vùng tạm —
+  chụp lại ở cổng live sau deploy). Chi tiết: `BUILD-REPORT.md` §11.
+- CHƯA DEPLOY: agent cha push bằng gh-api put-file (KHÔNG git local):
+  `web/index.html`, `web/app.js`, `web/style.css`, `BUILD-REPORT.md`,
+  `PROGRESS.md`. Sau đó kiểm chứng live bắt buộc (desktop + 390px
+  thật) rồi mới đưa Giám đốc nhìn.
+
+## (0c) Thiết kế lại hiện đại (Giám đốc chê 3 bản theme "như trung tâm điều phối những năm 2000, thiết kế quá cổ" 06:58 +07) — ĐÃ BỊ THAY BẰNG (0d)
 
 - KHÔNG tô màu lại: viết lại toàn bộ ngôn ngữ thiết kế trong `web/style.css`
   (hệ token mới: nền #FAFAF9, sidebar mực #0C111D, một màu nhấn indigo-600,
@@ -145,4 +174,6 @@ deploy, kiểm chứng trên site thật + trình duyệt thật có mạng.
 
 ## (6) Cập nhật lần cuối
 
-~07:00, 30/10/2026 (Asia/Saigon) — sửa khung nhãn 3D + resize xong, chờ deploy + kiểm chứng trên trình duyệt/điện thoại thật.
+~01:10, 30/10/2026 (Asia/Saigon) — tích hợp thiết kế Obsidian của
+ChatGPT + mật độ vận hành học từ ảnh đối thủ xong, chờ deploy + kiểm
+chứng trên trình duyệt/điện thoại thật.
