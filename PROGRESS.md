@@ -1,6 +1,27 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — MIGRATION SUPABASE XONG CODE (CHƯA DEPLOY), CHỜ PROJECT THẬT + KIỂM CHỨNG LIVE
+## TRẠNG THÁI — SỬA RESPONSIVE MOBILE + RÚT GỌN ĐĂNG NHẬP XONG (CHƯA DEPLOY), CHỜ DEPLOY + GIÁM ĐỐC KIỂM TRÊN ĐIỆN THOẠI THẬT
+
+## (0f) MỚI NHẤT 30/10 — Sửa responsive mobile + rút gọn chữ đăng nhập (theo ảnh điện thoại + yêu cầu "nhiều chữ quá" của Giám đốc 23:43–23:47)
+
+- Gốc lỗi: bảng `width:100%` + `overflow-wrap:anywhere` ép cột hẹp tới
+  1 ký tự (chữ vỡ dọc) và ép document rộng hơn viewport (tiêu đề trang
+  bị cắt). Sửa cả 7 bảng (Chức vụ, Nhân viên, Ngân sách, Cảnh báo,
+  Phiên, Nhật ký, Tài liệu): `data-label` cho mọi ô + ở ≤640px thành
+  thẻ xếp dọc (nhãn trên, giá trị dưới), nút thao tác lưới 2 cột cao
+  ≥44px. Sửa thêm topbar tràn ở 360px (nút "Đăng xuất" bị cắt): ẩn huy
+  hiệu DEMO ở ≤380px.
+- Đăng nhập rút gọn (chỉ cắt chữ): bỏ 3 gạch đầu dòng dài + đoạn giới
+  thiệu còn 1 dòng ngắn; bỏ dòng phụ trùng trong thẻ đăng nhập; rút câu
+  gợi ý màn Cài đặt lần đầu. Thẻ đăng nhập + chức năng giữ nguyên.
+- Kiểm chứng headless CDP, ảnh thật: 9/9 màn PASS ở cả 390px và 360px
+  (0 tràn ngang, 0 chữ vỡ dọc, 0 tiêu đề cắt, nút 44px, 0 lỗi JS);
+  bằng chứng `docs/responsive-fix-390px/` (19 PNG +
+  `measurements.json`). Chi tiết: `BUILD-REPORT.md` §13.
+- Chưa deploy (parent deploy). Chưa kiểm chứng trên Safari điện thoại
+  thật; rà chữ toàn app là lượt riêng sau. Lưu ý: điện thoại Giám đốc
+  vẫn xem bản cũ do cache github.io (mở tab ẩn danh / đóng hẳn Safari
+  / xoá dữ liệu web) — không phải lỗi code.
 
 ## (0e) MỚI NHẤT 30/10 — Migration backend sang Supabase Free (theo lệnh Giám đốc 12:28–12:29, bỏ hướng MacBook + Tailscale)
 
