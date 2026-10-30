@@ -8,7 +8,18 @@ legacy, xem `server/LEGACY.md`).
 
 ## Cài đặt nhanh
 
-**Linux / macOS:**
+**Cách nhanh nhất — Giám đốc gửi sẵn 1 lệnh** (đã điền sẵn Project URL,
+anon key và username; bạn chỉ nhập mật khẩu):
+
+```sh
+bash install.sh --url https://unfcixatuhypjyqislvb.supabase.co \
+  --anon-key <anon-key> --username <username-cua-ban>
+```
+
+Chạy lệnh trong thư mục `kit/` (chạy từ thư mục nào cũng được). Mật khẩu
+luôn nhập tay, không nhận qua dòng lệnh.
+
+**Linux / macOS (trả lời 4 câu hỏi):**
 
 ```sh
 bash install.sh
