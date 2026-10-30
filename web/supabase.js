@@ -17,11 +17,13 @@
  *    thì app chạy bản DEMO localStorage có ghi nhãn DEMO.
  *
  * XÁC THỰC (xem supabase/README.md — đọc kỹ trước khi vận hành):
- *  - Giám đốc: Auth user với email nội bộ cố định director@office.internal
- *    (không phải email thật, không gửi mail) + mật khẩu + TOTP MFA của
+ *  - Giám đốc: Auth user với email cố định director@vnhairmarket.com
+ *    (miền thật của công ty — Supabase từ chối miền giả .internal, xem
+ *    BUILD-REPORT §15; app không gửi mail tới địa chỉ này) + mật khẩu +
+ *    TOTP MFA của
  *    Supabase Auth (AAL2). Màn đăng nhập Giám đốc vẫn chỉ hỏi mật khẩu +
- *    mã 6 số như cũ — email nội bộ do app tự điền phía dưới.
- *  - Nhân viên: Auth user với email nội bộ <username>@office.internal
+ *    mã 6 số như cũ — email do app tự điền phía dưới.
+ *  - Nhân viên: Auth user với email <username>@vnhairmarket.com
  *    (username chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang;
  *    liên hệ thật nằm ở cột account, không phải email này). Giám đốc tạo
  *    hàng nhân viên (username + chức vụ + ngân sách); nhân viên kích hoạt
@@ -41,7 +43,7 @@
   const CFG = (window.OFFICE_SUPABASE || {});
   const isPlaceholder = (v) => !v || /YOUR_SUPABASE/.test(String(v));
   const CONFIGURED = !!(CFG.url && CFG.anonKey && !isPlaceholder(CFG.url) && !isPlaceholder(CFG.anonKey));
-  const DIRECTOR_EMAIL = 'director@office.internal';
+  const DIRECTOR_EMAIL = 'director@vnhairmarket.com';
   const DIRECTOR_STAFF_ID = 's-chung';
 
   class SbError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -160,7 +162,7 @@
     if (!/^[a-z0-9._-]+$/.test(clean) || !clean) {
       throw err(400, 'Tên đăng nhập chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang.');
     }
-    return clean + '@office.internal';
+    return clean + '@vnhairmarket.com';
   }
 
   // Cài đặt lần đầu: tạo Auth user Giám đốc + gắn vào hàng s-chung + đăng ký
