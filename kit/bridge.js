@@ -82,7 +82,7 @@ if (!/^[a-z0-9._-]+$/.test(USERNAME.toLowerCase())) {
   console.error('[bridge] Tên đăng nhập chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang.');
   process.exit(2);
 }
-const EMAIL = USERNAME.toLowerCase() + '@office.internal';
+const EMAIL = USERNAME.toLowerCase() + '@vnhairmarket.com';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toLocaleTimeString('vi-VN');
