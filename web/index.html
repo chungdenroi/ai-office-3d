@@ -5,22 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Trung tâm điều phối — Hệ thống AI nhân viên</title>
 <link rel="stylesheet" href="style.css">
-<script>
-/* Giao diện (?theme=dark|light|warm): chỉ đổi lớp hình ảnh — màu, chữ,
- * mặt phẳng, bảng màu cảnh 3D. Không đổi cấu trúc, màn hình hay hành vi.
- * Không có tham số thì giữ nguyên giao diện hiện tại. */
-(function () {
-  var t = null;
-  try { t = new URLSearchParams(location.search).get('theme'); } catch (e) { t = null; }
-  if (t !== 'dark' && t !== 'light' && t !== 'warm') t = 'default';
-  window.__THEME = t;
-  if (t !== 'default') {
-    var l = document.createElement('link');
-    l.rel = 'stylesheet'; l.href = 'themes/theme-' + t + '.css';
-    document.head.appendChild(l);
-  }
-})();
-</script>
 <script type="importmap">
 {"imports":{"three":"./vendor/three.module.js"}}
 </script>
@@ -113,15 +97,15 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 
   <div class="shell">
     <nav class="sidebar" id="sidebar" aria-label="Menu chính">
-      <a href="#/office" data-nav="office">Văn phòng 3D</a>
-      <a href="#/chat" data-nav="chat">Phòng chat <span class="nav-badge" id="chat-badge" hidden></span></a>
-      <a href="#/jobs" data-nav="jobs">Việc</a>
-      <a href="#/approvals" data-nav="approvals">Phê duyệt <span class="nav-badge" id="nav-approval-badge" hidden></span></a>
-      <a href="#/people" data-nav="people">Nhân sự &amp; chức vụ</a>
-      <a href="#/budgets" data-nav="budgets">Ngân sách</a>
-      <a href="#/logs" data-nav="logs">Nhật ký</a>
-      <a href="#/settings" data-nav="settings">Cài đặt &amp; kit</a>
-      <div class="sidebar-footer"><a href="#/docs" data-nav="docs">Tài liệu thiết kế</a></div>
+      <a href="#/office" data-nav="office" data-icon="▣">Văn phòng 3D</a>
+      <a href="#/chat" data-nav="chat" data-icon="✉">Phòng chat <span class="nav-badge" id="chat-badge" hidden></span></a>
+      <a href="#/jobs" data-nav="jobs" data-icon="▤">Việc</a>
+      <a href="#/approvals" data-nav="approvals" data-icon="✓">Phê duyệt <span class="nav-badge" id="nav-approval-badge" hidden></span></a>
+      <a href="#/people" data-nav="people" data-icon="♟">Nhân sự &amp; chức vụ</a>
+      <a href="#/budgets" data-nav="budgets" data-icon="◈">Ngân sách</a>
+      <a href="#/logs" data-nav="logs" data-icon="≣">Nhật ký</a>
+      <a href="#/settings" data-nav="settings" data-icon="⚙">Cài đặt &amp; kit</a>
+      <div class="sidebar-footer"><a href="#/docs" data-nav="docs" data-icon="▨">Tài liệu thiết kế</a></div>
     </nav>
     <main class="main" id="screen" tabindex="-1"></main>
   </div>
