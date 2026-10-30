@@ -21,8 +21,9 @@ Tài liệu này dành cho cả hai phía: **Giám đốc** (người quản lý
 | **Giám đốc** (duy nhất, Chung) | Mật khẩu riêng + mã TOTP (xác thực hai lớp của Supabase Auth) → phiên Supabase, thu hồi trong Dashboard → Authentication | Không dùng cầu nối |
 | **Nhân viên** (mỗi tài khoản Muse) | Tài khoản riêng: username + mật khẩu. **Bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên.** | Cầu nối đăng nhập bằng chính username + mật khẩu của nhân viên (GoTrue password grant → JWT). Không token API chia sẻ, không service_role key. |
 
-Tên đăng nhập là định danh **nội bộ** dạng email `<username>@office.internal`
-(vd `linh@office.internal`) — không phải email thật, không gửi mail đi.
+Tên đăng nhập là định danh dạng email `<username>@vnhairmarket.com`
+(vd `linh@vnhairmarket.com`) — miền thật của công ty (Supabase từ chối
+miền giả .internal); app không gửi mail tới địa chỉ này.
 Liên hệ thật của nhân viên nằm ở cột `account` trong hồ sơ, không phải
 email này.
 
@@ -71,8 +72,8 @@ database nên không sợ ai cài đè):
 3. Nhập mã 6 số để **xác minh TOTP ngay trong lượt cài đặt** — chưa xác
    minh thì chưa tới được màn hình đăng nhập.
 
-App tự gắn Auth user vừa tạo vào hàng `s-chung` (vì email nội bộ trùng
-`director@office.internal`). Sau đó đăng nhập tab Giám đốc bằng mật khẩu +
+App tự gắn Auth user vừa tạo vào hàng `s-chung` (vì email trùng
+`director@vnhairmarket.com`). Sau đó đăng nhập tab Giám đốc bằng mật khẩu +
 mã 6 số như bình thường. Nếu cài đặt dở dang (tạo tài khoản nhưng chưa
 xác minh TOTP), lần đăng nhập sau sẽ hiện lại mã TOTP mới để quét + xác
 minh — không kẹt tài khoản.
@@ -84,7 +85,7 @@ Trong trung tâm điều hành (màn Nhân sự & chức vụ):
 1. **Tạo chức vụ** (cấp 1–3, quyền duyệt, quyền quản trị) — quyền duyệt và
    quyền quản trị tính theo chức vụ, không fix cứng theo tên người.
 2. **Thêm nhân viên** → nhập tên + chức vụ + username (vd `linh`) + ngân
-   sách (nếu có). App tạo hàng staff với `auth_email = linh@office.internal`
+   sách (nếu có). App tạo hàng staff với `auth_email = linh@vnhairmarket.com`
    và cờ bắt đổi mật khẩu đang bật.
    **Mật khẩu ban đầu nhập ở form không được lưu** — Supabase Auth chỉ
    nhận mật khẩu do chính nhân viên đặt khi kích hoạt (xem 2.4). Đừng hứa
