@@ -26,15 +26,15 @@ insert into public.staff
   (id, name, account, role_id, status, budget, used, resting, rested_fully,
    must_change_password, disabled, auth_email, auth_user_id) values
   ('s-chung', 'Chung', 'teddyssk559@gmail.com', 'r-giamdoc', 'waiting', null, 0, false, false,
-   true, false, 'director@office.internal', null),
+   true, false, 'director@vnhairmarket.com', null),
   ('s-muse', 'Muse', 'muse-dieu-phoi', 'r-dieuphoi', 'working', 5000000000, 0, false, false,
-   true, false, 'muse@office.internal', null),
+   true, false, 'muse@vnhairmarket.com', null),
   ('s-hung', 'Hùng', 'muse-hung', 'r-quanly', 'waiting', null, 0, false, false,
-   true, false, 'hung@office.internal', null),
+   true, false, 'hung@vnhairmarket.com', null),
   ('s-tuan', 'Tuấn', 'muse-tuan', 'r-thucthi', 'waiting', null, 0, false, false,
-   true, false, 'tuan@office.internal', null),
+   true, false, 'tuan@vnhairmarket.com', null),
   ('s-linh', 'Linh', 'muse-linh', 'r-thucthi', 'waiting', null, 0, false, false,
-   true, false, 'linh@office.internal', null)
+   true, false, 'linh@vnhairmarket.com', null)
 on conflict (id) do nothing;
 
 insert into public.rules (id, text) values
