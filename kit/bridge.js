@@ -190,10 +190,15 @@ async function pushHeartbeat(reason) {
       }
       return;
     }
+    // Trạng thái (status) KHÔNG do cầu nối ghi: nó thuộc về nhân viên/ứng dụng
+    // (nhân viên tự cập nhật khi làm việc, Giám đốc đặt khi cần). Cầu nối mà
+    // PATCH status mỗi nhịp thì sẽ ghi đè 'working' thành 'waiting' liên tục,
+    // khiến chấm trạng thái trên màn hình cứ vàng mãi dù người ta đang làm việc
+    // (lỗi phát hiện 31/10 06:43). Cầu nối chỉ cập nhật `used` + logic ngân sách.
     const prev = await restGet('staff', `id=eq.${me.id}&select=status,budget,used,resting`);
     const before = (prev && prev[0]) || me;
     const newUsed = reportedUsed !== null ? reportedUsed : me.used;
-    const patched = await restPatch('staff', `id=eq.${me.id}`, { status, used: newUsed });
+    const patched = await restPatch('staff', `id=eq.${me.id}`, { used: newUsed });
     const after = (patched && patched[0]) || before;
     me = { ...me, ...after };
     // Ngưỡng ngân sách (giữ đúng máy chủ cũ: 80% cảnh báo, 100% tự nghỉ).
