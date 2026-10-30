@@ -16,6 +16,14 @@
  *  - Sự kiện: Supabase Realtime (WebSocket, postgres_changes) là kênh chính.
  *    Nếu WebSocket không nối được, tự rơi về thăm dò REST CHẬM 60 giây
  *    (không thăm dò nhanh — bài học vụ Firebase 429 do thăm dò dồn).
+ *  - Cơ chế đánh thức (từ 31/10): cầu nối ghi MỖI tin nhắn nhận được vào
+ *    file sự kiện hộp thư `inbox-events.jsonl` (cùng thư mục với config),
+ *    mỗi dòng 1 JSON {id, from_id, to_id, tagged_ids, text, created_at,
+ *    received_at}. Hook của tài khoản đọc file này (dữ liệu cục bộ, không
+ *    cần secret) và chỉ đánh thức khi tin gửi đúng cho tài khoản đó
+ *    (DM, @tag tên, hoặc tin phòng chung của Giám đốc) — tin tới là có
+ *    thông báo ngay, không ai phải tự canh/check. Cầu nối vẫn ghi log
+ *    người đọc được ra stdout như trước.
  *  - Heartbeat: nhịp nền TỰ THÍCH ỨNG — đang làm việc thì dày, đang chờ
  *    thì thưa dần theo cấp số nhân (tối đa 120s). Sự kiện thì đẩy ngay,
  *    không chờ nhịp.
@@ -55,6 +63,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const path = require('node:path');
 
 const args = process.argv.slice(2);
 const flags = {};
@@ -87,6 +96,32 @@ const EMAIL = USERNAME.toLowerCase() + '@vnhairmarket.com';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toLocaleTimeString('vi-VN');
 function log(...parts) { console.log(`[bridge ${stamp()} ${NAME}]`, ...parts); }
+
+/* File sự kiện hộp thư (JSONL) cho hook đánh thức — xem đầu file. */
+const CONFIG_PATH = flags.config || process.env.OFFICE_CONFIG || '';
+const BRIDGE_DIR = CONFIG_PATH ? path.dirname(path.resolve(CONFIG_PATH)) : process.cwd();
+const INBOX_EVENTS_FILE = path.join(BRIDGE_DIR, 'inbox-events.jsonl');
+function writeInboxEvent(row) {
+  if (!row || !row.id) return;
+  try {
+    const ev = {
+      id: String(row.id),
+      from_id: row.from_id || null,
+      to_id: row.to_id || null,
+      tagged_ids: Array.isArray(row.tagged_ids) ? row.tagged_ids : [],
+      text: row.text ? String(row.text).slice(0, 500) : '',
+      created_at: row.created_at || new Date().toISOString(),
+      received_at: new Date().toISOString(),
+    };
+    try {
+      if (fs.existsSync(INBOX_EVENTS_FILE) && fs.statSync(INBOX_EVENTS_FILE).size > 1024 * 1024) {
+        const lines = fs.readFileSync(INBOX_EVENTS_FILE, 'utf8').trim().split('\n');
+        fs.writeFileSync(INBOX_EVENTS_FILE, lines.slice(-1000).join('\n') + '\n');
+      }
+    } catch (_) { /* bỏ qua, vẫn ghi thêm dòng mới */ }
+    fs.appendFileSync(INBOX_EVENTS_FILE, JSON.stringify(ev) + '\n');
+  } catch (e) { log('ghi sự kiện hộp thư lỗi:', e.message); }
+}
 
 /* ------------------------- Xác thực GoTrue ------------------------------- */
 let session = null; // { accessToken, refreshToken, expiresAtMs, userId }
@@ -249,6 +284,7 @@ function handleRealtimeRow(table, eventType, row) {
   if (!row) return;
   if (table === 'messages') {
     log('TIN NHẮN:', row.text ? String(row.text).slice(0, 120) : '(không có nội dung)');
+    writeInboxEvent(row);
     pushHeartbeat('message-event');
     return;
   }
@@ -363,10 +399,10 @@ async function fallbackPollLoop() {
         }
         seen.set(key, sig);
       }
-      const msgs = await restGet('messages', 'select=id,text,created_at&order=created_at.desc&limit=20');
+      const msgs = await restGet('messages', 'select=id,from_id,to_id,tagged_ids,text,created_at&order=created_at.desc&limit=20');
       for (const m of msgs || []) {
         const key = 'msg:' + m.id;
-        if (!seen.has(key)) log('TIN NHẮN (thăm dò):', String(m.text || '').slice(0, 120));
+        if (!seen.has(key)) { log('TIN NHẮN (thăm dò):', String(m.text || '').slice(0, 120)); writeInboxEvent(m); }
         seen.set(key, '1');
       }
     } catch (e) { log('thăm dò REST lỗi:', e.message); }
