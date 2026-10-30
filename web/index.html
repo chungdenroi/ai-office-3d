@@ -66,7 +66,7 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
         <form id="login-form">
           <div data-pane="director">
             <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" required></label>
-            <label>Mã xác thực 6 số (ứng dụng xác thực)<input type="text" name="totp" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}" maxlength="6"></label>
+            <label>Mã xác thực 6 số (ứng dụng xác thực — chưa có mã thì để trống)<input type="text" name="totp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
           </div>
           <div data-pane="staff" hidden>
             <label>Tên đăng nhập<input type="text" name="username" autocomplete="username"></label>
@@ -172,7 +172,7 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 <noscript><p style="padding:16px">Hệ thống này cần JavaScript. Hãy bật JavaScript rồi tải lại trang.</p></noscript>
 <script src="config.js"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="supabase.js"></script>
+<script src="supabase-v2.js?v=2"></script>
 <script src="app.js"></script>
 </body>
 </html>
