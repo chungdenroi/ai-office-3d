@@ -996,3 +996,77 @@ Kích hoạt: Giám đốc gửi 2 ảnh chụp điện thoại (~390px, màn Nh
   lần trước không được lưu). Chưa kiểm chứng tạo tài khoản nhân viên
   với miền mới (luồng kích hoạt nhân viên dùng cùng `authEmailFor` nên
   cùng được sửa; kiểm chứng khi Giám đốc tạo nhân viên đầu tiên).
+
+## 16. Sửa tin nhắn nhân đôi + thiết kế lại màn Chat (31/10, Giám đốc báo 06:17–06:18)
+
+### 16.1. Lỗi nhân đôi (Giám đốc báo, có ảnh chụp)
+- Triệu chứng: trong Phòng chung, mỗi tin Giám đốc gửi hiện 2 lần
+  ("Hello các em" x2, "Hello" x2, 06:17 31-10).
+- Kiểm chứng DB: bảng `messages` chỉ có 1 dòng/tin
+  (`id-voosjfceois` "Hello", `id-eobtc1oegap` "Hello các em", đều
+  from `s-chung`) → KHÔNG phải ghi trùng, là lỗi hiển thị phía client.
+- Gốc rễ — đường đua POST vs realtime: `handleEvent` (app.js ~479) đã
+  kiểm tra trùng theo id trước khi push, nhưng đường gửi (app.js ~2263)
+  push kết quả POST mà không kiểm tra. Khi realtime INSERT về trước
+  khi POST trả về, tin được push 2 lần (1 từ realtime, 1 từ POST).
+  `connectRealtime` (supabase.js ~770) đã đúng: `disconnectRealtime()`
+  trước, chỉ 1 kênh `office` — không có đăng ký trùng kênh.
+
+### 16.2. Cách sửa lỗi nhân đôi
+- Đường gửi: chỉ push khi chưa có id đó —
+  `if (msg && !S.messages.some((m) => m.id === msg.id)) S.messages.push(msg);`
+- Thêm lưới an toàn ở `renderChatLog`: dedupe theo id bằng `Set` khi
+  lọc tin để vẽ — cùng một id chỉ vẽ một lần dù `S.messages` có lỡ
+  chứa 2 bản.
+- Không đổi gì ở phía máy chủ/DB (ghi đã đúng từ đầu).
+
+### 16.3. Thiết kế lại màn Chat (Giám đốc: "UI chat bày bất tiện, cần design lại", tính năng thì ổn)
+- Bố cục cũ: tiêu đề + thẻ quy tắc to, sidebar "Người nhận" + "Nhắc
+  tên tôi" chiếm dọc, composer xếp chồng 5 hàng nhãn (nhắc tên, tin
+  nhắn, gắn việc, link, tiêu đề link, nút Gửi) — ô nhập bị đẩy xuống
+  dưới màn hình ở điện thoại, phải cuộn mới thấy.
+- Bố cục mới, kiểu messenger, giữ đúng theme Obsidian tối:
+  - Đầu trang gọn: tiêu đề + quy tắc phòng thành 1 dòng hint.
+  - Desktop: lưới 264px + khung chat, khung cao `calc(100dvh - 200px)`
+    (tối thiểu 460px); danh sách tin cuộn bên trong, composer dính đáy.
+  - Mobile (≤820px): khung cao `calc(100dvh - 280px)` (tối thiểu
+    480px), cột dọc; danh sách người nhận thành dải chip cuộn ngang;
+    "Nhắc tên tôi" thành `<details>` có đếm số lượng; log cuộn trong
+    khung, composer luôn nhìn thấy không cần cuộn trang.
+  - Composer: hàng công cụ gọn (@ Nhắc tên, Gắn việc…, nút ＋ Link) +
+    hàng nhập (textarea tự cao dần tối đa 120px + nút Gửi teal).
+    Ô link + tiêu đề link ẩn sau nút ＋ Link.
+  - Bong bóng tin: tin mình phải, nền teal nhạt; tin người khác trái;
+    tên + giờ rõ trong meta; link đính kèm bẻ dòng được.
+- GIỮ NGUYÊN MỌI TÍNH NĂNG: chat phòng chung, chọn đích theo việc
+  (`data-chat-target`), @nhắc tên nhanh (`tag-pick`), gắn vào việc
+  (`chat-job`), đính kèm link (`chat-link` + `chat-link-title`),
+  `renderChatLog`, badge chưa đọc, `feedAdd` sau khi gửi.
+- File đổi: `web/app.js` (renderChat, renderChatLog, đường gửi),
+  `web/style.css` (toàn bộ mục Chat). Không đụng `web/supabase.js`,
+  `web/supabase-v2.js`, `web/index.html`, không đụng màn khác.
+
+### 16.4. Kiểm chứng (headless Chromium/CDP, chạy thật — không tuyên bố suông)
+- Build Pages cuối: "built". Live đã kiểm chứng bằng curl:
+  `web/app.js` chứa `chat-link-toggle` (2 lần) + dòng kiểm tra trùng
+  `if (msg && !S.messages.some` (1 lần); `web/style.css` chứa
+  `composer-main` (3 lần) + `100dvh - 280px` (1 lần).
+- Headless (chrome-headless-shell + CDP, server local, bản demo):
+  màn đăng nhập tải được, 0 lỗi console; vào demo → màn Chat 390px:
+  đủ các phần tử (`#chat-log`, `#chat-form`, `#chat-link-toggle`,
+  `#chat-link-row` ẩn, `#tag-pick`, `#chat-job`, `#chat-text`),
+  không tràn ngang (`scrollWidth` = 390 = `innerWidth`),
+  composer nhìn thấy trong viewport (`formBottom` 753 < 844,
+  `pageScrollH` 844 = không cuộn trang).
+- Nút ＋ Link: bấm → hàng link hiện (`hidden` false), bấm lại → ẩn.
+- Gửi tin trong demo: trước 0 tin → sau 1 tin, đúng 1 bong bóng
+  (chạy 2 lượt: mỗi lượt gửi thêm đúng 1 tin — 2 bong bóng trong ảnh
+  là 2 lần gửi khác nhau lúc 23:25 và 23:27, mỗi lần 1 cái).
+- Bằng chứng: `docs/chat-redesign-390px/chat-390.png` (ảnh màn Chat
+  390px sau sửa), `docs/chat-redesign-390px/cdp-test.js` (script kiểm
+  chứng CDP dùng lại được).
+- Chưa kiểm chứng: gửi tin thật trên tài khoản Giám đốc (đường đua
+  realtime chỉ xảy ra ở chế độ Supabase, không tái hiện được ở bản
+  demo không có realtime) — Giám đốc gửi 1 tin sau khi tải lại trang
+  sẽ thấy ngay còn nhân đôi hay không; đường ghi DB không đổi nên
+  không có rủi ro mất tin.
