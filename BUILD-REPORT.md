@@ -957,3 +957,42 @@ Kích hoạt: Giám đốc gửi 2 ảnh chụp điện thoại (~390px, màn Nh
 `web/app.js`, `docs/text-trim/` (38 PNG trước/sau + 2
 `measurements-*.json`), `BUILD-REPORT.md`, `PROGRESS.md`.
 (cộng dồn với §13.5.)
+
+## 15. Sửa email Auth: bỏ miền giả .internal → miền thật vnhairmarket.com (31/10)
+
+### 15.1. Lỗi (Giám đốc báo 31/10 05:51, có ảnh chụp)
+- Màn "Cài đặt lần đầu": Giám đốc chỉ nhập mật khẩu (không nhập email
+  nào — đúng thiết kế, email do app tự điền) nhưng bấm "Tạo tài khoản
+  Giám đốc" thì báo: `Không tạo được tài khoản Giám đốc: Email address
+  "director@office.internal" is invalid`.
+- Gốc: thiết kế ban đầu dùng email nội bộ giả `director@office.internal`
+  (và `<username>@office.internal` cho nhân viên) làm định danh Auth.
+  Supabase Auth từ chối miền giả `.internal` (không có MX / không phải
+  miền thật) nên signUp thất bại ngay — không tạo được Auth user nào,
+  không kẹt tài khoản dở dang. Đây là lỗi thiết kế từ lượt migration
+  (chưa từng chạy thử tạo tài khoản thật), không phải lỗi thao tác của
+  Giám đốc.
+
+### 15.2. Cách sửa
+- Đổi miền đăng nhập sang miền thật của công ty `vnhairmarket.com` (đã
+  kiểm tra: có MX mx1/mx2.privateemail.com): Giám đốc
+  `director@vnhairmarket.com`; nhân viên `<username>@vnhairmarket.com`
+  (muse/hung/tuan/linh). Tên đăng nhập hiển thị giữ nguyên (phần trước
+  @). App vẫn không gửi mail tới các địa chỉ này (Confirm email đã tắt;
+  không có luồng mail nào trong cài đặt/đăng nhập).
+- File đổi: `web/supabase.js` (`DIRECTOR_EMAIL`, `authEmailFor`,
+  ghi chú đầu file), `kit/bridge.js` (EMAIL), `supabase/migrations/
+  001_schema.sql` + `003_seed.sql` (ghi chú + 5 giá trị auth_email),
+  `supabase/README.md`, `docs/HUONG-DAN-CAI-DAT.md`.
+- Dữ liệu live (seed đã chạy từ trước với miền cũ): UPDATE trực tiếp
+  qua Management API: 5 hàng staff đổi auth_email sang miền mới, đã
+  kiểm chứng bằng SELECT (s-chung director, s-muse muse, s-hung hung,
+  s-tuan tuan, s-linh linh — đủ 5).
+- `node --check` PASS cho `web/supabase.js` và `kit/bridge.js`.
+
+### 15.3. Kiểm chứng còn lại
+- Sau deploy: kiểm tra live `web/supabase.js` chứa `vnhairmarket.com`,
+  rồi Giám đốc thử lại "Cài đặt lần đầu" (nhập lại mật khẩu — mật khẩu
+  lần trước không được lưu). Chưa kiểm chứng tạo tài khoản nhân viên
+  với miền mới (luồng kích hoạt nhân viên dùng cùng `authEmailFor` nên
+  cùng được sửa; kiểm chứng khi Giám đốc tạo nhân viên đầu tiên).
