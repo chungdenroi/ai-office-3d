@@ -20,11 +20,15 @@ const fmtTime = (iso) => { try { return new Date(iso).toLocaleString('vi-VN', { 
  * (vendor/) dù trang được mở ở / hay /web/ (GitHub Pages). */
 const SCRIPT_BASE = (() => { try { const cs = document.currentScript; if (cs && cs.src) return cs.src; } catch { /* rơi xuống location */ } return location.href; })();
 const STATUS_META = {
-  working: { label: 'Đang làm', cls: 'working', dot: 'green', ring: 0x35d07f },
-  waiting: { label: 'Đang chờ', cls: 'waiting', dot: 'yellow', ring: 0xd69e00 },
-  approval: { label: 'Cần duyệt', cls: 'approval', dot: 'red', ring: 0xd64545 },
-  resting: { label: 'Đang nghỉ (ngân sách)', cls: 'resting', dot: 'rest', ring: 0x8fa3b8 },
+  working: { label: 'Đang làm', cls: 'working', dot: 'green', ring: 0x2dd4bf },
+  waiting: { label: 'Đang chờ', cls: 'waiting', dot: 'yellow', ring: 0xfbbf24 },
+  approval: { label: 'Cần duyệt', cls: 'approval', dot: 'red', ring: 0xf87171 },
+  resting: { label: 'Đang nghỉ (ngân sách)', cls: 'resting', dot: 'rest', ring: 0x64748b },
 };
+/* Màu chấm trạng thái (CSS) dùng chung cho nhãn 3D + pill + dot — cùng một
+ * hệ màu ngữ nghĩa ở mọi màn hình: teal đang làm, amber đang chờ, đỏ cần
+ * chú ý, slate ngoại tuyến/nghỉ. */
+const STATUS_DOT_CSS = { working: '#2DD4BF', waiting: '#FBBF24', approval: '#F87171', resting: '#64748B' };
 const JOB_COLUMNS = ['Chờ nhận', 'Đang làm', 'Chờ duyệt', 'Hoàn thành'];
 const APPROVAL_ACTIONS = [
   'Đăng nhập', 'Tải file xuống', 'Cài đặt ứng dụng / chương trình',
@@ -350,7 +354,41 @@ function feedAdd(text) {
   if (log) log.innerHTML = S.feed.map((f) => '<li><time>' + esc(fmtTime(f.at)) + '</time>' + esc(f.text) + '</li>').join('') || '<li>Chưa có hoạt động nào.</li>';
 }
 
-/* ------------------------------ Dữ liệu ---------------------------------- */
+/* --------------------- Hiện diện làm việc (số liệu thật) -------------------- */
+/* Việc "đang chạy" của một người: ưu tiên Đang làm, rồi Chờ duyệt, rồi
+ * Chờ nhận. Chỉ dùng trạng thái + tiến độ đã có trong dữ liệu việc. */
+function currentJobOf(staffId) {
+  const mine = S.jobs.filter((j) => j.assigneeId === staffId && j.status !== 'Hoàn thành');
+  return mine.find((j) => j.status === 'Đang làm') || mine[0] || null;
+}
+function budgetPct(st) {
+  if (st.budget == null || st.budget <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round(((st.used || 0) / st.budget) * 100)));
+}
+function budgetLeft(st) {
+  if (st.budget == null) return null;
+  return Math.max(0, st.budget - (st.used || 0));
+}
+/* Số liệu cho dải tổng quan "Xưởng đang làm gì": đếm từ trạng thái thật,
+ * việc thật, phê duyệt thật, ngân sách thật. Không có khái niệm "flow",
+ * "phiên studio" hay "phiên chat" trong dữ liệu — không bịa ra (xem
+ * BUILD-REPORT.md). */
+function opsCounts() {
+  const c = { working: 0, waiting: 0, approval: 0, resting: 0 };
+  for (const s of S.staff) { const es = effectiveStatus(s, S.approvals); if (c[es] != null) c[es]++; }
+  const running = S.jobs.filter((j) => j.status === 'Đang làm').length;
+  const open = S.jobs.filter((j) => j.status !== 'Hoàn thành').length;
+  const pendList = pendingApprovals();
+  const budgeted = S.staff.filter((s) => budgetPct(s) != null);
+  return {
+    ...c, running, open, pend: pendList.length,
+    pendPeople: new Set(pendList.map((a) => a.requesterId)).size,
+    budgeted: budgeted.length,
+    over80: budgeted.filter((s) => budgetPct(s) >= 80).length,
+    maxPct: budgeted.length ? Math.max.apply(null, budgeted.map((s) => budgetPct(s))) : null,
+  };
+}
+const fmtClock = (d) => { try { return new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch { return ''; } };
 async function refreshAll() {
   const [staff, roles, jobs, approvals, rules] = await Promise.all([
     api.get('/api/staff'), api.get('/api/roles'), api.get('/api/jobs'), api.get('/api/approvals'), api.get('/api/rules'),
@@ -365,6 +403,7 @@ async function refreshAll() {
     try { S.sessions = await api.get('/api/sessions'); } catch { S.sessions = []; }
   }
   if (!S.selectedStaffId || !staffById(S.selectedStaffId)) S.selectedStaffId = (Session.me && Session.me.id) || (staff[0] && staff[0].id) || null;
+  S.lastSyncAt = new Date();
   renderTopbar();
 }
 async function refreshHealth() {
@@ -456,6 +495,18 @@ function renderTopbar() {
   });
   const meLabel = $('#me-label');
   if (Session.me) meLabel.textContent = Session.me.name + ' — ' + myRole().name + (Session.demo ? ' (DEMO)' : '');
+  /* Breadcrumb ở topbar + hồ sơ/kết nối ở chân sidebar: chỉ dữ liệu thật
+   * đã có (danh tính phiên, trạng thái nối), không thêm số liệu mới. */
+  const ROUTE_NAMES = { office: 'Văn phòng 3D', chat: 'Phòng chat', jobs: 'Việc', approvals: 'Phê duyệt', people: 'Nhân sự & chức vụ', budgets: 'Ngân sách', logs: 'Nhật ký', settings: 'Cài đặt & kit', docs: 'Tài liệu thiết kế' };
+  const crumb = $('#crumb');
+  if (crumb) crumb.textContent = ROUTE_NAMES[S.route] || 'Văn phòng 3D';
+  const sideName = $('#side-me-name'), sideRole = $('#side-me-role'), sideAvatar = $('#side-avatar'), sideConn = $('#side-conn');
+  if (Session.me) {
+    if (sideName) sideName.textContent = Session.me.name;
+    if (sideRole) sideRole.textContent = myRole().name + (Session.demo ? ' · DEMO' : '');
+    if (sideAvatar) sideAvatar.textContent = Session.me.name.slice(0, 1).toUpperCase();
+  }
+  if (sideConn) sideConn.classList.toggle('off', !Session.demo && !S.sseOk);
 }
 function updateChatBadge() {
   const unread = S.messages.filter((m) => {
@@ -482,6 +533,7 @@ function currentRoute() {
 }
 async function renderScreen(soft) {
   S.route = currentRoute();
+  hideMobileSheet();
   renderTopbar();
   const screen = $('#screen');
   if (S.route !== 'office') Office3D.dispose();
@@ -646,6 +698,8 @@ function bindLogin() {
     showView('login'); boot();
   });
   $('#approval-badge').addEventListener('click', () => { location.hash = '#/approvals'; });
+  const sheetClose = $('#mobile-sheet-close');
+  if (sheetClose) sheetClose.addEventListener('click', hideMobileSheet);
   $('#more-btn').addEventListener('click', () => {
     const sheet = $('#more-sheet'); const open = sheet.hidden;
     sheet.hidden = !open; $('#more-btn').setAttribute('aria-expanded', String(open));
@@ -683,26 +737,21 @@ document.addEventListener('DOMContentLoaded', boot);
  * camera chuyển cảnh không bao giờ xoá khung hình, mất context WebGL thì
  * chuyển sang dạng 2D thay vì trang trắng, canvas chỉ tạo một lần và
  * không bị vẽ lại khi dữ liệu đổi. */
-/* Bảng màu cảnh 3D: ánh sáng ban ngày dịu, sàn trung tính ấm, gỗ trầm —
- * theo hệ thống thiết kế hiện đại (30/10). Chỉ đổi ánh sáng và màu vật
- * liệu của cảnh, không đổi hình học hay hành vi. Các bảng dark/light/warm
- * của đợt theme cũ còn lại nhưng không còn được chọn (đã bỏ cơ chế
- * ?theme=...); 'default' là bảng duy nhất dùng. */
+/* Bảng màu cảnh 3D "Obsidian" (theo hướng dẫn của ChatGPT, đã kiểm chứng
+ * trực quan theo tỉ lệ cảnh này): sàn graphite, tường tối, bàn xám thép,
+ * ánh sáng trắng lạnh + viền teal tiết chế. Chỉ một bảng duy nhất — cơ chế
+ * ?theme= cũ đã bỏ. Không đổi hình học hay hành vi của cảnh. */
 const SCENE_PALETTES = {
-  default: { bg: 0xe9e9e3, hemiSky: 0xffffff, hemiGround: 0xcfc8bc, hemiInt: 1.25, sun: 0xfff3dd, sunInt: 1.45, floor: 0xddd5c6, wall: 0xf7f5f0, wall2: 0xefede7, rug: 0xd6d0c2, table: 0x8a6a48, tableLeg: 0x6b5138, chair: 0x5f7166, shelf: 0x8a6a48, pot: 0xa87f5f, bush: 0x6f8a6d, glass: 0xd9e4e9, boardFrame: 0x3a3f45, deskTop: 0xb08d63, deskLeg: 0x6b5138, screen: 0x2b3238 },
-  dark: { bg: 0x0e1622, hemiSky: 0x8fb4dd, hemiGround: 0x1a2233, hemiInt: 1.0, sun: 0xffd9a0, sunInt: 1.15, floor: 0x4a3826, wall: 0x1c2735, wall2: 0x202e42, rug: 0x274b63, table: 0x6b4a2a, tableLeg: 0x3d2a18, chair: 0x2f5c46, shelf: 0x5a3d22, pot: 0x8a5a2b, bush: 0x2f6b3f, glass: 0x7fa8c8, boardFrame: 0x101c2c, deskTop: 0x7a5230, deskLeg: 0x3d2a18, screen: 0x0d1620 },
-  light: { bg: 0xe8f1f8, hemiSky: 0xffffff, hemiGround: 0xbcd3e6, hemiInt: 1.25, sun: 0xffffff, sunInt: 1.7, floor: 0xefe7d6, wall: 0xffffff, wall2: 0xf4f7fa, rug: 0x5b8ab5, table: 0x9c6b3f, tableLeg: 0x6b4a2a, chair: 0x3f7d5a, shelf: 0x8a5a33, pot: 0xc06a30, bush: 0x4da35f, glass: 0xcfe8f5, boardFrame: 0x2c4a66, deskTop: 0xb0814e, deskLeg: 0x6b4a2a, screen: 0x22384e },
-  warm: { bg: 0xf3e9d2, hemiSky: 0xfff2d8, hemiGround: 0xd8b98a, hemiInt: 1.15, sun: 0xffdf9e, sunInt: 1.5, floor: 0xc9a06a, wall: 0xf7ecd7, wall2: 0xefe3cc, rug: 0x7a4a3a, table: 0x7a4a22, tableLeg: 0x4a2e15, chair: 0x3d6b45, shelf: 0x6b4423, pot: 0xa85a2a, bush: 0x4a7d3a, glass: 0xe8d9b0, boardFrame: 0x3a2e1e, deskTop: 0x8a5a2b, deskLeg: 0x4a2e15, screen: 0x2a3a2e },
+  default: { bg: 0x111b29, hemiSky: 0xc8d8e8, hemiGround: 0x172331, hemiInt: 1.55, sun: 0xf2f7ff, sunInt: 2.15, floor: 0x182431, wall: 0x202e3c, wall2: 0x1b2836, rug: 0x22384a, table: 0x647b8e, tableLeg: 0x26384b, chair: 0x34475d, shelf: 0x3a4a5c, pot: 0x4a5a68, bush: 0x3d6b4f, glass: 0x8fb4dd, boardFrame: 0x101c2c, deskTop: 0x53677a, deskLeg: 0x26384b, screen: 0x0e1620 },
 };
 const Office3D = {
   ready: false, mount: null, three: null, renderer: null, scene: null, camera: null,
   chars: new Map(), desks: new Map(), seats: [], mode: 'overview',
   orbit: { yaw: 0.55, pitch: 0.62, dist: 13.5, target: null },
   _raf: 0, _ro: null, _handlers: [], _builtIds: '', _builtScene: null, _initGen: 0,
-  /* Bảng màu cảnh của hệ thống thiết kế hiện tại (luôn 'default'). */
+  /* Bảng màu cảnh duy nhất (Obsidian). */
   pal() {
-    const t = (typeof window !== 'undefined' && window.__THEME) || 'default';
-    return SCENE_PALETTES[t] || SCENE_PALETTES.default;
+    return SCENE_PALETTES.default;
   },
   THREE_URLS: [
     new URL('vendor/three.module.js', SCRIPT_BASE).href,
@@ -768,6 +817,10 @@ const Office3D = {
      * không thu hẹp được khi resize/xoay (tràn ngang 390px, 30/10). */
     renderer.setSize(w, h, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    /* Ánh xạ tông ACES + phơi sáng 1.05 (tham chiếu của GPT): ánh sáng dịu,
+     * vùng tối không bị chết đen, vùng sáng không cháy. */
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     box.innerHTML = ''; // Xoá dòng "Đang tải cảnh 3D…" — nếu không nó nằm lại trên đầu khung vẽ, bị nút camera che một phần.
@@ -776,18 +829,37 @@ const Office3D = {
 
     const scene = new THREE.Scene();
     const P = this.pal();
-    scene.background = new THREE.Color(P.bg);
-    scene.fog = new THREE.Fog(P.bg, 18, 34);
+    scene.background = new THREE.Color(P.bg);    scene.fog = new THREE.Fog(P.bg, 18, 34);
     this.scene = scene;
-    const camera = new THREE.PerspectiveCamera(46, w / h, 0.1, 100);
+    /* FOV 38 (tham chiếu GPT) thay cho 46: khung nhìn điện ảnh hơn, nhân
+     * vật lớn hơn trong khung; các preset camera đã nằm trong khoảng nhìn
+     * xuống 25–35°, fitLabels() giữ nhãn ổn định nên không cần đổi preset. */
+    const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
     this.camera = camera;
     this.applyCamera(0);
 
     scene.add(new THREE.HemisphereLight(P.hemiSky, P.hemiGround, P.hemiInt));
     const sun = new THREE.DirectionalLight(P.sun, P.sunInt);
-    sun.position.set(6, 10, 6); sun.castShadow = true;
+    sun.position.set(7, 12, 6); sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
+    sun.shadow.camera.top = 12; sun.shadow.camera.bottom = -12;
+    sun.shadow.bias = -0.0002;
     scene.add(sun);
+    /* Viền teal TIẾT CHẾ (một nguồn duy nhất, góc sau-trái) + ánh sáng
+     * lấp xanh dịu phía đối diện — đúng vai trò accent, không nhuộm cả phòng. */
+    const rimLight = new THREE.PointLight(0x2dd4bf, 16, 18, 2);
+    rimLight.position.set(-5, 4, -4);
+    scene.add(rimLight);
+    const fillLight = new THREE.PointLight(0x7899c7, 7, 15, 2);
+    fillLight.position.set(5, 3, 4);
+    scene.add(fillLight);
+    /* Lưới sàn rất mờ, đúng kích thước sàn — tạo cảm giác mặt phẳng mở
+     * mà không vẽ thêm hình học. */
+    const grid = new THREE.GridHelper(16, 16, 0x496075, 0x2d4052);
+    grid.position.set(0, -0.018, -1.4);
+    grid.material.transparent = true; grid.material.opacity = 0.19;
+    scene.add(grid);
 
     this.buildRoom();
     this.buildBoard();
@@ -845,20 +917,22 @@ const Office3D = {
 
   buildRoom() {
     const T = this.three, scene = this.scene, P = this.pal();
-    const floorMat = new T.MeshStandardMaterial({ color: P.floor, roughness: 0.95 });
+    const floorMat = new T.MeshStandardMaterial({ color: P.floor, roughness: 0.90, metalness: 0.04 });
     const floor = new T.Mesh(new T.PlaneGeometry(16, 11), floorMat);
     floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -1.4); floor.receiveShadow = true;
     scene.add(floor);
-    const wallMat = new T.MeshStandardMaterial({ color: P.wall, roughness: 0.9 });
-    const back = new T.Mesh(new T.PlaneGeometry(16, 4.2), wallMat);
-    back.position.set(0, 2.1, -6.9); back.receiveShadow = true; scene.add(back);
-    const left = new T.Mesh(new T.PlaneGeometry(11, 4.2), new T.MeshStandardMaterial({ color: P.wall2, roughness: 0.9 }));
-    left.rotation.y = Math.PI / 2; left.position.set(-8, 2.1, -1.4); scene.add(left);
+    /* Tường thấp (3.2 thay cho 4.2) + màu tối: giảm sự áp đảo của tường,
+     * cảm giác không gian mở hơn, bảng Kanban và nhân vật nổi lên. */
+    const wallMat = new T.MeshStandardMaterial({ color: P.wall, roughness: 0.88, metalness: 0.03 });
+    const back = new T.Mesh(new T.PlaneGeometry(16, 3.2), wallMat);
+    back.position.set(0, 1.6, -6.9); back.receiveShadow = true; scene.add(back);
+    const left = new T.Mesh(new T.PlaneGeometry(11, 3.2), new T.MeshStandardMaterial({ color: P.wall2, roughness: 0.88, metalness: 0.03 }));
+    left.rotation.y = Math.PI / 2; left.position.set(-8, 1.6, -1.4); scene.add(left);
     const right = left.clone(); right.rotation.y = -Math.PI / 2; right.position.x = 8; scene.add(right);
     const rug = new T.Mesh(new T.CircleGeometry(2.6, 40), new T.MeshStandardMaterial({ color: P.rug, roughness: 1 }));
     rug.rotation.x = -Math.PI / 2; rug.position.set(0.5, 0.02, -0.6); rug.receiveShadow = true; scene.add(rug);
     // Bàn họp + ghế
-    const table = new T.Mesh(new T.CylinderGeometry(1.5, 1.5, 0.12, 36), new T.MeshStandardMaterial({ color: P.table, roughness: 0.7 }));
+    const table = new T.Mesh(new T.CylinderGeometry(1.5, 1.5, 0.12, 36), new T.MeshStandardMaterial({ color: P.table, roughness: 0.67, metalness: 0.12 }));
     table.position.set(0.5, 0.78, -0.6); table.castShadow = true; scene.add(table);
     const leg = new T.Mesh(new T.CylinderGeometry(0.16, 0.22, 0.78, 16), new T.MeshStandardMaterial({ color: P.tableLeg }));
     leg.position.set(0.5, 0.39, -0.6); scene.add(leg);
@@ -877,8 +951,8 @@ const Office3D = {
     pot.position.set(6.9, 0.25, -6.1); scene.add(pot);
     const bush = new T.Mesh(new T.SphereGeometry(0.55, 16, 12), new T.MeshStandardMaterial({ color: P.bush, roughness: 1 }));
     bush.position.set(6.9, 0.95, -6.1); scene.add(bush);
-    // Phòng Giám đốc: vách kính mờ phía trái
-    const glass = new T.Mesh(new T.PlaneGeometry(3.6, 3.0), new T.MeshStandardMaterial({ color: P.glass, transparent: true, opacity: 0.35, roughness: 0.2 }));
+    // Phòng Giám đốc: vách kính mờ phía trái — mờ hơn để không chặn tầm nhìn.
+    const glass = new T.Mesh(new T.PlaneGeometry(3.6, 3.0), new T.MeshStandardMaterial({ color: P.glass, transparent: true, opacity: 0.18, roughness: 0.2 }));
     glass.position.set(-5.9, 1.5, -3.4); glass.rotation.y = Math.PI / 2; scene.add(glass);
   },
 
@@ -902,50 +976,67 @@ const Office3D = {
   buildDesk(p, color) {
     const T = this.three, P = this.pal();
     const g = new T.Group();
-    const top = new T.Mesh(new T.BoxGeometry(1.7, 0.08, 0.85), new T.MeshStandardMaterial({ color: P.deskTop, roughness: 0.7 }));
+    const top = new T.Mesh(new T.BoxGeometry(1.7, 0.08, 0.85), new T.MeshStandardMaterial({ color: P.deskTop, roughness: 0.67, metalness: 0.12 }));
     top.position.y = 0.74; top.castShadow = true; g.add(top);
     const legM = new T.MeshStandardMaterial({ color: P.deskLeg });
     [[-0.75, -0.32], [0.75, -0.32], [-0.75, 0.32], [0.75, 0.32]].forEach(([x, z]) => {
       const leg = new T.Mesh(new T.BoxGeometry(0.08, 0.74, 0.08), legM);
       leg.position.set(x, 0.37, z); g.add(leg);
     });
-    const screen = new T.Mesh(new T.BoxGeometry(0.7, 0.45, 0.04), new T.MeshStandardMaterial({ color: P.screen, roughness: 0.3, metalness: 0.4 }));
+    /* Màn hình hơi phát sáng như đang bật — điểm sáng nhỏ giúp bàn làm
+     * việc không còn là khối chết trong cảnh tối. */
+    const screen = new T.Mesh(new T.BoxGeometry(0.7, 0.45, 0.04), new T.MeshStandardMaterial({ color: P.screen, roughness: 0.42, metalness: 0.15, emissive: 0x0b2527, emissiveIntensity: 0.35 }));
     screen.position.set(0, 1.02, -0.28); g.add(screen);
     const chair = new T.Mesh(new T.BoxGeometry(0.6, 0.55, 0.6), new T.MeshStandardMaterial({ color, roughness: 0.85 }));
     chair.position.set(0, 0.28, 0.85); chair.castShadow = true; g.add(chair);
     g.position.set(p.x, 0, p.z); g.rotation.y = p.angle || 0;
     return g;
   },
-  makeLabel(name, roleName, statusLabel) {
+  /* Nhãn kính tối (theo mẫu của GPT): nền tối gần đặc, viền sáng mảnh,
+   * chấm trạng thái màu ngữ nghĩa + tên trắng + dòng phụ xám. Kích thước
+   * khung 400×152 giữ nguyên để logic fitLabels() (tỉ lệ khung, kẹp mép,
+   * tách chồng) không phải sửa. Người đang được chọn (mở rộng) có thêm
+   * dòng thứ ba là việc đang làm — tên việc thật, cắt ngắn, không số
+   * liệu bịa; người khác giữ 2 dòng như cũ. */
+  makeLabel(name, roleName, statusLabel, dotCss, task) {
     const T = this.three;
     const canvas = document.createElement('canvas');
     canvas.width = 400; canvas.height = 152;
     const ctx = canvas.getContext('2d');
     const round = (x, y, w, h, r) => { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); };
     ctx.clearRect(0, 0, 400, 152);
-    /* Nhãn hiện đại: nền trắng gần đặc + bóng mềm, viền sợi tóc nhạt, chữ
-     * Inter — không còn viền đậm 5px kiểu cũ. */
     round(4, 8, 392, 136, 26);
-    ctx.shadowColor = 'rgba(16,24,40,0.18)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(255,255,255,0.96)'; ctx.fill();
+    ctx.shadowColor = 'rgba(0,0,0,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = 'rgba(15,23,42,0.88)'; ctx.fill();
     ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    ctx.lineWidth = 3; ctx.strokeStyle = '#e3e6ea'; ctx.stroke();
-    /* Co chữ vừa khung: tên/chức vụ dài (VD: "Đang nghỉ (ngân sách)")
-     * không được vẽ tràn ra ngoài hộp — đo rồi hạ cỡ chữ tới khi vừa. */
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.11)'; ctx.stroke();
+    /* Co chữ vừa khung: tên/chức vụ dài không được vẽ tràn ra ngoài hộp. */
     const fitFont = (text, start, min, weight) => {
       let size = start;
       ctx.font = weight + ' ' + size + 'px Inter, system-ui, sans-serif';
-      while (size > min && ctx.measureText(text).width > 368) { size -= 2; ctx.font = weight + ' ' + size + 'px Inter, system-ui, sans-serif'; }
+      while (size > min && ctx.measureText(text).width > 336) { size -= 2; ctx.font = weight + ' ' + size + 'px Inter, system-ui, sans-serif'; }
       return size;
     };
-    ctx.fillStyle = '#111827'; ctx.textAlign = 'center';
-    const nameSize = fitFont(name, 52, 30, '650');
+    const taskText = task ? (task.length > 30 ? task.slice(0, 29) + '…' : task) : '';
+    const nameSize = fitFont(name, taskText ? 46 : 52, 28, '650');
     ctx.font = '650 ' + nameSize + 'px Inter, system-ui, sans-serif';
-    ctx.fillText(name, 200, 68);
+    const nameW = ctx.measureText(name).width;
+    /* Chấm trạng thái đứng trước tên, cùng hàng — đo từ giữa khung để
+     * cả cụm chấm + tên luôn căn giữa. */
+    const dotX = 200 - nameW / 2 - 16;
+    ctx.beginPath(); ctx.arc(dotX, taskText ? 46 : 52, 9, 0, Math.PI * 2);
+    ctx.fillStyle = dotCss || '#2DD4BF'; ctx.fill();
+    ctx.fillStyle = '#F1F5F9'; ctx.textAlign = 'center';
+    ctx.fillText(name, 200, taskText ? 60 : 68);
     const sub = roleName + (statusLabel ? ' · ' + statusLabel : '');
-    const subSize = fitFont(sub, 34, 20, '550');
-    ctx.fillStyle = '#6b7280'; ctx.font = '550 ' + subSize + 'px Inter, system-ui, sans-serif';
-    ctx.fillText(sub, 200, 118);
+    const subSize = fitFont(sub, taskText ? 30 : 34, 18, '550');
+    ctx.fillStyle = '#A3B2C5'; ctx.font = '550 ' + subSize + 'px Inter, system-ui, sans-serif';
+    ctx.fillText(sub, 200, taskText ? 94 : 118);
+    if (taskText) {
+      const taskSize = fitFont(taskText, 26, 16, '500');
+      ctx.fillStyle = '#2DD4BF'; ctx.font = '500 ' + taskSize + 'px Inter, system-ui, sans-serif';
+      ctx.fillText(taskText, 200, 128);
+    }
     const tex = new T.CanvasTexture(canvas);
     tex.colorSpace = T.SRGBColorSpace; tex.anisotropy = 4;
     const mat = new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
@@ -977,9 +1068,13 @@ const Office3D = {
   },
   refreshLabel(char, st) {
     const T = this.three;
-    const status = STATUS_META[effectiveStatus(st, S.approvals)];
+    const es = effectiveStatus(st, S.approvals);
+    const status = STATUS_META[es];
     if (char.userData.label) { char.remove(char.userData.label); char.userData.label.material.map.dispose(); char.userData.label.material.dispose(); }
-    const label = this.makeLabel(st.name, roleOfStaff(st).name, status.label);
+    /* Chỉ người đang được chọn mới hiện việc đang làm trên nhãn (dạng mở
+     * rộng) — tránh mọi nhãn đều dài gây chồng lấn như bản tham chiếu. */
+    const task = S.selectedStaffId === st.id ? (currentJobOf(st.id) || {}).name || null : null;
+    const label = this.makeLabel(st.name, roleOfStaff(st).name, status.label, STATUS_DOT_CSS[es], task);
     label.position.y = 2.85;
     char.add(label);
     char.userData.label = label;
@@ -1091,11 +1186,11 @@ const Office3D = {
       const ch = this.chars.get(S.selectedStaffId);
       if (ch) {
         const p = ch.position;
-        /* Góc Theo người: lùi xa hơn + nâng điểm nhìn (1.4 lên 1.6) để
-         * nhãn của người đang theo không phóng to và không bị cắt ở mép
-         * trên; fitLabels() giữ kích thước nhãn ổn định theo khoảng cách. */
-        cam.position.set(p.x + 2.9, 3.2, p.z + 4.4);
-        cam.lookAt(p.x, 1.6, p.z);
+        /* Góc Theo người: lùi xa hơn + nhìn xuống ~25° để nhãn của người
+         * đang theo không phóng to và không bị cắt ở mép trên; fitLabels()
+         * giữ kích thước nhãn ổn định theo khoảng cách. */
+        cam.position.set(p.x + 2.4, 3.6, p.z + 3.8);
+        cam.lookAt(p.x, 1.5, p.z);
       }
       return;
     }
@@ -1152,7 +1247,7 @@ const Office3D = {
       if (viewZ > -0.5 || dist > 40) continue;
       const p = v.clone().project(cam);
       const dim = followed && ch !== followed;
-      const worldH = Math.max(0.3, Math.min(1.05, ((targetPx * (dim ? 0.78 : 1)) / H) * 2 * dist * tanHalf));
+      const worldH = Math.max(0.12, Math.min(1.05, ((targetPx * (dim ? 0.78 : 1)) / H) * 2 * dist * tanHalf));
       const worldW = worldH * (400 / 152);
       lab.scale.set(worldW, worldH, 1);
       if (lab.material) lab.material.opacity = dim ? 0.8 : 1;
@@ -1173,7 +1268,7 @@ const Office3D = {
       if (v.clone().applyMatrix4(cam.matrixWorldInverse).z > -0.5) { it.dead = true; return; }
       it.dead = false;
       it.dist = Math.max(1, cam.position.distanceTo(v));
-      it.worldH = Math.max(0.3, Math.min(1.05, ((targetPx * (it.dim ? 0.78 : 1)) / H) * 2 * it.dist * tanHalf));
+      it.worldH = Math.max(0.12, Math.min(1.05, ((targetPx * (it.dim ? 0.78 : 1)) / H) * 2 * it.dist * tanHalf));
       it.worldW = it.worldH * (400 / 152);
       it.lab.scale.set(it.worldW, it.worldH, 1);
       const p = v.clone().project(cam);
@@ -1260,7 +1355,7 @@ const Office3D = {
       for (const it of sorted) {
         let floorPx = -Infinity;
         for (const prev of placed) {
-          const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 0.85;
+          const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 1.08;
           if (overlapX) floorPx = Math.max(floorPx, prev.cy + prev.hh + 3);
         }
         const top = it.cy - it.hh;
@@ -1279,10 +1374,10 @@ const Office3D = {
     const placed2 = [];
     for (const it of sorted2) {
       for (const prev of placed2) {
-        const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 0.85;
-        const overlapY = Math.abs(it.cy - prev.cy) < (it.hh + prev.hh) * 0.85;
+        const overlapX = Math.abs(it.cx - prev.cx) < (it.hw + prev.hw) * 1.08;
+        const overlapY = Math.abs(it.cy - prev.cy) < (it.hh + prev.hh) * 1.08;
         if (overlapX && overlapY) {
-          const need = (prev.hh + it.hh) * 0.85 - Math.abs(it.cy - prev.cy);
+          const need = (prev.hh + it.hh) * 1.08 - Math.abs(it.cy - prev.cy);
           pushScreenY(prev, -need);
           measure(prev);
         }
@@ -1299,10 +1394,10 @@ const Office3D = {
     for (let i = 0; i < sortedX.length; i++) {
       for (let j = i + 1; j < sortedX.length; j++) {
         const A = sortedX[i], B = sortedX[j];
-        const overlapX = Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 0.85;
-        const overlapY = Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 0.85;
+        const overlapX = Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 1.08;
+        const overlapY = Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 1.08;
         if (!overlapX || !overlapY) continue;
-        const needPx = (A.hw + B.hw) * 0.85 - Math.abs(A.cx - B.cx);
+        const needPx = (A.hw + B.hw) * 1.08 - Math.abs(A.cx - B.cx);
         const toWorld = (px, it) => (px / (W / 2)) * it.dist * tanHalf * aspect;
         const inBounds = (it) => it.cx - it.hw >= 4 && it.cx + it.hw <= W - 4;
         // Thử đẩy B sang phải trước.
@@ -1312,7 +1407,7 @@ const Office3D = {
         if (!inBounds(B)) { B.shift = oldB; measure(B); }
         // Nếu B không đi được (chạm mép), đẩy A sang trái.
         measure(A); measure(B);
-        if (Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 0.85 && Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 0.85) {
+        if (Math.abs(A.cx - B.cx) < (A.hw + B.hw) * 1.08 && Math.abs(A.cy - B.cy) < (A.hh + B.hh) * 1.08) {
           const oldA = A.shift;
           A.shift = Math.max(-4, Math.min(4, A.shift - toWorld(needPx, A)));
           measure(A);
@@ -1394,6 +1489,7 @@ const Office3D = {
     if (found.length) {
       const id = found[0].object.userData.staffId;
       this.focusStaff(id);
+      showMobileSheet(id);
       toast(myName(id) + ' — ' + roleOfStaff(staffById(id)).name);
     }
   },
@@ -1421,6 +1517,35 @@ const Office3D = {
 };
 
 /* --------------------------- Màn hình Văn phòng --------------------------- */
+/* Dải tổng quan vận hành: vẽ lại từ opsCounts() mỗi khi dữ liệu đổi
+ * (SSE/thăm dò → refreshOfficePanel) để con số luôn là trạng thái mới
+ * nhất, không phải ảnh chụp lúc mở màn. */
+function updateOpsStrip() {
+  const strip = $('#ops-strip');
+  if (!strip) return;
+  const c = opsCounts();
+  const kpiIco = (paths) => '<span class="kpi-ico" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">' + paths + '</svg></span>';
+  strip.innerHTML =
+    '<div class="kpi-item"><div><div class="kpi-num teal">' + c.working + '</div><div class="kpi-label">Đang làm việc</div><div class="kpi-sub">' + S.staff.length + ' nhân sự · ' + c.waiting + ' đang chờ · ' + c.resting + ' đang nghỉ</div></div>' + kpiIco('<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5"/>') + '</div>' +
+    '<div class="kpi-item"><div><div class="kpi-num teal">' + c.running + '</div><div class="kpi-label">Việc đang chạy</div><div class="kpi-sub">' + c.open + ' việc đang mở · ' + c.pend + ' chờ duyệt</div></div>' + kpiIco('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16m0-11h13"/>') + '</div>' +
+    '<div class="kpi-item"><div><div class="kpi-num ' + (c.pend ? 'amber' : '') + '">' + c.pend + '</div><div class="kpi-label">Chờ phê duyệt</div><div class="kpi-sub">' + (c.pend ? 'Từ ' + c.pendPeople + ' người · không ai tự duyệt' : 'Không có yêu cầu nào đang chờ') + '</div></div>' + kpiIco('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>') + '</div>' +
+    '<div class="kpi-item"><div><div class="kpi-num ' + (c.maxPct != null && c.maxPct >= 80 ? 'amber' : '') + '">' + (c.maxPct == null ? '—' : c.maxPct + '%') + '</div><div class="kpi-label">Ngân sách dùng nhiều nhất</div><div class="kpi-sub">' + (c.budgeted ? c.budgeted + ' người đã đặt mức · ' + c.over80 + ' người ≥ 80%' : 'Chưa ai đặt mức ngân sách') + '</div></div>' + kpiIco('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>') + '</div>';
+  const upd = $('#ops-updated');
+  if (upd) upd.textContent = S.lastSyncAt ? 'Cập nhật ' + fmtClock(S.lastSyncAt) : '';
+}
+/* Dòng hiện diện của một người trong danh sách phòng: việc đang làm +
+ * tiến độ + trạng thái ngân sách — toàn số liệu thật đã có. */
+function presenceLine(s) {
+  const job = currentJobOf(s.id);
+  const pct = budgetPct(s);
+  const bits = [];
+  if (job) bits.push(esc(job.name) + ' · ' + (job.progress || 0) + '%');
+  else bits.push('Chưa có việc đang làm');
+  if (pct != null) bits.push('Token ' + pct + '% · còn ' + fmtNum(budgetLeft(s)));
+  const prog = job ? Math.max(0, Math.min(100, job.progress || 0)) : 0;
+  return '<span class="presence">' + bits.join(' · ') + '</span>' +
+    (job ? '<span class="mini-progress" aria-hidden="true"><i style="width:' + prog + '%"></i></span>' : '');
+}
 function officePanelHTML() {
   const st = staffById(S.selectedStaffId) || S.staff[0];
   const pend = pendingApprovals();
@@ -1430,7 +1555,7 @@ function officePanelHTML() {
     const lamp = pend.some((a) => a.requesterId === s.id);
     return '<button type="button" class="fallback-item" data-select-staff="' + esc(s.id) + '" aria-pressed="' + String(S.selectedStaffId === s.id) + '">' +
       '<span class="dot ' + meta.dot + '"></span>' +
-      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span></span>' +
+      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span>' + presenceLine(s) + '</span>' +
       (lamp ? '<span class="lamp" title="Đang có yêu cầu chờ duyệt"></span>' : '') +
       '</button>';
   }).join('');
@@ -1438,29 +1563,55 @@ function officePanelHTML() {
   if (st) {
     const es = effectiveStatus(st, S.approvals);
     const myJobs = S.jobs.filter((j) => j.assigneeId === st.id && j.status !== 'Hoàn thành');
+    const mainJob = currentJobOf(st.id);
+    const mainProg = mainJob ? Math.max(0, Math.min(100, mainJob.progress || 0)) : 0;
+    const pct = budgetPct(st);
+    const doneCount = S.jobs.filter((j) => j.assigneeId === st.id && j.status === 'Hoàn thành').length;
+    const budgetBar = pct == null ? '' : '<span class="mini-progress ' + (pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '') + '" aria-hidden="true"><i style="width:' + pct + '%"></i></span>';
     profile = '<div class="card"><h2>Hồ sơ đang chọn</h2>' +
       '<dl class="kv">' +
       '<div class="row"><dt>Tên</dt><dd>' + esc(st.name) + '</dd></div>' +
       '<div class="row"><dt>Chức vụ hiện tại</dt><dd>' + esc(roleOfStaff(st).name) + '</dd></div>' +
       '<div class="row"><dt>Trạng thái</dt><dd><span class="pill ' + STATUS_META[es].cls + '">' + STATUS_META[es].label + '</span></dd></div>' +
       '<div class="row"><dt>Tài khoản</dt><dd>' + esc(st.account || '—') + '</dd></div>' +
-      '<div class="row"><dt>Việc đang phụ trách</dt><dd>' + (myJobs.length ? myJobs.map((j) => esc(j.name) + ' (' + esc(j.status) + ')').join('<br>') : 'Không có việc đang làm') + '</dd></div>' +
-      '<div class="row"><dt>Ngân sách</dt><dd>' + (st.budget == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + Math.round((st.used / st.budget) * 100) + '%)') + '</dd></div>' +
+      '<div class="row"><dt>Việc đang phụ trách</dt><dd>' + (myJobs.length ? myJobs.map((j) => esc(j.name) + ' (' + esc(j.status) + ' · ' + (j.progress || 0) + '%)').join('<br>') : 'Không có việc đang làm') + '</dd></div>' +
+      (mainJob ? '<div class="row"><dt>Tiến độ việc chính</dt><dd><div class="progress"><i style="width:' + mainProg + '%"></i></div><span class="small">' + mainProg + '% — ' + esc(mainJob.name) + '</span></dd></div>' : '') +
+      '<div class="row"><dt>Ngân sách</dt><dd>' + (pct == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + pct + '% · còn ' + fmtNum(budgetLeft(st)) + ')') + budgetBar + '</dd></div>' +
+      '<div class="row"><dt>Đã hoàn thành</dt><dd>' + doneCount + ' việc</dd></div>' +
       '</dl>' +
       '<div class="toolbar"><button class="btn small" type="button" data-goto-chat="' + esc(st.id) + '">Nhắn tin</button>' +
       '<button class="btn small" type="button" data-goto-jobs="' + esc(st.id) + '">Xem việc</button></div></div>';
   }
+  /* Việc đang chạy: Đang làm trước, rồi Chờ duyệt, rồi Chờ nhận — tối đa
+   * 4 việc, bấm để sang màn Việc. Không có thời lượng/thumbnail: dữ liệu
+   * việc không có các trường đó nên không bịa. */
+  const runningJobs = S.jobs.filter((j) => j.status !== 'Hoàn thành')
+    .sort((a, b) => ({ 'Đang làm': 0, 'Chờ duyệt': 1, 'Chờ nhận': 2 }[a.status] - { 'Đang làm': 0, 'Chờ duyệt': 1, 'Chờ nhận': 2 }[b.status]) || (b.progress || 0) - (a.progress || 0))
+    .slice(0, 4);
+  const runningCard = '<div class="card"><h2>Việc đang chạy</h2>' +
+    (runningJobs.length ? '<div class="run-list">' + runningJobs.map((j) => {
+      const prog = Math.max(0, Math.min(100, j.progress || 0));
+      return '<button type="button" class="run-item" data-goto-jobs="' + esc(j.id) + '">' +
+        '<span class="run-top"><b>' + esc(j.name) + '</b><span class="pill small ' + (j.status === 'Đang làm' ? 'working' : j.status === 'Chờ duyệt' ? 'approval' : 'waiting') + '">' + esc(j.status) + '</span></span>' +
+        '<span class="run-meta">' + esc(myName(j.assigneeId)) + ' · ' + prog + '%</span>' +
+        '<span class="mini-progress" aria-hidden="true"><i style="width:' + prog + '%"></i></span></button>';
+    }).join('') + '</div>' : '<p class="hint">Chưa có việc nào đang chạy — mọi việc đã xong hoặc đang chờ nhận.</p>') +
+    '<div class="toolbar"><button class="btn small ghost" type="button" data-goto-jobs="">Xem tất cả việc</button></div></div>';
   const meeting = S.meetings[S.meetings.length - 1];
   return '<div class="grid" style="gap:12px">' + profile +
     '<div class="card"><h2>Nhân sự trong phòng</h2><div class="fallback-list">' + staffList + '</div></div>' +
+    runningCard +
     (meeting && meeting.status === 'open' ? '<div class="card"><h2>Đang họp: ' + esc(meeting.title) + '</h2><p class="hint">Gọi bởi ' + esc(myName(meeting.calledBy)) + ' · ' + esc(fmtTime(meeting.at)) + '</p></div>' : '') +
     '<div class="card"><h2>Hoạt động mới nhất</h2><ul class="log" id="activity-log">' + (S.feed.map((f) => '<li><time>' + esc(fmtTime(f.at)) + '</time>' + esc(f.text) + '</li>').join('') || '<li>Chưa có hoạt động nào.</li>') + '</ul></div>' +
     '</div>';
 }
 function refreshOfficePanel() {
   if (S.route !== 'office') return;
+  updateOpsStrip();
   const panel = $('#office-panel');
   if (panel) { panel.innerHTML = officePanelHTML(); bindOfficePanel(panel); }
+  const sheet = $('#mobile-sheet');
+  if (sheet && !sheet.hidden && S.selectedStaffId) { const st = staffById(S.selectedStaffId); if (st) fillMobileSheet(st); }
   Office3D.sync();
 }
 function bindOfficePanel(root) {
@@ -1468,9 +1619,45 @@ function bindOfficePanel(root) {
     S.selectedStaffId = b.dataset.selectStaff;
     Office3D.focusStaff(b.dataset.selectStaff, true);
     refreshOfficePanel();
+    showMobileSheet(b.dataset.selectStaff);
   }));
   $$('[data-goto-chat]', root).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.gotoChat; location.hash = '#/chat'; }));
   $$('[data-goto-jobs]', root).forEach((b) => b.addEventListener('click', () => { location.hash = '#/jobs'; }));
+}
+/* Trang trượt mobile: bấm nhân vật ở màn hẹp thì hiện đúng nội dung hồ sơ
+ * (việc hiện tại + tiến độ + ngân sách từ dữ liệu thật) dạng trang trượt
+ * dưới cùng. Chỉ mở khi bấm chọn rõ ràng — không tự bật khi dữ liệu đổi. */
+function fillMobileSheet(st) {
+  const body = $('#mobile-sheet-body'); if (!body) return;
+  const es = effectiveStatus(st, S.approvals);
+  const meta = STATUS_META[es];
+  const job = S.jobs.find((j) => j.assigneeId === st.id && j.status !== 'Hoàn thành');
+  const prog = job ? Math.max(0, Math.min(100, job.progress || 0)) : 0;
+  const pct = budgetPct(st);
+  const doneCount = S.jobs.filter((j) => j.assigneeId === st.id && j.status === 'Hoàn thành').length;
+  body.innerHTML = '<div class="sheet-profile"><div class="avatar">' + esc(st.name.slice(0, 1).toUpperCase()) + '</div>' +
+    '<div><strong>' + esc(st.name) + '</strong><span>' + esc(roleOfStaff(st).name) + '</span></div>' +
+    '<span class="pill ' + meta.cls + '" style="margin-left:auto">' + meta.label + '</span></div>' +
+    '<dl class="kv" style="margin-top:12px">' +
+    '<div class="row"><dt>Tác vụ hiện tại</dt><dd>' + (job ? esc(job.name) + ' (' + esc(job.status) + ')' : 'Không có việc đang làm') + '</dd></div>' +
+    (job ? '<div class="row"><dt>Tiến độ</dt><dd><div class="progress"><i style="width:' + prog + '%"></i></div><span class="small">' + prog + '%</span></dd></div>' : '') +
+    '<div class="row"><dt>Ngân sách</dt><dd>' + (pct == null ? 'Chưa đặt mức' : fmtNum(st.used) + ' / ' + fmtNum(st.budget) + ' token (' + pct + '% · còn ' + fmtNum(budgetLeft(st)) + ')') + '</dd></div>' +
+    '<div class="row"><dt>Đã hoàn thành</dt><dd>' + doneCount + ' việc</dd></div></dl>' +
+    '<div class="sheet-actions"><button class="btn small primary" type="button" data-sheet-chat="' + esc(st.id) + '">Nhắn tin</button>' +
+    '<button class="btn small" type="button" data-sheet-jobs="' + esc(st.id) + '">Xem việc</button></div>';
+  $$('[data-sheet-chat]', body).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.sheetChat; hideMobileSheet(); location.hash = '#/chat'; }));
+  $$('[data-sheet-jobs]', body).forEach((b) => b.addEventListener('click', () => { hideMobileSheet(); location.hash = '#/jobs'; }));
+}
+function showMobileSheet(id) {
+  if (!window.matchMedia('(max-width: 820px)').matches) return;
+  const st = staffById(id); if (!st) return;
+  fillMobileSheet(st);
+  const sheet = $('#mobile-sheet'); if (!sheet) return;
+  sheet.hidden = false; sheet.classList.add('is-open');
+}
+function hideMobileSheet() {
+  const sheet = $('#mobile-sheet'); if (!sheet) return;
+  sheet.hidden = true; sheet.classList.remove('is-open');
 }
 function renderOfficeFallback() {
   const box = $('#stage-box'); if (!box) return;
@@ -1480,7 +1667,7 @@ function renderOfficeFallback() {
     const lamp = pendingApprovals().some((a) => a.requesterId === s.id);
     return '<button type="button" class="fallback-item" data-select-staff="' + esc(s.id) + '">' +
       '<span class="dot ' + meta.dot + '"></span>' +
-      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span></span>' +
+      '<span class="who"><b>' + esc(s.name) + '</b><span>' + esc(roleOfStaff(s).name) + ' · ' + meta.label + '</span>' + presenceLine(s) + '</span>' +
       (lamp ? '<span class="lamp"></span>' : '') + '<span aria-hidden="true">›</span></button>';
   }).join('');
   box.innerHTML = '<div class="stage-fallback"><p class="hint"><strong>Dạng danh sách 2D</strong> — cùng dữ liệu, cùng thao tác như bản 3D. Bấm một người để xem hồ sơ.</p>' +
@@ -1498,14 +1685,10 @@ async function renderOffice(screen) {
   let use2D = !!S.office2D;
   try { if (sessionStorage.getItem('office.force2d') === '1') use2D = true; } catch { /* bỏ qua */ }
   screen.innerHTML =
-    '<h1>Văn phòng 3D</h1>' +
-    '<p class="hint">Trung tâm điều phối — nhân vật, trạng thái và đèn đỏ phản ánh dữ liệu thật trên máy chủ' + (Session.demo ? ' (bản DEMO ngoại tuyến)' : '') + '. Bấm một nhân vật trong phòng để xem hồ sơ.</p>' +
-    '<div class="kpi">' +
-    '<div class="kpi-item"><div class="kpi-num">' + S.staff.length + '</div><div class="kpi-label">Nhân sự</div></div>' +
-    '<div class="kpi-item"><div class="kpi-num">' + S.jobs.filter((j) => j.status !== 'Hoàn thành').length + '</div><div class="kpi-label">Việc đang mở</div></div>' +
-    '<div class="kpi-item"><div class="kpi-num">' + pendingApprovals().length + '</div><div class="kpi-label">Chờ duyệt</div></div>' +
-    '<div class="kpi-item"><div class="kpi-num">' + S.staff.filter((s) => s.resting).length + '</div><div class="kpi-label">Đang nghỉ (ngân sách)</div></div>' +
-    '</div>' +
+    '<div class="page-heading"><div><h1>Văn phòng 3D</h1>' +
+    '<p class="hint">Nhìn một cái là biết xưởng đang làm gì — mọi con số từ dữ liệu thật, cập nhật theo thời gian thực' + (Session.demo ? ' — bản DEMO ngoại tuyến' : '') + '.</p></div></div>' +
+    '<div class="ops-head"><strong>Xưởng đang làm gì</strong><span id="ops-updated"></span></div>' +
+    '<div class="kpi" id="ops-strip"></div>' +
     '<div class="office-layout"><section>' +
     '<div class="toolbar"><button class="btn primary" type="button" id="call-meeting">Gọi họp team</button>' +
     '<button class="btn" type="button" id="toggle-2d">' + (use2D ? 'Về cảnh 3D' : 'Dạng danh sách 2D') + '</button>' +
@@ -1518,12 +1701,13 @@ async function renderOffice(screen) {
     '<button type="button" data-cam="follow" aria-pressed="false">Theo người</button>' +
     '</div>' +
     '<div class="stage-help">Kéo để xoay · Cuộn/pinch để thu phóng · Bấm nhân vật để xem hồ sơ</div>' +
-    '<div class="stage-credit">Dữ liệu thật từ máy chủ — không phải bản vẽ tĩnh.</div>' +
+    '<div class="stage-credit">' + (Session.demo ? 'Dữ liệu mẫu chạy ngay trong trình duyệt — bản DEMO ngoại tuyến.' : 'Dữ liệu thật từ máy chủ — không phải bản vẽ tĩnh.') + '</div>' +
     '<div class="stage-error" id="stage-error" hidden></div>' +
     '</div>' +
     '<div id="meeting-box"></div>' +
     '</section><aside id="office-panel">' + officePanelHTML() + '</aside></div>';
   bindOfficePanel($('#office-panel'));
+  updateOpsStrip();
   $$('.stage .camrow button', screen).forEach((b) => b.addEventListener('click', () => {
     Office3D.setMode(b.dataset.cam);
     const note = $('#office-mode-note'); if (note) note.textContent = 'Góc nhìn: ' + b.textContent + '.';
