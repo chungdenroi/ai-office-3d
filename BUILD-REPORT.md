@@ -652,3 +652,69 @@ có dòng việc, các nhãn hở nhau) và `office-390.png` (dải vận hành
 `docs/ops-density/*.png` (cộng dồn với §9.6/§10: `web/index.html`
 cũng đổi ở §10). Không cần push `web/themes/*`.
 
+
+## 12. Migration backend sang Supabase (gói Free) 30/10 — CHƯA DEPLOY
+
+Quyết định Giám đốc 30/10/2026 12:28–12:29: bỏ hướng MacBook + Tailscale,
+chuyển backend sang Supabase Free (không thẻ, online 24/7, giữ dữ liệu,
+phân quyền kiểm ở máy chủ bằng RLS, Realtime thay SSE). Web app giữ nguyên
+là trang tĩnh trên GitHub Pages (cùng URL) — chỉ backend đổi. Máy chủ Node
+cũ (`server/`) chuyển thành legacy (không chạy, không sửa, không xoá).
+
+### 12.1. File mới/đổi (chi tiết đầy đủ ở `supabase/README.md` §6)
+
+- `supabase/migrations/001_schema.sql` — 10 bảng, đúng ngữ nghĩa server.js.
+- `supabase/migrations/002_rls.sql` — RLS mọi bảng + trigger cấm tự duyệt,
+  trigger chặn sửa cột nhạy cảm, máy trạng thái việc, 3 hàm SECURITY DEFINER.
+- `supabase/migrations/003_seed.sql` — 4 chức vụ + 5 nhân viên + 2 rule,
+  y hệt seed máy chủ cũ (không mật khẩu nào trong seed).
+- `supabase/migrations/004_realtime.sql` — publication + replica identity full.
+- `web/config.js` (MỚI, giữ chỗ) + `web/vendor/supabase.min.js` (UMD
+  v2.118.0, 218.544 byte, md5 f7ee2a8cc50df657f40bff109b9a544d, 0 CDN) +
+  `web/supabase.js` (MỚI — dịch /api/... sang PostgREST/Auth/Realtime).
+- `web/app.js` + `web/index.html` — sửa phẫu thuật: route sang Supabase khi
+  đã cấu hình, Realtime thay SSE, thăm dò dự phòng 120s (web) / 60s (kit),
+  cài đặt lần đầu (nút riêng + xác minh TOTP ngay), kit tải file tĩnh.
+- `kit/` viết lại: bridge GoTrue JWT + Realtime WS + thăm dò 60s; install
+  hỏi Supabase URL/anon key/username/mật khẩu; README viết lại.
+- `docs/HUONG-DAN-CAI-DAT.md` viết lại Supabase-first; `server/LEGACY.md` mới.
+
+### 12.2. Quyết định Auth/RLS/Realtime (tóm tắt — đầy đủ ở `supabase/README.md`)
+
+- Giám đốc: 1 Auth user + TOTP MFA (AAL2), email nội bộ
+  `director@office.internal`; cài đặt lần đầu tạo user → gắn `s-chung` →
+  xác minh TOTP ngay (chặn nút tiếp theo cho tới khi xác minh xong).
+- Nhân viên: Auth user `<username>@office.internal` (không phải email thật,
+  không gửi mail, Confirm email TẮT); kích hoạt lần đầu tự gắn hàng (chỉ khi
+  hàng còn trống + email trùng JWT); cờ `must_change_password` bắt đổi ngay.
+- service_role key KHÔNG BAO GIỜ xuất hiện ở web/kit/docs/file commit.
+- Tin nhắn: SELECT chỉ phòng chung + tin mình gửi/nhận (đúng máy chủ cũ).
+- Mật khẩu ban đầu ở form tạo nhân viên KHÔNG được lưu (Supabase Auth chỉ
+  nhận mật khẩu do chính nhân viên đặt khi kích hoạt) — adapter hiện ghi chú
+  kích hoạt cho Giám đốc thay vì giả vờ đã cấp mật khẩu.
+- Thu hồi phiên: chỉ làm trong Supabase Dashboard (app không có quyền này
+  bằng anon key — cố tình).
+
+### 12.3. Trạng thái kiểm chứng (nói thẳng)
+
+- ĐÃ: `node --check` mọi JS đổi/mới (PASS); đối chiếu cột adapter/kit với
+  schema; đối chiếu mọi route `/api/...` app gọi với adapter; rà 0 alert(),
+  0 import CDN lúc chạy cho Supabase, không branding "NEXUS", 0 service_role,
+  0 secret thật.
+- CHƯA (parent làm sau khi project tồn tại): chạy 4 migration trên project
+  thật (không có Postgres local để chạy thử — lỗi cú pháp (nếu có) chỉ lộ
+  ở SQL Editor); điền `web/config.js` + deploy + kiểm chứng live (đăng nhập
+  Giám đốc/TOTP, kích hoạt nhân viên, 9 màn, Realtime 2 tab, 390px, 4 góc
+  camera); cầu nối GoTrue + Realtime WS với project thật; headless DEMO
+  regression (lần chạy trong đợt này bị gián đoạn trước khi có kết quả).
+- NỢ: nhật ký do client tự ghi (không chống được việc bỏ qua ghi bằng SQL
+  trực tiếp — xem `supabase/README.md` §7); seed giữ email Giám đốc
+  `teddyssk559@gmail.com` ở cột account của `s-chung` (câu hỏi ẩn email
+  khỏi dữ liệu demo vẫn chưa được trả lời — không tự đổi).
+
+### 12.4. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/index.html`, `web/app.js`, `web/supabase.js`, `web/config.js`,
+`web/vendor/supabase.min.js`, `kit/*`, `docs/HUONG-DAN-CAI-DAT.md`,
+`supabase/*`, `server/LEGACY.md`, `BUILD-REPORT.md`, `PROGRESS.md`.
+(cộng dồn với §9.6/§10/§11.4: `web/style.css`, `docs/ops-density/*.png`.)
