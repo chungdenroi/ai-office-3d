@@ -521,3 +521,134 @@ kế kiểm thử). Máy chủ thử nghiệm đã tắt; DB thật không chạ
 `web/index.html`, `web/app.js`, `web/style.css`, `BUILD-REPORT.md`,
 `PROGRESS.md`, `docs/redesign-modern/*.png` (7 ảnh). Không cần push 3 file
 `web/themes/*` (không còn được tải).
+
+## 10. Tích hợp thiết kế Obsidian của ChatGPT ("NEXUS") 30/10 — CHƯA DEPLOY
+
+ChatGPT nhận xét bản hiện đại "quá cổ" ở 12 điểm (sidebar kiểu ERP,
+topbar mỏng, không thứ bậc thị giác, KPI trần, nút không hệ thống, hộp
+3D be, nhân vật đồ chơi, nhãn tooltip, không gian phẳng, không hệ màu
+trạng thái, khoảng chết dưới nội dung, không cảm giác hệ thống sống).
+Đợt này áp NGÔN NGỮ thiết kế đó vào app thật — thích ứng, không dán
+bản demo (bản demo dùng CDN Three 0.169 + Google Fonts + dữ liệu giả +
+tên "NEXUS": tất cả đều KHÔNG vào app).
+
+### 10.1. Thay đổi (chỉ lớp hình ảnh + 3D, chức năng/API/server/kit giữ nguyên)
+
+- `web/style.css` viết lại: token Obsidian (nền `#090E17`, sidebar/topbar
+  `#0C1320`, mặt `#111B29`, viền `#263548`, chữ `#F1F5F9/#A3B2C5/
+  #718096`, accent teal `#2DD4BF` tiết chế, blue/violet/amber/red/slate
+  theo ngữ nghĩa); lưới 100dvh; sidebar nhóm WORKSPACE/OPERATIONS/SYSTEM
+  + icon SVG vẽ tay 18px; topbar 64px 3 vùng; nút chuẩn
+  (primary teal/chữ tối, secondary, ghost, danger); panel radius 12;
+  login split layout cùng hệ thống. Không `@import` Google Fonts (Inter
+  qua font stack + fallback hệ thống). Cơ chế `?theme` vẫn bỏ.
+- `web/index.html`: vỏ app mới (topbar + breadcrumb + huy hiệu DEMO +
+  huy hiệu chờ duyệt đỏ, sidebar nhóm + chân sidebar hồ sơ/kết nối,
+  bottom nav 5 mục + trang "Thêm", trang trượt hồ sơ mobile).
+- `web/app.js` (3D): bảng màu Obsidian duy nhất (sàn `#182431`, tường
+  `#202E3C`, tường thấp 3.2, vật liệu matte theo tham chiếu, lưới sàn mờ);
+  tone mapping ACES, FOV 38, đèn viền teal tiết chế + đèn lấp; nhãn
+  kính tối (nền tối, chấm trạng thái, tên + chức vụ · trạng thái);
+  góc Theo người hạ xuống ~25°; logic `fitLabels()` giữ nguyên, chỉ đổi
+  sàn chiều cao nhãn 0.3 → 0.12 (nhãn gần camera không còn phóng to) và
+  hệ số tách chồng 0.85 → 1.08 (nhãn chạm nhau 1px → hở ~8px).
+
+### 10.2. Lỗi tìm thấy khi xem ảnh chụp — đã sửa và chụp lại
+
+1. Nhãn người được theo (góc Theo người) phóng to che nhân vật: sàn
+   `worldH` 0.3 quá lớn ở cự ly gần → hạ xuống 0.12 (2 chỗ trong
+   `fitLabels`).
+2. Nhãn Muse/Hùng/Tuấn/Linh chạm nhau ở góc tổng → hệ số tách 1.08.
+3. Màn 390px lệch phải 220px: `.sidebar{display:none}` nhưng `.shell`
+   giữ rãnh 220px và `.main{grid-column:2}` → một cột + `.main` cột 1.
+4. Màn 390px vẫn rộng 446px: `#app-view` không có
+   `grid-template-columns` (cột auto phình theo min-content của topbar)
+   → `minmax(0,1fr)` + tên thương hiệu ellipsis + ẩn tên ở ≤560px.
+5. Màn 390px với dữ liệu việc: thẻ hồ sơ 490px trong màn 358px —
+   chuỗi min-content (dòng hiện diện nowrap → `.who` → `.fallback-item`
+   → `.grid` → aside) → `min-width:0` ở mọi tầng
+   (`.office-layout > *`, `#office-panel > .grid > *`,
+   `.fallback-list > *`, `.run-list > *`, `.run-top b`).
+6. Dòng chân khung cảnh nói "dữ liệu thật từ máy chủ" cả ở demo →
+   theo chế độ (demo: "Dữ liệu mẫu chạy ngay trong trình duyệt").
+
+### 10.3. Kiểm thử — máy chủ thật + DB tạm + chrome-headless-shell qua CDP
+
+Script `/tmp/nexus-test/drive.mjs` (tạo trong phiên làm việc; `/tmp` là
+vùng tạm, có thể bị dọn — logic: CDP + SwiftShader, vào demo mode bằng
+cách trỏ API tới cổng không tới được, chụp mọi màn 1440px + văn
+phòng/chat/việc 390px, đo NDC nhãn + tràn ngang). 0 lỗi JS (chỉ 2 log
+`ERR_UNSAFE_PORT` — probe API cố tình trỏ cổng không tới được để vào
+demo mode, theo thiết kế kiểm thử). `node --check` PASS. Nhãn NDC
+trong khung ở cả 4 góc; không tràn ngang 390px (`scrollWidth ==
+innerWidth`, menu dưới cố định đáy); dữ liệu demo gieo qua `DemoDB`
+của đúng profile headless (xóa cùng profile), render qua đúng đường mã
+thật. Máy chủ thử nghiệm đã tắt; DB thật không chạm.
+
+### 10.4. UNTESTED thêm (cộng vào §9.5)
+
+Điện thoại thật (Safari iOS), chuyển động theo thời gian, >6 nhân viên,
+kit/Windows, chạy 24/7 — như trước. Cổng kiểm chứng live sau deploy vẫn
+bắt buộc.
+
+## 11. Mật độ vận hành (học từ ảnh tham chiếu của đối thủ) 30/10 — CHƯA DEPLOY
+
+Giám đốc gửi ảnh hệ thống của bên khác ("Các bên cũng đang làm rất
+mạnh"). Điểm mạnh lấy theo: mật độ vận hành — nhìn một cái biết xưởng
+đang làm gì. KHÔNG sao chép bố cục/dữ liệu của họ; khuyết điểm nhãn
+chồng nhau của họ KHÔNG lặp lại (fitLabels giữ nguyên).
+
+### 11.1. Thay đổi (chỉ `web/app.js` + `web/style.css`, dữ liệu đã có)
+
+- Dải "Xưởng đang làm gì" thay hàng KPI: số người đang làm / đang chờ /
+  đang nghỉ, việc đang chạy, chờ phê duyệt (kèm số người gửi), ngân sách
+  dùng nhiều nhất (% + số người ≥80%), và "Cập nhật HH:MM:SS" từ
+  `S.lastSyncAt` (đặt trong `refreshAll`). Vẽ lại qua `updateOpsStrip()`
+  mỗi lần `refreshOfficePanel()` (SSE/thăm dò 25s) nên số liệu luôn mới.
+  Màu số theo ngữ nghĩa (lớp `.teal/.amber`), bỏ tô màu theo vị trí cũ.
+- Hiện diện từng người: danh sách phòng + dạng 2D hiện việc đang làm +
+  tiến độ + token (dùng % · còn N) qua `presenceLine()`/`currentJobOf()`/
+  `budgetPct()`/`budgetLeft()`; hồ sơ thêm thanh tiến độ việc chính,
+  thanh ngân sách (vàng ≥80%, đỏ 100%), số việc đã xong; trang trượt
+  mobile thêm % ngân sách + số việc đã xong.
+- Thẻ "Việc đang chạy" trong cột phải: tối đa 4 việc (Đang làm → Chờ
+  duyệt → Chờ nhận), người phụ trách + tiến độ + pill trạng thái, bấm
+  sang màn Việc.
+- Nhãn 3D của người ĐANG ĐƯỢC CHỌN thêm dòng thứ ba (màu teal): tên
+  việc đang làm, cắt ≤30 ký tự. Người khác giữ 2 dòng. Khung 400×152
+  không đổi nên `fitLabels()` không phải sửa.
+
+### 11.2. Khoảng trống dữ liệu — GHI NHẬN, KHÔNG BỊA
+
+- Không có khái niệm "flow" nhiều bước, "phiên studio", "phiên chat
+  đang mở": không có thực thể/trường nào trong API — dải tổng quan chỉ
+  dùng trạng thái người + việc + phê duyệt + ngân sách.
+- Không có thời lượng việc, thumbnail, "việc vừa xong · N phút": việc
+  không có `startedAt/finishedAt/duration` — chỉ đếm số việc đã xong.
+- Không có "token dự phòng" riêng: chỉ có `budget/used` — hiển thị còn
+  lại = `budget - used`, tính trực tiếp, không bịa thêm.
+- Phiên đăng nhập (`S.sessions`, chỉ Giám đốc) không nói ai đang làm gì
+  nên không dùng làm "đang trực tuyến".
+
+### 11.3. Kiểm thử — máy chủ thật + DB tạm + chrome-headless-shell qua CDP
+
+Script `/tmp/nexus-test/drive.mjs` (tái tạo sau khi `/tmp` bị dọn):
+gieo 5 việc + 1 phê duyệt + `used` của Muse = 3,1 tỷ vào kho DEMO của
+riêng profile headless (xóa cùng profile), qua `DemoDB.load()/save()`,
+render qua đúng đường mã. Bằng chứng: dải tổng quan đọc "1 đang làm ·
+2 việc đang chạy · 1 chờ duyệt · 62% · Cập nhật 01:08:08"; nhãn NDC
+trong khung ở góc tổng; 390px `scrollWidth == innerWidth`,
+`appSW == 390`, menu dưới cố định đáy; 0 lỗi JS (chỉ 2 log
+`ERR_UNSAFE_PORT` như mọi lần — probe demo). `node --check` PASS.
+Ảnh chụp: `/tmp/nexus-test/shots/office-selected-1440.png` (nhãn Hùng
+có dòng việc, các nhãn hở nhau) và `office-390.png` (dải vận hành
+2 cột + nhãn 3D đọc được + menu dưới). Bản lưu trong repo:
+`docs/ops-density/` (4 ảnh: `office-selected-1440.png`,
+`office-390.png`, `sheet-390.png`, `office-follow-1440.png`).
+
+### 11.4. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/app.js`, `web/style.css`, `BUILD-REPORT.md`, `PROGRESS.md`,
+`docs/ops-density/*.png` (cộng dồn với §9.6/§10: `web/index.html`
+cũng đổi ở §10). Không cần push `web/themes/*`.
+
