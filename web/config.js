@@ -18,6 +18,6 @@
  *     có ghi nhãn DEMO, không bao giờ hiện dữ liệu mẫu như dữ liệu thật.
  */
 window.OFFICE_SUPABASE = {
-  url: 'https://ewrsscrxgrexgpikjkwb.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3cnNzY3J4Z3JleGdwaWtqa3diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNjA0MDMsImV4cCI6MjEwODkzNjQwM30.i7yNLXJ7vzgUoIYIaRtfIV6QRXI5-WayMVsZYmOZiJE',
+  url: 'https://unfcixatuhypjyqislvb.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZmNpeGF0dWh5cGp5cWlzbHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNzEyMjIsImV4cCI6MjEwODk0NzIyMn0.YigfXUaL9O_RMIxHag_ttT_dGsJuCMsLdYTwJBNPACw',
 };
