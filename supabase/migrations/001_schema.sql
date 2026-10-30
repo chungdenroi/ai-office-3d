@@ -22,8 +22,9 @@ create table if not exists public.roles (
   updated_at timestamptz not null default now()
 );
 
--- Nhân viên. auth_email là định danh đăng nhập NỘI BỘ dạng email
--- (<username>@office.internal, KHÔNG phải email thật, không gửi mail).
+-- Nhân viên. auth_email là định danh đăng nhập dạng email
+-- (<username>@vnhairmarket.com — miền thật của công ty, Supabase từ chối
+-- miền giả .internal; app không gửi mail tới địa chỉ này).
 -- auth_user_id gắn với Supabase Auth; NULL nghĩa là chưa kích hoạt.
 -- must_change_password: bắt đổi mật khẩu ở lần đăng nhập đầu (giữ đúng
 -- ngữ nghĩa máy chủ cũ). disabled: khoá tài khoản.
