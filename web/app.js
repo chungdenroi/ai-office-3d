@@ -52,6 +52,15 @@ const Session = {
 };
 function apiBase() { return Session.apiBase; }
 
+/* ------------------------- Chế độ Supabase ------------------------------- */
+/* Khi web/config.js đã điền Project URL + anon key thật, app dùng tầng
+ * Supabase (web/supabase.js) thay cho máy chủ Node cũ — không cần apiBase,
+ * không cần token riêng (phiên nằm trong Supabase Auth). Chưa điền config
+ * thì isSb() = false và app giữ đúng hành vi cũ (máy chủ Node / DEMO). */
+const isSb = () => !!(window.OfficeSupabase && window.OfficeSupabase.configured());
+let sbMfaVerified = false; // đã xác minh TOTP trong lượt cài đặt lần đầu này?
+let sbDirectorContinue = false; // xác minh TOTP xong thì vào tiếp luồng Giám đốc?
+
 /* --------------------- Bản dùng thử ngoại tuyến (DEMO) -------------------
  * Chỉ chạy khi KHÔNG nối được máy chủ. Cùng một giao diện gọi API, dữ liệu
  * mẫu lưu ở localStorage của trình duyệt này, ghi nhãn DEMO ở mọi màn hình.
@@ -293,6 +302,10 @@ async function demoRequest(method, path, body) {
 class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
 async function request(method, path, body) {
   if (Session.demo) return demoRequest(method, path, body);
+  if (isSb()) {
+    try { return await window.OfficeSupabase.request(method, path, body); }
+    catch (e) { throw new ApiError(e.status || 500, e.message || 'Lỗi Supabase'); }
+  }
   const res = await fetch(apiBase() + path, {
     method,
     headers: { 'Content-Type': 'application/json', ...(Session.token ? { Authorization: 'Bearer ' + Session.token } : {}) },
@@ -412,8 +425,38 @@ async function refreshHealth() {
 }
 
 /* ------------------------------ SSE + thăm dò ----------------------------- */
+/* Chế độ Supabase: Realtime (postgres_changes) thay SSE. Ánh xạ snake_case
+ * sang camelCase để handleEvent dùng lại được đúng như cũ. */
+function sbRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const out = {};
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] = row[k];
+  if (out.createdAt && out.at === undefined) out.at = out.createdAt;
+  return out;
+}
 function connectSSE() {
-  if (Session.demo || !Session.token) return;
+  if (Session.demo) return;
+  if (isSb()) {
+    try { if (S.sse && S.sse.close) S.sse.close(); } catch { /* bỏ qua */ }
+    window.OfficeSupabase.connectRealtime({
+      onSubscribed: () => { S.sseOk = true; renderTopbar(); },
+      onError: () => { S.sseOk = false; renderTopbar(); },
+      onPayload: (table, payload) => {
+        const row = payload.new ? sbRow(payload.new) : null;
+        if (!row) return;
+        if (table === 'messages' && payload.eventType === 'INSERT') { handleEvent({ type: 'message', message: row }); return; }
+        if (table === 'alerts' && payload.eventType === 'INSERT') { handleEvent({ type: 'director-alert', text: row.text }); return; }
+        const typeMap = { jobs: 'job', approvals: 'approval', meetings: 'meeting', staff: 'org', budget_events: 'budget' };
+        const t = typeMap[table]; if (!t) return;
+        const ev = { type: t, change: t === 'approval' ? (row.status !== 'pending' ? 'decided' : 'created') : (payload.eventType === 'INSERT' ? 'created' : 'updated') };
+        ev[t] = row;
+        handleEvent(ev);
+      },
+    });
+    S.sse = { close: () => window.OfficeSupabase.disconnectRealtime() };
+    return;
+  }
+  if (!Session.token) return;
   try { if (S.sse) S.sse.close(); } catch { /* bỏ qua */ }
   const es = new EventSource(apiBase() + '/api/events?token=' + encodeURIComponent(Session.token));
   S.sse = es;
@@ -463,7 +506,7 @@ function startPolling() {
     if (document.hidden) return;
     refreshHealth();
     refreshAll().then(() => { if (S.route === 'office') refreshOfficePanel(); else renderScreen(true); }).catch(() => { /* ngoại tuyến: giữ dữ liệu cũ */ });
-  }, 25000);
+  }, isSb() ? 120000 : 25000); // Supabase: Realtime là kênh chính, thăm dò chỉ là dự phòng chậm (bài học Firebase 429).
 }
 
 /* ------------------------------ Vỏ + điều hướng --------------------------- */
@@ -557,6 +600,19 @@ function showView(which) {
 }
 async function probeServer() {
   const stateEl = $('#server-state');
+  if (isSb()) {
+    try {
+      await api.get('/api/health');
+      stateEl.textContent = 'Đã nối Supabase (cấu hình trong web/config.js).';
+      stateEl.className = 'server-state ok';
+      return true;
+    } catch {
+      stateEl.textContent = 'Không nối được Supabase. Kiểm tra web/config.js (Project URL + anon key) và mạng, hoặc vào bản dùng thử ngoại tuyến bên dưới.';
+      stateEl.className = 'server-state bad';
+      $('#demo-enter').hidden = false; $('#demo-note').hidden = false;
+      return false;
+    }
+  }
   try {
     const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 5000);
     const res = await fetch(apiBase() + '/api/health', { signal: ctl.signal });
@@ -586,8 +642,14 @@ async function boot() {
   $('#setup-view').hidden = !needsSetup;
   $('#auth-view').hidden = needsSetup;
   if (needsSetup) $('#server-state').textContent = 'Máy chủ chưa có tài khoản Giám đốc — hoàn tất cài đặt lần đầu bên dưới.';
-  if (Session.token) {
-    // Phiên cũ còn trong tab: thử khôi phục danh tính, thất bại thì ở lại màn đăng nhập.
+  // Chế độ Supabase: không thăm dò được "đã cài đặt chưa" khi chưa đăng
+  // nhập (RLS chặn đọc khi chưa có phiên) nên luôn hiện nút cài đặt lần đầu
+  // để Giám đốc tự mở khi cần — lần cài đặt thứ hai sẽ bị chặn ở máy chủ.
+  const sbLink = $('#sb-setup-link');
+  if (sbLink) sbLink.hidden = !isSb();
+  if (Session.token || isSb()) {
+    // Phiên cũ còn trong tab, hoặc phiên Supabase còn lưu ở trình duyệt:
+    // thử khôi phục danh tính, thất bại thì ở lại màn đăng nhập.
     try { await restoreSession(); return; } catch { Session.clear(); }
   }
 }
@@ -639,13 +701,26 @@ function bindLogin() {
     try {
       if (tab === 'director') {
         const r = await api.post('/api/director/login', { password: fd.get('password'), totp: fd.get('totp') });
-        Session.save(r.token, false);
+        if (r.needsMfaVerify) {
+          // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang):
+          // hiện lại mã mới để quét + xác minh trước khi vào hệ thống.
+          sbDirectorContinue = true; sbMfaVerified = false;
+          $('#login-form').hidden = true;
+          $('#setup-view').hidden = false; $('#auth-view').hidden = true;
+          $('#setup-form').hidden = true; $('#setup-result').hidden = false;
+          $('#setup-secret').value = r.totpSecret;
+          $('#setup-otpauth').textContent = r.otpauthUrl;
+          const vw = $('#setup-verify-wrap'); if (vw) vw.hidden = false;
+          toast('Tài khoản chưa hoàn tất xác thực 2 lớp — quét mã mới và nhập mã 6 số để xác minh.');
+          return;
+        }
+        Session.save(r.token || (isSb() ? 'supabase' : ''), false);
         const staff = await api.get('/api/staff');
         Session.me = staff.find((s) => s.id === r.staffId) || staff[0];
         Session.meType = 'director';
       } else {
         const r = await api.post('/api/staff/login', { username: fd.get('username'), password: fd.get('passwordStaff') });
-        Session.save(r.token, false);
+        Session.save(r.token || (isSb() ? 'supabase' : ''), false);
         // Kiểm tra bắt đổi mật khẩu TRƯỚC mọi lần gọi API khác: máy chủ từ
         // chối mọi API khác khi tài khoản đang bị bắt đổi mật khẩu.
         if (r.mustChangePassword) {
@@ -673,16 +748,46 @@ function bindLogin() {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
+      sbMfaVerified = false; sbDirectorContinue = false;
       const r = await api.post('/api/setup', { password: fd.get('password'), confirmPassword: fd.get('confirmPassword') });
       $('#setup-form').hidden = true;
       $('#setup-result').hidden = false;
       $('#setup-secret').value = r.totpSecret;
       $('#setup-otpauth').textContent = r.otpauthUrl;
+      // Chế độ Supabase bắt xác minh TOTP ngay trong lượt cài đặt — nút
+      // "tới màn hình đăng nhập" bị chặn cho tới khi xác minh xong.
+      const vw = $('#setup-verify-wrap'); if (vw) vw.hidden = !isSb();
     } catch (ex) { toast(ex.message || 'Cài đặt thất bại.'); }
   });
+  const sbVerifyBtn = $('#setup-verify');
+  if (sbVerifyBtn) sbVerifyBtn.addEventListener('click', async () => {
+    const code = ($('#setup-code').value || '').replace(/\s/g, '');
+    try {
+      await api.post('/api/setup/verify', { code });
+      sbMfaVerified = true;
+      toast('Đã xác minh mã xác thực.');
+      if (sbDirectorContinue) {
+        sbDirectorContinue = false;
+        $('#setup-view').hidden = true; $('#auth-view').hidden = false;
+        $('#login-form').hidden = false;
+        Session.save('supabase', false);
+        const staff = await api.get('/api/staff');
+        const ctx = await api.get('/api/context');
+        Session.me = staff.find((s) => s.id === ctx.staff.id) || staff[0];
+        Session.meType = 'director';
+        await enterApp();
+      }
+    } catch (ex) { toast(ex.message || 'Xác minh thất bại.'); }
+  });
   $('#setup-done').addEventListener('click', () => {
+    if (isSb() && !sbMfaVerified) { toast('Nhập mã 6 số từ ứng dụng xác thực và bấm “Xác minh mã” trước khi tới màn hình đăng nhập.'); return; }
     $('#setup-view').hidden = true; $('#auth-view').hidden = false;
     probeServer();
+  });
+  const sbLink = $('#sb-setup-link');
+  if (sbLink) sbLink.addEventListener('click', () => {
+    $('#setup-view').hidden = false; $('#auth-view').hidden = true;
+    $('#setup-form').hidden = false; $('#setup-result').hidden = true;
   });
   $('#demo-enter').addEventListener('click', async () => {
     DemoDB.load();
@@ -693,6 +798,10 @@ function bindLogin() {
   });
   $('#logout-btn').addEventListener('click', async () => {
     try { if (!Session.demo) await api.post('/api/director/logout', {}); } catch { /* bỏ qua */ }
+    // Chế độ Supabase: đăng xuất trực tiếp thêm một lớp — nếu gọi API đăng
+    // xuất ở trên lỗi mạng thì phiên Supabase còn lưu sẽ tự khôi phục ở
+    // lần boot sau (người dùng bấm đăng xuất mà vẫn thấy mình đăng nhập).
+    try { if (isSb()) await window.OfficeSupabase.client().auth.signOut(); } catch { /* bỏ qua */ }
     try { if (S.sse) S.sse.close(); } catch { /* bỏ qua */ }
     Session.clear(); Office3D.dispose();
     showView('login'); boot();
@@ -1996,6 +2105,7 @@ async function renderPeople(screen) {
       const r = await api.post('/api/staff', { name: fd.get('name'), account: fd.get('account'), roleId: fd.get('roleId'), username: fd.get('username') || undefined, initialPassword: fd.get('password') || undefined, budget: fd.get('budget') ? Number(fd.get('budget')) : undefined });
       await refreshAll(); renderScreen();
       if (r.token) openModal('<h1>Đã tạo nhân viên</h1><p class="warnbox">Mã API token chỉ hiện <strong>một lần duy nhất</strong>. Ghi lại và đưa cho nhân viên qua kênh an toàn — mã này không hiện lại.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      else if (r.activationNote) openModal('<h1>Đã tạo nhân viên</h1><p>' + esc(r.activationNote) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã rõ</button></div>');
       else toast('Đã thêm nhân viên.');
     } catch (ex) { showError(ex); }
   });
@@ -2033,7 +2143,9 @@ async function renderPeople(screen) {
   $$('[data-staff-token]', screen).forEach((b) => b.addEventListener('click', async () => {
     try {
       const r = await api.post('/api/staff/' + b.dataset.staffToken + '/rotate-token', {});
-      openModal('<h1>Mã API mới</h1><p class="warnbox">Mã cũ đã hết hiệu lực. Mã mới chỉ hiện <strong>một lần duy nhất</strong> — ghi lại ngay.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      if (r.token) openModal('<h1>Mã API mới</h1><p class="warnbox">Mã cũ đã hết hiệu lực. Mã mới chỉ hiện <strong>một lần duy nhất</strong> — ghi lại ngay.</p><p class="mono">' + esc(r.token) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã ghi lại</button></div>');
+      else if (r.note) openModal('<h1>Cầu nối Supabase</h1><p>' + esc(r.note) + '</p><div class="toolbar"><button class="btn primary" type="button" onclick="document.querySelector(\'#modal-root\').hidden=true">Đã rõ</button></div>');
+      else toast('Đã cập nhật.');
     } catch (ex) { showError(ex); }
   }));
   $$('[data-staff-del]', screen).forEach((b) => b.addEventListener('click', async () => {
@@ -2178,16 +2290,20 @@ async function renderLogs(screen) {
 
 /* ---------------------------- Màn Cài đặt & kit --------------------------- */
 async function renderSettings(screen) {
+  const apiCard = isSb()
+    ? '<div class="card"><h2>Địa chỉ Supabase</h2><p class="hint">Đang nối Supabase — Project URL và anon key nằm trong file web/config.js (do người tạo project điền, không sửa ở đây). Máy chủ Node cũ không còn dùng nữa.</p></div>'
+    : '<div class="card"><h2>Địa chỉ máy chủ (API)</h2><form id="api-form"><label>API base URL — để trống nghĩa là cùng địa chỉ trang web<input name="apiBase" value="' + esc(Session.apiBase) + '" placeholder="https://may-chu-cua-ban:3101"></label><button class="btn" type="submit">Lưu và nối lại</button></form></div>';
   screen.innerHTML = '<h1>Cài đặt &amp; kit</h1>' +
-    (Session.demo ? '<p class="warnbox"><strong>Bản DEMO ngoại tuyến.</strong> Dữ liệu chỉ nằm trên trình duyệt này. Nối máy chủ thật để dùng hệ thống thật.</p>' : '<p class="hint">Đang nối máy chủ tại ' + esc(apiBase() || 'cùng địa chỉ trang web') + '.</p>') +
-    '<div class="card"><h2>Địa chỉ máy chủ (API)</h2><form id="api-form"><label>API base URL — để trống nghĩa là cùng địa chỉ trang web<input name="apiBase" value="' + esc(Session.apiBase) + '" placeholder="https://may-chu-cua-ban:3101"></label><button class="btn" type="submit">Lưu và nối lại</button></form></div>' +
+    (Session.demo ? '<p class="warnbox"><strong>Bản DEMO ngoại tuyến.</strong> Dữ liệu chỉ nằm trên trình duyệt này. Nối máy chủ thật để dùng hệ thống thật.</p>' : (isSb() ? '<p class="hint">Đang nối Supabase.</p>' : '<p class="hint">Đang nối máy chủ tại ' + esc(apiBase() || 'cùng địa chỉ trang web') + '.</p>')) +
+    apiCard +
     '<div class="card"><h2>Bộ kit cài cầu nối</h2><p class="hint">Mỗi tài khoản Muse cài một cầu nối mỏng để nối vào hệ thống: gửi nhịp tim, đọc trạng thái, nhận yêu cầu phê duyệt và trả quyết định. Hướng dẫn đầy đủ trong Tài liệu thiết kế.</p>' +
     '<div class="toolbar">' + ['bridge.js', 'install.sh', 'install.bat', 'config.example.json', 'README.md'].map((f) => '<button class="btn small" type="button" data-kit="' + f + '">' + f + '</button>').join('') + '</div>' +
     (Session.demo ? '<p class="hint">Tải kit cần nối máy chủ thật.</p>' : '') + '</div>' +
     '<div class="card"><h2>Xuất dữ liệu</h2><p class="hint">Xuất toàn bộ dữ liệu hệ thống (chức vụ, nhân sự, việc, phê duyệt, ngân sách, tin nhắn, nhật ký) thành một file JSON để sao lưu.</p><button class="btn" type="button" id="export-btn">Tải file JSON</button></div>' +
     (Session.demo ? '<div class="card"><h2>Bản demo</h2><p class="hint">Đổi danh tính để lái thử các vai trò.</p><div class="toolbar"><select id="demo-identity">' + DemoDB.load().staff.map((s) => '<option value="' + esc(s.id) + '" ' + (Session.me && s.id === Session.me.id ? 'selected' : '') + '>' + esc(s.name) + ' — ' + esc(demoRoleOf(DemoDB.data, s).name) + '</option>').join('') + '</select><button class="btn" type="button" id="demo-switch">Đổi danh tính</button><button class="btn danger" type="button" id="demo-reset">Đặt lại dữ liệu mẫu</button></div></div>' : '') +
     '<div class="card"><h2>Phiên hiện tại</h2><dl class="kv"><div class="row"><dt>Người dùng</dt><dd>' + esc(Session.me ? Session.me.name : '—') + '</dd></div><div class="row"><dt>Vai trò</dt><dd>' + esc(myRole().name) + '</dd></div><div class="row"><dt>Loại phiên</dt><dd>' + (Session.demo ? 'Demo ngoại tuyến' : Session.meType === 'director' ? 'Giám đốc (mật khẩu + TOTP)' : 'Nhân viên') + '</dd></div></dl></div>';
-  $('#api-form').addEventListener('submit', async (e) => {
+  const apiForm = $('#api-form');
+  if (apiForm) apiForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const v = new FormData(e.target).get('apiBase').trim().replace(/\/$/, '');
     localStorage.setItem('office.apiBase', v);
@@ -2199,6 +2315,17 @@ async function renderSettings(screen) {
   $$('[data-kit]', screen).forEach((b) => b.addEventListener('click', async () => {
     if (Session.demo) { toast('Tải kit cần nối máy chủ thật.'); return; }
     try {
+      // Chế độ Supabase: kit là file tĩnh trong repo, tải thẳng từ GitHub
+      // Pages (thư mục kit/ cạnh thư mục web/) — không qua API máy chủ.
+      if (isSb()) {
+        const res = await fetch('../kit/' + b.dataset.kit);
+        if (!res.ok) throw new Error('Không tải được file kit (HTTP ' + res.status + ').');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = b.dataset.kit; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        return;
+      }
       const res = await fetch(apiBase() + '/api/kit/' + b.dataset.kit, { headers: { Authorization: 'Bearer ' + Session.token } });
       if (!res.ok) throw new Error('Không tải được file kit (HTTP ' + res.status + ').');
       const blob = await res.blob();
