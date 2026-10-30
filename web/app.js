@@ -2071,20 +2071,20 @@ async function renderPeople(screen) {
   const director = isDirector();
   const roleRows = S.roles.map((r) => {
     const holders = S.staff.filter((s) => s.roleId === r.id).length;
-    return '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + r.level + '</td><td>' + (r.canApprove ? 'Có' : 'Không') + '</td><td>' + (r.canManage ? 'Có' : 'Không') + '</td><td>' + holders + ' người</td>' +
-      (director ? '<td><button class="btn small" type="button" data-role-edit="' + esc(r.id) + '">Sửa</button> <button class="btn small danger" type="button" data-role-del="' + esc(r.id) + '">Xoá</button></td>' : '<td>—</td>') + '</tr>';
+    return '<tr><td data-label="Tên"><strong>' + esc(r.name) + '</strong></td><td data-label="Cấp">' + r.level + '</td><td data-label="Được duyệt">' + (r.canApprove ? 'Có' : 'Không') + '</td><td data-label="Được quản trị">' + (r.canManage ? 'Có' : 'Không') + '</td><td data-label="Người giữ">' + holders + ' người</td>' +
+      (director ? '<td data-label="Thao tác" class="tbl-actions"><button class="btn small" type="button" data-role-edit="' + esc(r.id) + '">Sửa</button> <button class="btn small danger" type="button" data-role-del="' + esc(r.id) + '">Xoá</button></td>' : '<td data-label="Thao tác">—</td>') + '</tr>';
   }).join('');
   const staffRows = S.staff.map((s) => {
     const login = s.login || {};
-    return '<tr><td><strong>' + esc(s.name) + '</strong><div class="small">' + esc(s.account || '') + '</div></td>' +
-      '<td>' + esc(roleOfStaff(s).name) + '</td>' +
-      '<td><span class="pill ' + STATUS_META[effectiveStatus(s, S.approvals)].cls + '">' + STATUS_META[effectiveStatus(s, S.approvals)].label + '</span></td>' +
-      '<td>' + (login.username ? esc(login.username) + (login.disabled ? ' (đã khoá)' : '') + (login.mustChangePassword ? ' (phải đổi MK)' : '') : 'Chưa có') + '</td>' +
-      (director ? '<td><button class="btn small" type="button" data-staff-role="' + esc(s.id) + '">Đổi chức vụ</button> ' +
+    return '<tr><td data-label="Người"><strong>' + esc(s.name) + '</strong><div class="small">' + esc(s.account || '') + '</div></td>' +
+      '<td data-label="Chức vụ">' + esc(roleOfStaff(s).name) + '</td>' +
+      '<td data-label="Trạng thái"><span class="pill ' + STATUS_META[effectiveStatus(s, S.approvals)].cls + '">' + STATUS_META[effectiveStatus(s, S.approvals)].label + '</span></td>' +
+      '<td data-label="Đăng nhập">' + (login.username ? esc(login.username) + (login.disabled ? ' (đã khoá)' : '') + (login.mustChangePassword ? ' (phải đổi MK)' : '') : 'Chưa có') + '</td>' +
+      (director ? '<td data-label="Thao tác" class="tbl-actions"><button class="btn small" type="button" data-staff-role="' + esc(s.id) + '">Đổi chức vụ</button> ' +
         (login.username ? '<button class="btn small" type="button" data-staff-reset="' + esc(s.id) + '">Đặt lại MK</button> ' +
         '<button class="btn small" type="button" data-staff-disable="' + esc(s.id) + '" data-disabled="' + String(!!login.disabled) + '">' + (login.disabled ? 'Mở khoá' : 'Khoá') + '</button> ' +
         '<button class="btn small" type="button" data-staff-token="' + esc(s.id) + '">Cấp mã API</button> ' : '') +
-        '<button class="btn small danger" type="button" data-staff-del="' + esc(s.id) + '">Xoá</button></td>' : '<td>—</td>') + '</tr>';
+        '<button class="btn small danger" type="button" data-staff-del="' + esc(s.id) + '">Xoá</button></td>' : '<td data-label="Thao tác">—</td>') + '</tr>';
   }).join('');
   screen.innerHTML = '<h1>Nhân sự &amp; chức vụ</h1>' +
     '<p class="hint">Chức vụ là dữ liệu, không gắn cứng với người: đổi chức vụ của một người thì quyền của người đó đổi theo ngay. Mọi quyền trong hệ thống đều tính từ bảng chức vụ hiện tại. ' + (director ? '' : 'Bạn đang xem với quyền chỉ đọc — chỉ Giám đốc mới sửa được.') + '</p>' +
@@ -2161,12 +2161,12 @@ async function renderBudgets(screen) {
     const st = staffById(b.staffId); if (!st) return '';
     const pct = b.budget ? Math.min(100, Math.round((b.used / b.budget) * 100)) : 0;
     const state = b.resting ? '<span class="pill resting">Đang nghỉ</span>' : (b.budget && pct >= 80 ? '<span class="pill waiting">Sắp chạm (' + pct + '%)</span>' : '<span class="pill working">Bình thường</span>');
-    return '<tr><td><strong>' + esc(b.name) + '</strong></td>' +
-      '<td>' + (b.budget == null ? 'Chưa đặt mức' : fmtNum(b.budget)) + '</td>' +
-      '<td>' + fmtNum(b.used) + '</td>' +
-      '<td><div class="budgetbar"><i class="' + (pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '') + '" style="width:' + pct + '%"></i></div><span class="small">' + pct + '%</span></td>' +
-      '<td>' + state + '</td>' +
-      (isDirector() ? '<td><button class="btn small" type="button" data-budget-edit="' + esc(b.staffId) + '">Đặt mức / ghi nhận</button>' + (b.resting ? ' <button class="btn small primary" type="button" data-budget-topup="' + esc(b.staffId) + '">Nạp thêm 50%</button>' : '') + '</td>' : '<td>—</td>') + '</tr>';
+    return '<tr><td data-label="Người"><strong>' + esc(b.name) + '</strong></td>' +
+      '<td data-label="Mức">' + (b.budget == null ? 'Chưa đặt mức' : fmtNum(b.budget)) + '</td>' +
+      '<td data-label="Đã dùng">' + fmtNum(b.used) + '</td>' +
+      '<td data-label="Tiến độ"><div class="budgetbar"><i class="' + (pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '') + '" style="width:' + pct + '%"></i></div><span class="small">' + pct + '%</span></td>' +
+      '<td data-label="Trạng thái">' + state + '</td>' +
+      (isDirector() ? '<td data-label="Thao tác" class="tbl-actions"><button class="btn small" type="button" data-budget-edit="' + esc(b.staffId) + '">Đặt mức / ghi nhận</button>' + (b.resting ? ' <button class="btn small primary" type="button" data-budget-topup="' + esc(b.staffId) + '">Nạp thêm 50%</button>' : '') + '</td>' : '<td data-label="Thao tác">—</td>') + '</tr>';
   }).join('');
   screen.innerHTML = '<h1>Ngân sách token</h1>' +
     '<p class="hint">Mức ngân sách do Giám đốc đặt cho từng người — không có mức chung cố định. 80% thì cảnh báo, 100% thì nhân viên tự nghỉ (không nhận việc mới, cầu nối dừng gửi). Nạp thêm +50% để cho làm tiếp. Số "đã dùng" do cầu nối đẩy lên theo nhịp tim, hoặc Giám đốc ghi nhận thủ công có nhật ký.</p>' +
@@ -2275,9 +2275,9 @@ async function renderLogs(screen) {
     screen.innerHTML = '<h1>Nhật ký</h1><p class="hint">Nhật ký kiểm toán, cảnh báo và phiên đăng nhập chỉ Giám đốc mới xem được. Bạn có thể xem lịch sử phê duyệt của mình ở màn Phê duyệt và tin nhắn ở Phòng chat.</p>';
     return;
   }
-  const auditRows = S.audit.slice(-60).reverse().map((a) => '<tr><td>' + esc(fmtTime(a.at)) + '</td><td>' + esc(a.action) + '</td><td>' + esc(myName(a.actorId)) + '</td><td>' + esc(a.target || '—') + '</td><td>' + esc(a.result) + '</td></tr>').join('');
-  const alertRows = S.alerts.slice(-30).reverse().map((a) => '<tr><td>' + esc(fmtTime(a.at)) + '</td><td>' + esc(a.kind) + '</td><td>' + esc(a.text) + '</td></tr>').join('');
-  const sessionRows = S.sessions.map((s) => '<tr><td>' + esc(s.id) + '</td><td>' + esc(myName(s.staffId)) + '</td><td>' + esc(fmtTime(s.createdAt)) + '</td><td>' + esc(fmtTime(s.lastSeenAt)) + '</td><td><button class="btn small danger" type="button" data-revoke="' + esc(s.id) + '">Thu hồi</button></td></tr>').join('');
+  const auditRows = S.audit.slice(-60).reverse().map((a) => '<tr><td data-label="Thời gian">' + esc(fmtTime(a.at)) + '</td><td data-label="Hành động">' + esc(a.action) + '</td><td data-label="Người">' + esc(myName(a.actorId)) + '</td><td data-label="Đối tượng">' + esc(a.target || '—') + '</td><td data-label="Kết quả">' + esc(a.result) + '</td></tr>').join('');
+  const alertRows = S.alerts.slice(-30).reverse().map((a) => '<tr><td data-label="Thời gian">' + esc(fmtTime(a.at)) + '</td><td data-label="Loại">' + esc(a.kind) + '</td><td data-label="Nội dung">' + esc(a.text) + '</td></tr>').join('');
+  const sessionRows = S.sessions.map((s) => '<tr><td data-label="Phiên">' + esc(s.id) + '</td><td data-label="Người">' + esc(myName(s.staffId)) + '</td><td data-label="Tạo lúc">' + esc(fmtTime(s.createdAt)) + '</td><td data-label="Thấy lần cuối">' + esc(fmtTime(s.lastSeenAt)) + '</td><td data-label="Thao tác" class="tbl-actions"><button class="btn small danger" type="button" data-revoke="' + esc(s.id) + '">Thu hồi</button></td></tr>').join('');
   screen.innerHTML = '<h1>Nhật ký</h1>' +
     '<h2>Cảnh báo</h2>' + (alertRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Thời gian</th><th>Loại</th><th>Nội dung</th></tr></thead><tbody>' + alertRows + '</tbody></table></div>' : '<p class="hint">Chưa có cảnh báo nào.</p>') +
     '<h2>Phiên đăng nhập đang mở</h2>' + (sessionRows ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Phiên</th><th>Người</th><th>Tạo lúc</th><th>Thấy lần cuối</th><th></th></tr></thead><tbody>' + sessionRows + '</tbody></table></div>' : '<p class="hint">Không có phiên nào.</p>') +
@@ -2368,13 +2368,13 @@ function renderDocs(screen) {
     '<li><strong>Vai trò linh hoạt:</strong> chức vụ theo từng việc, không gắn cứng theo người. Quyền luôn tính từ dữ liệu chức vụ hiện tại.</li></ul>' +
     '<h2>Các mô-đun</h2>' +
     '<table><thead><tr><th>Mô-đun</th><th>Việc nó làm</th></tr></thead><tbody>' +
-    '<tr><td>Quản trị tổ chức</td><td>Giám đốc quản lý chức vụ (cấp, được duyệt, được quản trị) và nhân viên (tạo, đặt lại mật khẩu, khoá, xoá, cấp mã API).</td></tr>' +
-    '<tr><td>Văn phòng 3D</td><td>Phòng làm việc trực quan: nhân vật, trạng thái, đèn đỏ khi có yêu cầu chờ, gọi họp, biên bản.</td></tr>' +
-    '<tr><td>Quản lý việc</td><td>Việc qua 4 cột, nhận nguyên tử, không tự duyệt, đính kèm rule và link công khai.</td></tr>' +
-    '<tr><td>Phê duyệt</td><td>Hàng đợi mọi yêu cầu cấp quyền; duyệt/từ chối có lý do; nhật ký kiểm toán; cấm tự duyệt ở mọi cấp.</td></tr>' +
-    '<tr><td>Phòng chat</td><td>Trò chuyện tự do hai chiều, nhắc tên [ASK:Tên] báo ngay, gắn tin vào việc, link đính kèm.</td></tr>' +
-    '<tr><td>Ngân sách token</td><td>Mức theo từng người, cảnh báo 80%, nghỉ ở 100%, nạp thêm 50%.</td></tr>' +
-    '<tr><td>Máy chủ + cầu nối</td><td>Máy chủ Node.js + SQLite (zero-dependency), SSE đẩy trực tiếp, cầu nối gửi nhịp tim và xin duyệt.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Quản trị tổ chức</td><td data-label="Việc nó làm">Giám đốc quản lý chức vụ (cấp, được duyệt, được quản trị) và nhân viên (tạo, đặt lại mật khẩu, khoá, xoá, cấp mã API).</td></tr>' +
+    '<tr><td data-label="Mô-đun">Văn phòng 3D</td><td data-label="Việc nó làm">Phòng làm việc trực quan: nhân vật, trạng thái, đèn đỏ khi có yêu cầu chờ, gọi họp, biên bản.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Quản lý việc</td><td data-label="Việc nó làm">Việc qua 4 cột, nhận nguyên tử, không tự duyệt, đính kèm rule và link công khai.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Phê duyệt</td><td data-label="Việc nó làm">Hàng đợi mọi yêu cầu cấp quyền; duyệt/từ chối có lý do; nhật ký kiểm toán; cấm tự duyệt ở mọi cấp.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Phòng chat</td><td data-label="Việc nó làm">Trò chuyện tự do hai chiều, nhắc tên [ASK:Tên] báo ngay, gắn tin vào việc, link đính kèm.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Ngân sách token</td><td data-label="Việc nó làm">Mức theo từng người, cảnh báo 80%, nghỉ ở 100%, nạp thêm 50%.</td></tr>' +
+    '<tr><td data-label="Mô-đun">Máy chủ + cầu nối</td><td data-label="Việc nó làm">Máy chủ Node.js + SQLite (zero-dependency), SSE đẩy trực tiếp, cầu nối gửi nhịp tim và xin duyệt.</td></tr>' +
     '</tbody></table>' +
     '<h2>Ghi công (theo phác thảo gốc)</h2>' +
     '<p>Dựa trên nghiên cứu 23 dự án mã nguồn mở. Năm dự án tham khảo chính: Claw-Empire (kiến trúc manager–worker + phê duyệt), Paperclip (approval + budget), BagIdea Office (phòng 3D + AI), Agent Office (bảng 2D /lite), Claw3D (văn phòng 3D theo thời gian thực). Ý tưởng lấy cảm hứng, triển khai viết mới cho hệ thống này — không sao chép mã.</p>' +
