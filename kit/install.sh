@@ -29,23 +29,22 @@ mkdir -p "$DEST"
 cp bridge.js "$DEST/bridge.js"
 chmod 600 "$DEST/bridge.js"
 
-# 3. Hỏi thông tin (token nhập không hiện màn hình, không ghi vào lịch sử lệnh)
-printf "Địa chỉ máy chủ [http://localhost:3101]: "
-read -r SERVER; SERVER="${SERVER:-http://localhost:3101}"
-printf "Tên của bạn (đúng tên trong hệ thống): "
+# 3. Hỏi thông tin (mật khẩu nhập không hiện màn hình, không ghi vào lịch sử lệnh)
+# Supabase: đăng nhập bằng tên đăng nhập + mật khẩu của chính nhân viên
+# (GoTrue password grant → JWT). KHÔNG dùng service_role key, KHÔNG dùng
+# token API chia sẻ nữa. Anon key là khóa công khai, nhập hiện màn hình được.
+printf "Supabase Project URL (vd https://xyzcompany.supabase.co): "
+read -r SB_URL
+printf "Supabase anon key (Project Settings -> API -> anon public): "
+read -r SB_ANON
+printf "Tên đăng nhập của bạn (vd linh — đúng username trong hệ thống): "
 read -r NAME
-printf "Token API của bạn (Giám đốc cấp, chỉ hiện một lần — nhập không hiện màn hình): "
-read -rs TOKEN; echo
-if [ -z "$TOKEN" ]; then echo "LỖI: chưa nhập token."; exit 1; fi
+printf "Mật khẩu của bạn (nhập không hiện màn hình): "
+read -rs PASS; echo
+if [ -z "$SB_URL" ] || [ -z "$SB_ANON" ] || [ -z "$NAME" ] || [ -z "$PASS" ]; then echo "LỖI: chưa nhập đủ thông tin."; exit 1; fi
 umask 077
-cat > "$DEST/config.json" <<EOF
-{
-  "server": "$SERVER",
-  "name": "$NAME",
-  "token": "$TOKEN"
-}
-EOF
-chmod 600 "$DEST/config.json"
+# Ghi JSON bằng node để mật khẩu chứa ký tự đặc biệt cũng không vỡ file.
+node -e 'const fs=require("node:fs");const f=process.argv[1];fs.writeFileSync(f,JSON.stringify({supabaseUrl:process.argv[2],anonKey:process.argv[3],username:process.argv[4],password:process.argv[5]},null,2));fs.chmodSync(f,0o600);' "$DEST/config.json" "$SB_URL" "$SB_ANON" "$NAME" "$PASS"
 echo "Đã ghi cấu hình (chỉ bạn đọc được)."
 
 # 4. Đăng ký tự khởi động lại (systemd user unit; macOS: xem kit/README)
@@ -80,11 +79,11 @@ else
   echo "Trên macOS, xem kit/README (launchd) để đăng ký tự chạy."
 fi
 
-# 5. Thử nối máy chủ
-echo "Thử kiểm tra máy chủ..."
-if curl -fsS --max-time 10 "$SERVER/api/health" >/dev/null 2>&1; then
-  echo "Máy chủ phản hồi OK."
+# 5. Thử nối Supabase (endpoint sức khoẻ của Auth, không cần đăng nhập)
+echo "Thử kiểm tra Supabase..."
+if curl -fsS --max-time 10 "$SB_URL/auth/v1/health" >/dev/null 2>&1; then
+  echo "Supabase phản hồi OK."
 else
-  echo "CẢNH BÁO: chưa nối được máy chủ ($SERVER). Kiểm tra địa chỉ + máy chủ có đang chạy không (xem kit/README mục Khắc phục sự cố)."
+  echo "CẢNH BÁO: chưa nối được Supabase ($SB_URL). Kiểm tra Project URL + mạng (xem kit/README mục Khắc phục sự cố)."
 fi
 echo "XONG. Cầu nối đang chạy nền và tự hồi phục khi mất mạng."
