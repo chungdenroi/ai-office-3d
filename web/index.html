@@ -25,6 +25,17 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 <!-- MÀN HÌNH ĐĂNG NHẬP: không nội dung nào của hệ thống hiện trước khi đăng nhập. -->
 <div id="login-view" hidden>
   <div class="login-wrap">
+    <div class="login-split">
+    <div class="login-brand-panel">
+      <div class="brand-mark" aria-hidden="true">◆</div>
+      <h1>Trung tâm điều phối</h1>
+      <p>Hệ thống AI nhân viên — Công ty Enteesee. Mọi việc, phê duyệt và ngân sách của đội đều vận hành tại một nơi, theo thời gian thực.</p>
+      <ul class="login-feats">
+        <li><span><b>Văn phòng 3D trực tiếp</b> — nhân vật, trạng thái và đèn đỏ phản ánh dữ liệu thật trên máy chủ.</span></li>
+        <li><span><b>Hộp phê duyệt mọi quyền</b> — đăng nhập, tải file, cài ứng dụng: quyết định ngay trên web.</span></li>
+        <li><span><b>Ngân sách token</b> — mức theo từng người, cảnh báo 80%, tự nghỉ ở 100%.</span></li>
+      </ul>
+    </div>
     <div class="login-card">
       <div class="login-brand">TRUNG TÂM ĐIỀU PHỐI</div>
       <div class="login-sub">Hệ thống AI nhân viên — Công ty Enteesee</div>
@@ -77,6 +88,7 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
         <p class="hint demo-note" id="demo-note" hidden>Bản dùng thử chỉ chạy trên trình duyệt này, dữ liệu mẫu lưu ở máy của bạn, không nối máy chủ thật. Mọi màn hình đều ghi rõ “DEMO”.</p>
       </div>
     </div>
+    </div>
   </div>
 </div>
 
@@ -84,45 +96,74 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 <div id="app-view" hidden>
   <header class="topbar">
     <div class="topbar-left">
-      <div class="brand">TRUNG TÂM ĐIỀU PHỐI</div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">◆</span><span class="brand-name">TRUNG TÂM ĐIỀU PHỐI</span></div>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <span class="crumb" id="crumb">Văn phòng 3D</span>
       <span class="env-badge" id="env-badge" hidden>DEMO NGOẠI TUYẾN</span>
     </div>
     <div class="topbar-status" id="topbar-status" aria-live="polite">Đang nối máy chủ…</div>
-    <button class="approval-badge" id="approval-badge" type="button" hidden>0 chờ duyệt</button>
-    <div class="topbar-user">
-      <span id="me-label">—</span>
-      <button class="btn small" id="logout-btn" type="button">Đăng xuất</button>
+    <div class="topbar-right">
+      <button class="approval-badge" id="approval-badge" type="button" hidden>0 chờ duyệt</button>
+      <div class="topbar-user">
+        <span id="me-label">—</span>
+        <button class="btn small" id="logout-btn" type="button">Đăng xuất</button>
+      </div>
     </div>
   </header>
 
   <div class="shell">
     <nav class="sidebar" id="sidebar" aria-label="Menu chính">
-      <a href="#/office" data-nav="office" data-icon="▣">Văn phòng 3D</a>
-      <a href="#/chat" data-nav="chat" data-icon="✉">Phòng chat <span class="nav-badge" id="chat-badge" hidden></span></a>
-      <a href="#/jobs" data-nav="jobs" data-icon="▤">Việc</a>
-      <a href="#/approvals" data-nav="approvals" data-icon="✓">Phê duyệt <span class="nav-badge" id="nav-approval-badge" hidden></span></a>
-      <a href="#/people" data-nav="people" data-icon="♟">Nhân sự &amp; chức vụ</a>
-      <a href="#/budgets" data-nav="budgets" data-icon="◈">Ngân sách</a>
-      <a href="#/logs" data-nav="logs" data-icon="≣">Nhật ký</a>
-      <a href="#/settings" data-nav="settings" data-icon="⚙">Cài đặt &amp; kit</a>
-      <div class="sidebar-footer"><a href="#/docs" data-nav="docs" data-icon="▨">Tài liệu thiết kế</a></div>
+      <div class="sidebar-workspace">
+        <div class="workspace-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1"/></svg></div>
+        <div class="workspace-copy"><strong>Công ty Enteesee</strong><span>Hệ thống AI nhân viên</span></div>
+      </div>
+      <div class="nav-group" aria-label="Không gian làm việc">
+        <div class="nav-group-label">WORKSPACE</div>
+        <a href="#/office" data-nav="office"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></svg>Văn phòng 3D</a>
+      </div>
+      <div class="nav-group" aria-label="Vận hành">
+        <div class="nav-group-label">OPERATIONS</div>
+        <a href="#/chat" data-nav="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16v11H7l-3 3z"/><path d="M8 9h8M8 12h5"/></svg>Phòng chat <span class="nav-badge" id="chat-badge" hidden></span></a>
+        <a href="#/jobs" data-nav="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16m0-11h13M8 14h13"/></svg>Việc</a>
+        <a href="#/approvals" data-nav="approvals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m5 12 4 4L19 6"/><path d="M21 12v7H3V5h11"/></svg>Phê duyệt <span class="nav-badge" id="nav-approval-badge" hidden></span></a>
+        <a href="#/people" data-nav="people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5"/></svg>Nhân sự &amp; chức vụ</a>
+        <a href="#/budgets" data-nav="budgets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>Ngân sách</a>
+      </div>
+      <div class="nav-group" aria-label="Hệ thống">
+        <div class="nav-group-label">SYSTEM</div>
+        <a href="#/logs" data-nav="logs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Nhật ký</a>
+        <a href="#/settings" data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9 7 7m10 10 2.1 2.1m0-14.2L17 7M7 17l-2.1 2.1"/></svg>Cài đặt &amp; kit</a>
+        <a href="#/docs" data-nav="docs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8M8 17h8"/></svg>Tài liệu thiết kế</a>
+      </div>
+      <div class="sidebar-footer">
+        <div class="profile-row">
+          <div class="avatar" id="side-avatar">–</div>
+          <div class="profile-copy"><strong id="side-me-name">—</strong><span id="side-me-role">—</span></div>
+          <span class="conn-dot" id="side-conn" title="Kết nối"></span>
+        </div>
+      </div>
     </nav>
     <main class="main" id="screen" tabindex="-1"></main>
   </div>
 
   <nav class="bottomnav" id="bottomnav" aria-label="Menu chính (di động)">
-    <a href="#/office" data-nav="office"><span class="bn-ico">▣</span><span class="bn-label">Văn phòng</span></a>
-    <a href="#/chat" data-nav="chat"><span class="bn-ico">✉</span><span class="bn-label">Chat</span><span class="nav-badge" id="chat-badge-m" hidden></span></a>
-    <a href="#/jobs" data-nav="jobs"><span class="bn-ico">▤</span><span class="bn-label">Việc</span></a>
-    <a href="#/approvals" data-nav="approvals"><span class="bn-ico">✓</span><span class="bn-label">Duyệt</span><span class="nav-badge" id="nav-approval-badge-m" hidden></span></a>
-    <a href="#/people" data-nav="people"><span class="bn-ico">♟</span><span class="bn-label">Nhân sự</span></a>
-    <button type="button" id="more-btn" aria-haspopup="true" aria-expanded="false"><span class="bn-ico">⋯</span><span class="bn-label">Thêm</span></button>
+    <a href="#/office" data-nav="office"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/></svg><span class="bn-label">Văn phòng</span></a>
+    <a href="#/chat" data-nav="chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H7l-3 3z"/></svg><span class="bn-label">Chat</span><span class="nav-badge" id="chat-badge-m" hidden></span></a>
+    <a href="#/jobs" data-nav="jobs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16m0-11h13"/></svg><span class="bn-label">Việc</span></a>
+    <a href="#/approvals" data-nav="approvals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4L19 6"/></svg><span class="bn-label">Duyệt</span><span class="nav-badge" id="nav-approval-badge-m" hidden></span></a>
+    <button type="button" id="more-btn" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><span class="bn-label">Thêm</span></button>
   </nav>
   <div class="more-sheet" id="more-sheet" hidden>
+    <a href="#/people" data-nav="people">Nhân sự &amp; chức vụ</a>
     <a href="#/budgets" data-nav="budgets">Ngân sách</a>
     <a href="#/logs" data-nav="logs">Nhật ký</a>
     <a href="#/settings" data-nav="settings">Cài đặt &amp; kit</a>
     <a href="#/docs" data-nav="docs">Tài liệu thiết kế</a>
+  </div>
+  <div class="mobile-sheet" id="mobile-sheet" hidden role="dialog" aria-label="Hồ sơ nhân viên">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <button class="btn ghost sheet-close" id="mobile-sheet-close" type="button" aria-label="Đóng">✕</button>
+    <div id="mobile-sheet-body"></div>
   </div>
 </div>
 
