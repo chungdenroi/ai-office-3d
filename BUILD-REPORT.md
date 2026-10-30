@@ -405,3 +405,119 @@ dòng 1094–1299), camera (`applyCamera`, dòng 1062–1083), `makeLabel` (dòn
 `docs/theme-options/warm/*.png`, `BUILD-REPORT.md`, `PROGRESS.md`
 (+ các file đợt trước nếu chưa push). Sau deploy, kiểm chứng live bằng
 `?theme=dark|light|warm` trên trang thật rồi mới đưa Giám đốc chọn.
+
+## 9. Thiết kế lại hiện đại 30/10 (Giám đốc: 3 bản theme "như trung tâm điều phối những năm 2000, thiết kế quá cổ" — 06:58 +07)
+
+Tiền đề đúng: 3 theme cũ chỉ tô màu lại cùng một bố cục cũ. Đợt này KHÔNG tô
+màu lại — viết lại ngôn ngữ thiết kế. Cùng ứng dụng, cùng 9 màn hình, cùng
+chức năng, cùng chữ tiếng Việt; chỉ đổi lớp hình ảnh. Tham chiếu: sự tiết chế
+của Linear / Vercel / Raycast / Notion.
+
+### 9.1. Hệ thống thiết kế mới (toàn bộ trong `web/style.css` — viết lại)
+
+- **Token:** nền `--bg:#FAFAF9`; mặt phẳng trắng; chữ `#18181B`; chữ mờ
+  `#6B7280`; viền sợi tóc `rgba(17,24,39,.08)`; sidebar mực `#0C111D`; MỘT
+  màu nhấn indigo-600 `#4F46E5` dùng dè sẻn (link, trạng thái chọn, vòng
+  focus, bubble chat của mình); trạng thái giữ nguyên ngữ nghĩa nhưng dịu
+  (đỏ `#DC2626`, xanh lá `#067647`, vàng `#B54708` + nền tint nhạt).
+- **Chữ:** chồng Inter-first; tiêu đề tracking `-0.02em`, 3 tầng rõ
+  (21px/16px/14px); thân 14px; nhãn mục nhỏ in hoa 11px, giãn chữ `.08em`,
+  màu mờ. Không serif, không in đậm tràn lan.
+- **Bề mặt:** thẻ trắng, viền 1px sợi tóc, bo 12–14px, MỘT bóng mềm
+  (`0 1px 2px rgba(16,24,40,.05)`); số liệu KPI = số lớn tối giản + nhãn
+  nhỏ in hoa (không còn hộp tô đầy); không gradient, không viền đôi, không
+  bóng bevel.
+- **Sidebar:** hẹp 232px, nền mực, icon + nhãn (icon qua thuộc tính
+  `data-icon` vẽ bằng CSS), mục đang chọn = viên thuốc mờ trắng; chân sidebar
+  tách bằng viền mờ. **Topbar:** cao 56px, trắng mờ + blur, viền dưới sợi
+  tóc; huy hiệu chờ duyệt = viên thuốc đỏ + chấm trắng (vẫn không thể bỏ
+  qua — đã đo màu nền `#DC2626`/chữ trắng).
+- **Điều khiển:** nút bo 10px, chính = mực đặc, phụ = viền sợi tóc, ghost
+  trong suốt; input bo 10px + vòng focus indigo nhạt; chuyển động 150ms ease;
+  vòng focus nhìn thấy được ở mọi điều khiển, TRỪ `#screen` (xem §9.3).
+- **Kanban:** làn phẳng `#F4F4F5`, thẻ trắng viền sợi tóc + vạch nhấn 3px.
+  **Chat:** bubble bo 16px, bubble của mình nền indigo nhạt `#EEF2FF`;
+  cuộc đang chọn = nền indigo nhạt + vạch nhấn trái 3px.
+- **Sân 3D:** khung bo 16px + bóng mềm; cụm nút góc nhìn thành **viên thuốc
+  nổi** giữa khung vẽ (nền trắng mờ + blur, bo 999px, bóng mềm), nút đang
+  chọn = mực đặc; dòng gợi ý/ghi nguồn vẫn nằm dưới khung vẽ (không phủ).
+- **Mobile 390px:** cùng hệ thống; menu dưới = trắng mờ + blur, viền trên
+  sợi tóc, mục đang chọn = viên thuốc indigo nhạt; mục tiêu chạm ≥44px.
+
+### 9.2. File đổi (chỉ lớp hình ảnh)
+
+- `web/style.css` — viết lại hoàn toàn (211 dòng cũ → hệ thống mới; mọi class
+  cũ vẫn được định nghĩa, không class nào của `app.js` bị bỏ).
+- `web/index.html` — (1) **bỏ script chọn theme `?theme=...`**: giao diện
+  hiện đại là mặc định duy nhất, không còn tham số; 3 file
+  `web/themes/theme-*.css` còn trên đĩa nhưng không được tải nữa (chết lâm
+  sàng, ghi rõ để đợt dọn sau xóa nếu muốn); (2) thêm `data-icon` cho 9 mục
+  sidebar. Không đổi cấu trúc DOM nào khác.
+- `web/app.js` — chỉ 2 chỗ: bảng `SCENE_PALETTES.default` (ban ngày dịu,
+  sàn trung tính ấm `#DDD5C6`, gỗ trầm, sương nhẹ) và `makeLabel` (nhãn:
+  nền trắng bóng mềm + viền nhạt 3px `#E3E6EA`, chữ Inter 650/550, dòng phụ
+  xám `#6B7280`). Không đổi hình học, camera, `fitLabels`, luồng, API.
+- Không động: `server/`, `kit/`, `web/vendor/`, `~/workspace/ai-company/`,
+  nội dung tiếng Việt, mọi luồng nghiệp vụ.
+
+### 9.3. Hai lỗi tìm thấy khi xem ảnh chụp — đã sửa và chụp lại
+
+1. **Vòng focus tím quanh toàn bộ nội dung:** `#screen` (`<main>`,
+   `tabindex="-1"`) được focus bằng mã và rule `:focus-visible` toàn cục vẽ
+   vòng 2px indigo quanh cả vùng nội dung — trông như lỗi hiển thị. Sửa:
+   `#screen:focus{outline:none}` (chỉ vùng này; vòng focus của nút/input/
+   link giữ nguyên). Đã đo lại: không còn phần tử nào có outline trong
+   probe CDP, ảnh chụp lại sạch.
+2. **Viên thuốc góc nhìn xuống 2 hàng ở desktop:** phần tử absolute
+   `left:50%` + `transform` bị giới hạn chiều rộng co-vừa trong 50% còn lại
+   của khung chứa nên tự ngắt hàng. Sửa: `width:max-content` (giới hạn trên
+   vẫn là `max-width:calc(100% - 20px)`). Ảnh chụp lại: 1 hàng đủ 4 nút ở
+   1440px; ở 390px vẫn 2 hàng (đúng giới hạn chiều rộng, đã đo không tràn).
+
+### 9.4. Kiểm thử — máy chủ thật + DB tạm + chrome-headless-shell qua CDP
+
+Script `/tmp/modern-test/drive.mjs` (dựa trên driver đợt theme, sửa đường
+dẫn Chrome sang bản ms-playwright + vào demo bằng cách trỏ API base lưu
+trong localStorage tới cổng không tới được). Máy chủ thật chạy
+`OFFICE_PORT=3299`, `OFFICE_DATA_DIR=/tmp/modern-test/data` (DB tạm):
+`/api/health` 200 (`store:sqlite`, 5 nhân viên, 0 việc). 7 ảnh chụp, đã xem
+từng ảnh bằng mắt:
+
+| Ảnh | Kết quả xem |
+|---|---|
+| `login-1440.png` | Thẻ đăng nhập mới: dấu mực, tab phân đoạn, nút mực đặc — sạch |
+| `office-1440.png` | Sidebar mực, KPI tối giản, viên thuốc góc nhìn 1 hàng, cảnh 3D sáng dịu, nhãn mới đọc được, không vòng focus lạ |
+| `jobs-1440.png` | Làn Kanban phẳng, thẻ trắng, form sạch, không vòng focus lạ |
+| `chat-1440.png` | Bubble của mình nền indigo nhạt + tag nhắc tên, cuộc đang chọn có vạch nhấn — sạch |
+| `office-390.png` | Không tràn ngang, menu dưới cố định + mục đang chọn indigo nhạt, viên thuốc 2 hàng gọn trong khung |
+| `chat-390.png` | Không tràn ngang, danh sách + bubble gọn, menu dưới đúng |
+| `jobs-390.png` | Không tràn ngang, menu dưới đúng |
+
+Đo bằng CDP trên cả 2 cỡ: `scrollWidth == innerWidth` (không tràn ngang);
+menu dưới `display:flex`, `bottom == innerHeight`, cao 65px ở 390px; canvas
+3D hiện (`canvasW` 726/360); chữ "Cảnh 3D đã sẵn sàng", không có
+"THREE is not defined"; nút góc nhìn đang chọn nền `#111827`/chữ trắng;
+huy hiệu chờ duyệt nền `#DC2626`/chữ trắng; `node --check web/app.js` PASS;
+cân bằng ngoặc CSS PASS; 0 lỗi JS (chỉ 1 log `ERR_UNSAFE_PORT` — chính là
+probe API cố tình trỏ tới cổng không tới được để vào demo mode, theo thiết
+kế kiểm thử). Máy chủ thử nghiệm đã tắt; DB thật không chạm
+(`server/data/office.db` giữ nguyên mtime 29/10 21:57).
+
+### 9.5. Còn tồn tại / UNTESTED
+
+- Dòng phụ của nhãn tên 3D ở góc tổng vẫn chồng nhau một phần (hành vi có
+  sẵn từ các đợt trước, đã ghi ở §7/§8 — không phải do đợt thiết kế này,
+  nhãn mới chỉ đổi kiểu chữ/viền/bóng).
+- Điện thoại thật (Safari iOS, cảm ứng kéo/chụm, xoay), chuyển động theo
+  thời gian, >6 nhân viên, kit/Windows, chạy 24/7: UNTESTED như trước.
+- **Cổng kiểm chứng live sau deploy vẫn bắt buộc** (desktop + 390px thật)
+  trước khi đưa Giám đốc nhìn — ảnh chụp ở đây là headless-shell +
+  SwiftShader, không phải trình duyệt/điện thoại thật.
+- Hệ thống dùng token CSS nên nếu Giám đốc gửi ảnh tham chiếu về thứ anh
+  thấy đẹp, chỉ cần đổi token là khớp được — không cần viết lại.
+
+### 9.6. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/index.html`, `web/app.js`, `web/style.css`, `BUILD-REPORT.md`,
+`PROGRESS.md`, `docs/redesign-modern/*.png` (7 ảnh). Không cần push 3 file
+`web/themes/*` (không còn được tải).
