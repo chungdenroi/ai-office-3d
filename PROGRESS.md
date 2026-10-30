@@ -1,6 +1,38 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
-## TRẠNG THÁI — THIẾT KẾ OBSIDIAN + MẬT ĐỘ VẬN HÀNH XONG (CHƯA DEPLOY), CHỜ KIỂM CHỨNG LIVE + GIÁM ĐỐC NHÌN
+## TRẠNG THÁI — MIGRATION SUPABASE XONG CODE (CHƯA DEPLOY), CHỜ PROJECT THẬT + KIỂM CHỨNG LIVE
+
+## (0e) MỚI NHẤT 30/10 — Migration backend sang Supabase Free (theo lệnh Giám đốc 12:28–12:29, bỏ hướng MacBook + Tailscale)
+
+- Web tĩnh giữ nguyên URL GitHub Pages, chỉ backend đổi: Node/SQLite/SSE
+  → Supabase (Auth + PostgREST + RLS + Realtime). `server/` thành legacy
+  (không chạy, không sửa, không xoá, không động `server/data/office.db`).
+- Mới: `supabase/migrations/` 001–004 (lược đồ, RLS + trigger cấm tự
+  duyệt/máy trạng thái việc, seed y hệt máy chủ cũ, Realtime) +
+  `supabase/README.md` (runbook + quyết định + nợ kỹ thuật).
+- Mới: `web/config.js` (giữ chỗ Project URL + anon key — parent điền),
+  `web/vendor/supabase.min.js` (UMD v2.118.0 vendored, 0 CDN),
+  `web/supabase.js` (dịch /api/... sang Supabase, giữ đúng ngữ nghĩa
+  server.js: cấm tự duyệt 2 lớp, nhận việc nguyên tử, ngưỡng 80%/100%,
+  bắt đổi mật khẩu lần đầu, tin nhắn chỉ phòng chung + tin mình).
+- Sửa phẫu thuật `web/app.js` + `web/index.html`: route sang Supabase khi
+  đã cấu hình (chưa cấu hình → DEMO ngoại tuyến có nhãn như cũ), Realtime
+  thay SSE, thăm dò dự phòng 120s, cài đặt lần đầu (nút riêng + xác minh
+  TOTP ngay trong lượt), kit tải file tĩnh từ repo. Giao diện Obsidian +
+  cảnh 3D không đổi.
+- Kit viết lại: bridge đăng nhập GoTrue JWT (không token API chia sẻ,
+  không service_role), Realtime WS + thăm dò REST 60s; install hỏi
+  Supabase URL/anon key/username/mật khẩu.
+- ĐÃ kiểm chứng: `node --check` mọi JS (PASS); đối chiếu cột + route;
+  rà 0 alert()/CDN/"NEXUS"/service_role/secret thật.
+- CHƯA (parent làm): tạo project → chạy 4 migration → điền config →
+  deploy gh-api → kiểm chứng live (Giám đốc/TOTP, kích hoạt nhân viên,
+  9 màn, Realtime 2 tab, 390px, 4 góc camera) + cầu nối với project thật +
+  headless DEMO regression (lần chạy trong đợt này bị gián đoạn).
+  SQL chưa chạy thật (không có Postgres local) — lỗi (nếu có) lộ ở SQL
+  Editor. Chi tiết: `BUILD-REPORT.md` §12, `supabase/README.md` §5/§7.
+
+## TRẠNG THÁI CŨ — THIẾT KẾ OBSIDIAN + MẬT ĐỘ VẬN HÀNH XONG (CHƯA DEPLOY), CHỜ KIỂM CHỨNG LIVE + GIÁM ĐỐC NHÌN
 
 ## (0d) MỚI NHẤT 30/10 — Tích hợp thiết kế Obsidian của ChatGPT + mật độ vận hành học từ ảnh đối thủ (CHƯA DEPLOY)
 
