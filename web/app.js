@@ -2200,7 +2200,12 @@ function chatTargets() {
 }
 function renderChatLog() {
   const log = $('#chat-log'); if (!log) return;
+  // Chống trùng hiển thị: cùng một id chỉ vẽ một lần, dù S.messages có lỡ
+  // chứa 2 bản (đường đua POST trả về vs realtime INSERT, 31/10).
+  const seen = new Set();
   const msgs = S.messages.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
     if (S.chatTarget === 'room') return m.toId === 'room';
     return (m.fromId === (Session.me && Session.me.id) && m.toId === S.chatTarget) || (m.fromId === S.chatTarget && m.toId === (Session.me && Session.me.id));
   });
@@ -2224,25 +2229,28 @@ async function renderChat(screen) {
   const targets = chatTargets();
   if (!targets.some((t) => t.id === S.chatTarget)) S.chatTarget = 'room';
   const cur = targets.find((t) => t.id === S.chatTarget);
-  screen.innerHTML = '<h1>Phòng chat</h1>' +
-    '<div class="card"><strong>Quy tắc phòng:</strong> nhắc tên bằng <code>@Tên</code> hoặc <code>[ASK:Tên]</code> thì người đó nhận thông báo <strong>ngay</strong>. Thời gian trả lời tuỳ câu hỏi, không ép thời hạn. Tin nhắn gắn vào việc sẽ hiện trong luồng của việc đó.</div>' +
-    '<div class="chat-layout"><div><h2>Người nhận</h2><div class="conv-list">' +
+  const myMentions = S.messages.filter((m) => m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id)).slice(-5).reverse();
+  screen.innerHTML = '<div class="chat-head"><h1>Phòng chat</h1>' +
+    '<p class="hint chat-rules">Quy tắc: nhắc tên bằng <code>@Tên</code> hoặc <code>[ASK:Tên]</code> thì người đó nhận thông báo <strong>ngay</strong>; thời gian trả lời tuỳ câu hỏi. Tin nhắn gắn vào việc sẽ hiện trong luồng của việc đó.</p></div>' +
+    '<div class="chat-layout"><div class="chat-side"><h2>Người nhận</h2><div class="conv-list">' +
     targets.map((t) => '<button type="button" class="conv-item' + (t.id === S.chatTarget ? ' active' : '') + '" data-chat-target="' + esc(t.id) + '">' +
       '<span class="dot ' + (t.id === 'room' ? 'green' : STATUS_META[effectiveStatus(staffById(t.id), S.approvals)].dot) + '"></span>' +
       '<span class="who"><b>' + esc(t.name) + '</b><span class="small muted">' + esc(t.sub) + '</span></span></button>').join('') +
     '</div>' +
-    '<h2>Nhắc tên tôi</h2>' +
-    (S.messages.filter((m) => m.taggedIds && Session.me && m.taggedIds.includes(Session.me.id)).slice(-5).reverse().map((m) => '<p class="small"><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text.slice(0, 80)) + '</p>').join('') || '<p class="hint">Chưa ai nhắc tên bạn.</p>') +
-    '</div>' +
-    '<div class="card chat-pane"><h2>' + esc(cur.name) + ' <span class="small">' + esc(cur.sub) + '</span></h2>' +
+    '<details class="chat-mentions"><summary>Nhắc tên tôi' + (myMentions.length ? ' (' + myMentions.length + ')' : '') + '</summary>' +
+    (myMentions.map((m) => '<p class="small"><strong>' + esc(myName(m.fromId)) + ':</strong> ' + esc(m.text.slice(0, 80)) + '</p>').join('') || '<p class="hint">Chưa ai nhắc tên bạn.</p>') +
+    '</details></div>' +
+    '<div class="chat-pane"><div class="chat-pane-head"><h2>' + esc(cur.name) + '</h2><span class="small">' + esc(cur.sub) + '</span></div>' +
     '<div class="chat-log" id="chat-log"></div>' +
     '<form class="composer" id="chat-form">' +
-    '<label>Nhắc tên nhanh<select id="tag-pick"><option value="">— Không nhắc ai —</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select></label>' +
-    '<label>Tin nhắn<textarea id="chat-text" rows="3" required placeholder="Nhắn tin…"></textarea></label>' +
-    '<div class="row2"><label>Gắn vào việc<select id="chat-job"><option value="">— Không gắn việc —</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select></label>' +
-    '<label>Link đính kèm<input id="chat-link" type="url" placeholder="https://…"></label></div>' +
-    '<label>Tiêu đề link<input id="chat-link-title" placeholder="Tiêu đề ngắn"></label>' +
-    '<button class="btn primary block" type="submit">Gửi</button></form></div></div>';
+    '<div class="composer-tools">' +
+    '<select id="tag-pick" title="Nhắc tên nhanh"><option value="">@ Nhắc tên nhanh</option>' + S.staff.filter((s) => !Session.me || s.id !== Session.me.id).map((s) => '<option value="' + esc(s.name) + '">[ASK:' + esc(s.name) + ']</option>').join('') + '</select>' +
+    '<select id="chat-job" title="Gắn vào việc"><option value="">Gắn vào việc…</option>' + S.jobs.map((j) => '<option value="' + esc(j.id) + '">' + esc(j.name) + '</option>').join('') + '</select>' +
+    '<button type="button" class="btn small" id="chat-link-toggle" aria-expanded="false">＋ Link</button>' +
+    '</div>' +
+    '<div class="composer-linkrow" id="chat-link-row" hidden><input id="chat-link" type="url" placeholder="https://…"><input id="chat-link-title" placeholder="Tiêu đề link"></div>' +
+    '<div class="composer-main"><textarea id="chat-text" rows="1" required placeholder="Nhắn tin…"></textarea>' +
+    '<button class="btn primary send" type="submit">Gửi</button></div></form></div></div>';
   $$('[data-chat-target]', screen).forEach((b) => b.addEventListener('click', () => { S.chatTarget = b.dataset.chatTarget; renderScreen(); }));
   renderChatLog();
   const tagPick = $('#tag-pick');
@@ -2252,6 +2260,19 @@ async function renderChat(screen) {
     ta.value = (ta.value ? ta.value + ' ' : '') + '[ASK:' + tagPick.value + '] ';
     ta.focus();
   });
+  const linkToggle = $('#chat-link-toggle');
+  linkToggle.addEventListener('click', () => {
+    const row = $('#chat-link-row');
+    const open = row.hidden;
+    row.hidden = !open;
+    linkToggle.setAttribute('aria-expanded', String(open));
+    if (open) $('#chat-link').focus();
+  });
+  // Ô nhập tự cao dần theo nội dung (tối đa 120px), kiểu messenger.
+  const taGrow = $('#chat-text');
+  const autogrow = () => { taGrow.style.height = 'auto'; taGrow.style.height = Math.min(taGrow.scrollHeight, 120) + 'px'; };
+  taGrow.addEventListener('input', autogrow);
+  autogrow();
   $('#chat-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = $('#chat-text').value.trim();
@@ -2261,9 +2282,11 @@ async function renderChat(screen) {
     if (linkUrl) body.link = { url: linkUrl, title: $('#chat-link-title').value.trim() || linkUrl };
     try {
       const msg = await api.post('/api/messages', body);
-      S.messages.push(msg);
+      // Tránh trùng: realtime INSERT có thể về trước khi POST trả về (đã
+      // đẩy tin này vào S.messages rồi) — chỉ push khi chưa có id này.
+      if (msg && !S.messages.some((m) => m.id === msg.id)) S.messages.push(msg);
       renderChatLog();
-      $('#chat-text').value = ''; $('#chat-link').value = ''; $('#chat-link-title').value = '';
+      $('#chat-text').value = ''; $('#chat-text').style.height = 'auto'; $('#chat-link').value = ''; $('#chat-link-title').value = '';
       feedAdd('Đã gửi tin tới ' + cur.name + '.');
     } catch (ex) { showError(ex); }
   });
