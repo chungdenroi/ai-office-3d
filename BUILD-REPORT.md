@@ -826,3 +826,134 @@ Kích hoạt: Giám đốc gửi 2 ảnh chụp điện thoại (~390px, màn Nh
 `BUILD-REPORT.md`, `PROGRESS.md`.
 (cộng dồn với §12.4: `web/supabase.js`, `web/config.js`, `kit/*`,
 `supabase/*`, `server/LEGACY.md`, `docs/HUONG-DAN-CAI-DAT.md`.)
+
+## 14. Rà và rút gọn chữ toàn app (31/10, lượt riêng sau §13 — theo yêu cầu Giám đốc 30/10 23:47 "nhiều chữ quá, tối giản bớt đi nhé, nhìn rối rắm")
+
+### 14.1. Phạm vi + nguyên tắc
+
+- Chỉ cắt/bỏ chữ thừa trong `web/app.js` (duy nhất 1 file đổi).
+  Không đổi layout, màu sắc, chức năng; không đụng responsive bảng
+  thành thẻ ở ≤640px (§13 giữ nguyên); không sửa `web/supabase.js`,
+  `web/config.js`; không đụng logic nghiệp vụ (API, RLS, cấm tự
+  duyệt, nhận việc nguyên tử, ngưỡng ngân sách). Phong cách Obsidian
+  giữ nguyên.
+- Màn đăng nhập (`web/index.html`) KHÔNG đụng lại — đã rút 3 gạch đầu
+  dòng + 1 dòng phụ ở §13. Các câu hướng dẫn an toàn ở màn đăng nhập /
+  cài đặt lần đầu (quét mã NGAY, mã bí mật chỉ hiện một lần, xác minh
+  trước khi vào) giữ nguyên vì là thông tin bắt buộc, không phải chữ
+  thừa.
+- Quy tắc vận hành giữ đủ ý, chỉ diễn đạt ngắn hơn: không tự duyệt,
+  nhận việc chỉ một người, cảnh báo 80% / tự nghỉ 100%, mức ngân sách
+  do Giám đốc đặt từng người. Không bỏ quy tắc nào.
+
+### 14.2. Đã cắt (theo màn — ví dụ tiêu biểu, toàn bộ ~35 chỗ)
+
+- Văn phòng 3D: phụ đề "Nhìn một cái là biết xưởng đang làm gì — mọi
+  con số từ dữ liệu thật…" → "Số liệu thật, cập nhật theo thời gian
+  thực."; credit "Dữ liệu thật từ máy chủ — không phải bản vẽ tĩnh."
+  → "Dữ liệu thật từ máy chủ."; gợi ý tải 3D bỏ câu giải thích
+  fallback; gợi ý 2D bỏ "cùng dữ liệu, cùng thao tác như bản 3D";
+  gợi ý biên bản bỏ "ghi bằng tay theo thiết kế đã chốt"; nhãn hồ sơ
+  "Chức vụ hiện tại" → "Chức vụ", "Việc đang phụ trách" → "Việc đang
+  làm", "Tiến độ việc chính" → "Tiến độ"; KPI "Ngân sách dùng nhiều
+  nhất" → "Ngân sách cao nhất"; "Chưa có việc nào đang chạy — mọi
+  việc đã xong hoặc đang chờ nhận." → "Chưa có việc nào đang chạy."
+- Việc: đoạn giới thiệu luồng 4 dòng → 2 dòng ("Chờ nhận → Đang làm
+  → Chờ duyệt → Hoàn thành. Nhận việc chỉ một người được. Không tự
+  duyệt việc của mình."); "Bạn chưa có quyền tạo việc (cần chức vụ có
+  quyền duyệt hoặc Giám đốc)." → "Bạn chưa có quyền tạo việc.";
+  "Link đính kèm (không bắt buộc)" → "Link đính kèm"; modal chi tiết:
+  "Link đính kèm (link công khai của Muse)" → "Link đính kèm",
+  "Chưa có tin nhắn nào gắn vào việc này." → "Chưa có tin nhắn nào.",
+  "Gửi tin vào luồng việc này" → "Gửi tin"; modal trả lại bỏ "người
+  phụ trách đọc lý do để sửa".
+- Phê duyệt: đoạn giới thiệu ~230 ký tự → ~130 ("Mọi yêu cầu cấp
+  quyền của mọi tài khoản Muse đều về đây — quyết định ngay tại đây.
+  Từ chối cần có lý do. Không tự duyệt yêu cầu của mình."); "Mục
+  tiêu / đối tượng" → "Mục tiêu"; "Ghi chú quyết định (bắt buộc khi
+  từ chối)" → "Ghi chú (bắt buộc khi từ chối)"; empty bỏ "Đèn đỏ
+  trong văn phòng sẽ tắt khi hết yêu cầu chờ."
+- Nhân sự & chức vụ: đoạn giới thiệu 3 dòng → 1 dòng ("Đổi chức vụ
+  thì quyền đổi theo ngay."); "Cấp (số càng nhỏ càng cao)" → "Cấp (số
+  nhỏ càng cao)"; "Được duyệt việc / yêu cầu" → "Được duyệt", "Được
+  quản trị hệ thống" → "Được quản trị" (khớp tiêu đề cột bảng);
+  "Ngân sách token ban đầu (để trống = chưa đặt)" → "Ngân sách token
+  ban đầu"; modal mã API bỏ "mã này không hiện lại" (trùng ý "chỉ
+  hiện một lần").
+- Ngân sách: đoạn giới thiệu 4 mệnh đề dài → 4 mệnh đề ngắn (giữ đủ:
+  Giám đốc đặt từng người, không mức chung, 80% cảnh báo, 100% tự
+  nghỉ, nạp +50%, số "đã dùng" do cầu nối đẩy lên / Giám đốc ghi
+  nhận); "Bản DEMO: số liệu mô phỏng trên trình duyệt này, không phải
+  số thật." → "Bản DEMO: số liệu mô phỏng, không phải số thật.";
+  nhãn modal bỏ "(để trống = chưa đặt)" và "(ghi nhận thủ công, có
+  nhật ký)".
+- Phòng chat: thẻ quy tắc bỏ "trò chuyện tự do hai chiều — ai cũng có
+  thể nhắn cho ai…" và "Việc thì theo kỷ luật: đã nhận → đang làm →
+  hoàn thành kèm bằng chứng." (trùng màn Việc); empty log 2 câu →
+  1 câu; placeholder "Nhắn tự do… nhắc tên bằng @Tên để báo ngay" →
+  "Nhắn tin…"; "Link đính kèm (link công khai của Muse)" → "Link đính
+  kèm"; placeholder "Tiêu đề ngắn cho link" → "Tiêu đề ngắn".
+- Nhật ký: màn chặn (không phải Giám đốc) 2 câu → 1 câu ("Chỉ Giám
+  đốc mới xem được nhật ký."); "Nhật ký kiểm toán (60 dòng gần nhất)"
+  → "Nhật ký kiểm toán".
+- Cài đặt & kit: thẻ Supabase bỏ "Đang nối Supabase —" và "Máy chủ
+  Node cũ không còn dùng nữa."; warnbox DEMO bỏ "Nối máy chủ thật để
+  dùng hệ thống thật."; thẻ kit bỏ liệt kê "gửi nhịp tim, đọc trạng
+  thái, nhận yêu cầu phê duyệt và trả quyết định"; thẻ xuất bỏ liệt kê
+  7 loại dữ liệu trong ngoặc.
+- Tài liệu thiết kế: intro 3 dòng → 1 dòng; 6 quyết định đã chốt rút
+  gọn từng mục (vd Hộp phê duyệt bỏ "cả đăng nhập, tải file, cài ứng
+  dụng, không chỉ việc trong web" và "không cần mở ứng dụng Muse");
+  bảng mô-đun rút 7 dòng mô tả (vd Văn phòng 3D bỏ "Phòng làm việc
+  trực quan:"); ghi công bỏ diễn giải từng dự án trong ngoặc, chỉ giữ
+  tên 5 dự án; bước cài cầu nối bỏ "(bridge.js, install.sh /
+  install.bat, config.example.json)" và "và xin duyệt khi cần".
+- Lẻ: trang trượt mobile "Tác vụ hiện tại" → "Việc hiện tại" (khớp
+  nhãn hồ sơ); lỗi cảnh 3D bỏ "(file đi kèm và các CDN đều không tới
+  được)" và "(thường do thiếu bộ nhớ trên điện thoại)" →
+  "(thường do thiếu bộ nhớ)"; toast "Đã gọi họp — cả team đang di
+  chuyển vào phòng họp." → "Đã gọi họp."
+
+### 14.3. Kiểm chứng (headless Chromium/CDP, ảnh thật — không tuyên bố suông)
+
+- Harness: `/tmp/verify-text-trim.mjs` (bản sao của
+  `/tmp/verify-responsive.mjs` §13, cùng seed DEMO), phục vụ file thật
+  qua `python3 -m http.server 8901` trên `/tmp/verify-web` (symlink
+  tới file thật, chỉ `config.js` giữ chỗ để vào DEMO). Mỗi lượt dùng
+  profile Chrome MỚI (bài học §13.3: profile cũ cache HTML). Đo
+  TRƯỚC + SAU ở 390px và 360px: `scrollWidth == innerWidth` (0 tràn
+  ngang), phần tử vượt viewport, h1 nguyên vẹn, lỗi JS, và toàn bộ
+  chữ `.hint`/`.warnbox` trên màn.
+- Kết quả: **9/9 màn PASS ở cả 390px và 360px, cả lượt trước và lượt
+  sau** — overflow=0, offenders=0, 0 lỗi JS. Chi tiết:
+  `docs/text-trim/measurements-before.json` và
+  `measurements-after.json`.
+- Lượng chữ đã cắt (đo trên màn, `.hint` + `.warnbox`): **1840 →
+  1018 ký tự (-822, -45%)** ở cả 390px và 360px. Con số này chưa tính
+  các chỗ cắt ngoài `.hint` (danh sách quyết định, bảng mô-đun, nhãn
+  form, placeholder) nên tổng thực tế còn nhiều hơn.
+- Kiểm tra bằng mắt 3 cặp trước/sau ở 390px: `jobs` (giới thiệu 4
+  dòng → 2 dòng, "Link đính kèm" gọn, nút "Tạo việc" hiện trọn),
+  `docs` (intro 3 dòng → 1 dòng, danh sách quyết định gọn, cùng một
+  màn hình thấy được 2 mô-đun thay vì 1), `people` (giới thiệu 3 dòng
+  → 1 dòng, thẻ chức vụ nguyên vẹn). Layout, màu Obsidian, thẻ
+  responsive §13 không đổi.
+- Màn đăng nhập KHÔNG đổi: `login-390-before.png` và
+  `login-390-after.png` giống hệt từng byte (199.130 byte).
+- Dọn dẹp: máy chủ http 8901 đã tắt, không còn tiến trình
+  chrome-headless-shell nào, profile headless tạm đã xoá; không động
+  `server/data/office.db`.
+
+### 14.4. Chưa kiểm chứng / hạn chế
+
+- Các modal (chi tiết việc, sửa chức vụ, ngân sách, mã API) chưa chụp
+  ảnh kiểm chứng — chỉ kiểm tra `node --check` + render 9 màn chính.
+  Các toast/confirm/error đã rút ngắn chưa bấm thử từng cái trên
+  headless.
+- Chưa kiểm chứng trên Safari điện thoại thật (như §13.4).
+
+### 14.5. File chờ deploy (gh-api put-file, KHÔNG git local)
+
+`web/app.js`, `docs/text-trim/` (38 PNG trước/sau + 2
+`measurements-*.json`), `BUILD-REPORT.md`, `PROGRESS.md`.
+(cộng dồn với §13.5.)
