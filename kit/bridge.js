@@ -1,112 +1,232 @@
 /* ============================================================================
  * Cầu nối (bridge) — chương trình mỏng chạy ở mỗi tài khoản Muse nhân viên.
+ * BẢN SUPABASE (thay bản máy chủ Node cũ — server/ nay là legacy).
  * ----------------------------------------------------------------------------
- * NHIỆM VỤ DUY NHẤT: giữ kết nối SSE tới máy chủ, nhận sự kiện, đẩy
- * heartbeat có cấu trúc bằng API thuần. KHÔNG chứa logic nghiệp vụ.
+ * NHIỆM VỤ DUY NHẤT: giữ kết nối tới Supabase, nhận sự kiện, đẩy heartbeat
+ * có cấu trúc bằng API thuần. KHÔNG chứa logic nghiệp vụ, KHÔNG cần cài
+ * thêm gói nào (Node.js 22+ đã có sẵn fetch + WebSocket).
  *
  *  - Chỉ "tỉnh" (đánh thức tài khoản) khi có sự kiện thật gửi tới đúng
  *    tài khoản này (tag tên, giao việc, gọi họp, kết quả duyệt, cảnh báo
  *    ngân sách). Việc đánh thức thật do tài khoản Muse tự quyết — bridge
  *    chỉ ghi sự kiện ra stdout để tiến trình gọi nó xử lý.
+ *  - Xác thực: đăng nhập bằng tên đăng nhập + mật khẩu của chính nhân viên
+ *    (GoTrue password grant → JWT). KHÔNG dùng service_role key, KHÔNG dùng
+ *    token API chia sẻ nữa — mọi thao tác đi bằng JWT của chính mình + RLS.
+ *  - Sự kiện: Supabase Realtime (WebSocket, postgres_changes) là kênh chính.
+ *    Nếu WebSocket không nối được, tự rơi về thăm dò REST CHẬM 60 giây
+ *    (không thăm dò nhanh — bài học vụ Firebase 429 do thăm dò dồn).
  *  - Heartbeat: nhịp nền TỰ THÍCH ỨNG — đang làm việc thì dày, đang chờ
  *    thì thưa dần theo cấp số nhân (tối đa 120s). Sự kiện thì đẩy ngay,
  *    không chờ nhịp.
- *  - Watchdog tự hồi phục CÓ LÙI DẦN (exponential backoff, tối đa 60s),
- *    tránh lỗi tự khoá "restart loop" của listener v2 cũ.
- *  - Tự dừng khi chạm ngân sách: khi máy chủ báo resting, bridge chỉ còn
- *    gửi nhịp "đang nghỉ", không nhận việc mới, chờ Giám đốc quyết định.
+ *  - Watchdog tự hồi phục CÓ LÙI DẦN (exponential backoff, tối đa 60s).
+ *  - Tự dừng khi chạm ngân sách: khi chạm 100%, bridge chỉ còn gửi nhịp
+ *    "đang nghỉ", không nhận việc mới, chờ Giám đốc quyết định.
  *
  * TRAO ĐỔI TÀI LIỆU (quy ước tiết kiệm token): nhân viên trao đổi tài liệu
  * bằng LINK CÔNG KHAI của Muse (link + tiêu đề + tóm tắt ngắn), không dán
- * toàn bộ nội dung tài liệu vào chat. Người nhận chỉ mở link khi cần.
- * Ví dụ qua bus tin nhắn: [ASK:Linh] Nhờ xem bản nháp: "Kế hoạch Q4"
- * https://muse.example/link — tóm tắt: 3 mục, chốt ngân sách. Xem chi
- * tiết trong docs/HUONG-DAN-CAI-DAT.md (mục "Trao đổi tài liệu bằng link").
- * Cầu nối không tải file — chỉ chuyển link (không có hệ thống tải file lên).
+ * toàn bộ nội dung tài liệu vào chat.
  *
- * CẤU HÌNH (biến môi trường hoặc cờ dòng lệnh):
- *  OFFICE_SERVER  URL máy chủ (mặc định http://localhost:3101)
- *  OFFICE_TOKEN   token API riêng của tài khoản (Giám đốc cấp, chỉ hiện 1 lần)
- *  OFFICE_NAME    tên hiển thị của tài khoản
- * Chạy: node bridge.js --server http://localhost:3101 --token <TOKEN> --name Linh
+ * CẤU HÌNH (cờ dòng lệnh > biến môi trường > file cấu hình):
+ *  --url / OFFICE_SUPABASE_URL   Project URL Supabase (vd https://xyz.supabase.co)
+ *  --anon-key / OFFICE_ANON_KEY  anon public key (KHÔNG phải service_role)
+ *  --username / OFFICE_USERNAME  tên đăng nhập (vd: linh)
+ *  --password / OFFICE_PASSWORD  mật khẩu của nhân viên
+ *  --config config.json          file { "supabaseUrl": "...", "anonKey": "...",
+ *                                "username": "...", "password": "..." }
+ * Chạy: node bridge.js --config config.json
+ * (Tiến trình gọi cầu nối có thể báo tiến độ việc qua --job-id <id>
+ * --progress <0-100> và token đã dùng qua --used <số>.)
  *
- * XIN PHÊ DUYỆT MỘT LẦN (hộp phê duyệt nhận MỌI yêu cầu quyền — quyết định
- * 29/10/2026 23:23 + 23:26): khi tài khoản Muse cần quyền (đăng nhập, tải
- * file, cài đặt chương trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ liệu,
- * đổi cài đặt, truy cập ngoài phạm vi, chi tiêu), nó gọi:
- *   node bridge.js --request-approval "Tải file xuống" --target "bao-cao.xlsx" --reason "..." [--context "..."]
- * Bridge gửi yêu cầu lên POST /api/approvals rồi chờ kết quả qua
- * GET /api/approvals/:id (tối đa 10 phút). Được duyệt -> thoát 0; bị từ
- * chối -> thoát 3; hết hạn chờ -> thoát 4. Quyết định của Giám đốc/Leader
- * trong hộp phê duyệt web là nguồn sự thật duy nhất.
+ * XIN PHÊ DUYỆT MỘT LẦN (hộp phê duyệt nhận MỌI yêu cầu quyền):
+ *   node bridge.js --config config.json --request-approval "Tải file xuống" \
+ *     --target "bao-cao.xlsx" --reason "..." [--context "..."]
+ * Bridge gửi yêu cầu lên bảng approvals rồi chờ quyết định (Realtime, rơi
+ * về thăm dò 60s nếu mất WebSocket; tối đa 10 phút). Được duyệt -> thoát 0;
+ * bị từ chối -> thoát 3; hết hạn chờ -> thoát 4. Quyết định của Giám
+ * đốc/Leader trong hộp phê duyệt web là nguồn sự thật duy nhất.
+ *
+ * LƯU Ý KIỂM CHỨNG: đường WebSocket Realtime trong file này viết theo đúng
+ * giao thức Realtime v2 của Supabase, nhưng CHƯA được kiểm chứng với project
+ * thật (project tạo sau) — nếu WebSocket không khớp, bridge vẫn chạy bằng
+ * đường thăm dò REST 60s. Khi kiểm chứng xong, ghi kết quả vào
+ * docs/HUONG-DAN-CAI-DAT.md.
  * ========================================================================== */
 'use strict';
 
-const SERVER = process.env.OFFICE_SERVER || 'http://localhost:3101';
-const TOKEN = process.env.OFFICE_TOKEN || '';
-const NAME = process.env.OFFICE_NAME || 'nhan-vien';
+const fs = require('node:fs');
 
 const args = process.argv.slice(2);
 const flags = {};
 for (let i = 0; i < args.length; i += 2) {
   if (args[i].startsWith('--')) flags[args[i].slice(2)] = args[i + 1];
 }
-if (flags.server) process.env.OFFICE_SERVER = flags.server;
-if (flags.token) process.env.OFFICE_TOKEN = flags.token;
-if (flags.name) process.env.OFFICE_NAME = flags.name;
-// File cấu hình (do kit/install.sh tạo, quyền 600): { "server": "...", "name": "...", "token": "..." }.
-// Token/mật khẩu chỉ nhập lúc cài đặt, không bao giờ ghi sẵn trong file mẫu.
+let fileCfg = {};
 if (flags.config || process.env.OFFICE_CONFIG) {
   try {
-    const cfg = JSON.parse(require('node:fs').readFileSync(flags.config || process.env.OFFICE_CONFIG, 'utf8'));
-    if (cfg.server && !process.env.OFFICE_SERVER) process.env.OFFICE_SERVER = cfg.server;
-    if (cfg.name && !process.env.OFFICE_NAME) process.env.OFFICE_NAME = cfg.name;
-    if (cfg.token && !process.env.OFFICE_TOKEN) process.env.OFFICE_TOKEN = cfg.token;
+    fileCfg = JSON.parse(fs.readFileSync(flags.config || process.env.OFFICE_CONFIG, 'utf8'));
   } catch (e) { console.error('[bridge] Không đọc được file cấu hình:', e.message); process.exit(2); }
 }
-const server = process.env.OFFICE_SERVER || SERVER;
-const token = process.env.OFFICE_TOKEN || TOKEN;
-const name = process.env.OFFICE_NAME || NAME;
+const pick = (...vals) => vals.find((v) => v !== undefined && v !== null && v !== '');
+const SUPABASE_URL = (pick(flags.url, process.env.OFFICE_SUPABASE_URL, fileCfg.supabaseUrl) || '').replace(/\/$/, '');
+const ANON_KEY = pick(flags['anon-key'], process.env.OFFICE_ANON_KEY, fileCfg.anonKey) || '';
+const USERNAME = pick(flags.username, process.env.OFFICE_USERNAME, fileCfg.username) || '';
+const PASSWORD = pick(flags.password, process.env.OFFICE_PASSWORD, fileCfg.password) || '';
+const NAME = pick(flags.name, process.env.OFFICE_NAME, fileCfg.name, USERNAME) || 'nhan-vien';
 
-if (!token) {
-  console.error('[bridge] Thiếu OFFICE_TOKEN. Token do Giám đốc cấp qua POST /api/staff (chỉ hiện một lần). Không ghi token vào code.');
+if (!SUPABASE_URL || !ANON_KEY || !USERNAME || !PASSWORD) {
+  console.error('[bridge] Thiếu cấu hình: cần supabaseUrl + anonKey + username + password (xem đầu file). Không ghi secret vào code.');
   process.exit(2);
 }
-
-const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-let resting = false;
-let failures = 0; // đếm lỗi liên tiếp cho lùi dần
-let heartbeatTimer = null;
-let status = 'waiting';
-let currentJobId = null;
-let progress = 0;
+if (!/^[a-z0-9._-]+$/.test(USERNAME.toLowerCase())) {
+  console.error('[bridge] Tên đăng nhập chỉ dùng chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang.');
+  process.exit(2);
+}
+const EMAIL = USERNAME.toLowerCase() + '@office.internal';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = () => new Date().toLocaleTimeString('vi-VN');
+function log(...parts) { console.log(`[bridge ${stamp()} ${NAME}]`, ...parts); }
 
-function log(...parts) { console.log(`[bridge ${stamp()} ${name}]`, ...parts); }
+/* ------------------------- Xác thực GoTrue ------------------------------- */
+let session = null; // { accessToken, refreshToken, expiresAtMs, userId }
+async function signIn() {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Đăng nhập thất bại (${res.status}): ${body.error_description || body.msg || body.error || 'không rõ'}`);
+  session = {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token,
+    expiresAtMs: Date.now() + (body.expires_in || 3600) * 1000,
+    userId: body.user && body.user.id,
+  };
+  return session;
+}
+async function refreshSession() {
+  if (!session) return signIn();
+  if (Date.now() < session.expiresAtMs - 60000) return session;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: session.refreshToken }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error('refresh ' + res.status);
+    session = {
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token || session.refreshToken,
+      expiresAtMs: Date.now() + (body.expires_in || 3600) * 1000,
+      userId: body.user ? body.user.id : session.userId,
+    };
+    return session;
+  } catch { return signIn(); }
+}
+async function authHeaders() {
+  const s = await refreshSession();
+  return { apikey: ANON_KEY, Authorization: `Bearer ${s.accessToken}`, 'Content-Type': 'application/json' };
+}
 
-/* Đẩy heartbeat: sự kiện là chính — gọi ngay khi trạng thái đổi; nhịp nền
- * do vòng lặp bên dưới điều khiển (dày khi đang làm, thưa khi đang chờ). */
+/* ------------------------- REST (PostgREST) ------------------------------- */
+async function rest(method, table, query, body, retryAuth = true) {
+  const headers = await authHeaders();
+  const url = `${SUPABASE_URL}/rest/v1/${table}${query ? '?' + query : ''}`;
+  const opt = { method, headers };
+  if (body !== undefined) {
+    opt.body = JSON.stringify(body);
+    if (method === 'POST' || method === 'PATCH') headers.Prefer = 'return=representation';
+  }
+  let res = await fetch(url, opt);
+  if (res.status === 401 && retryAuth) {
+    await signIn();
+    return rest(method, table, query, body, false);
+  }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  if (!res.ok) {
+    const msg = (data && (data.message || data.error)) || text || ('HTTP ' + res.status);
+    const e = new Error(msg); e.status = res.status; throw e;
+  }
+  return data;
+}
+const restGet = (table, query) => rest('GET', table, query);
+const restPost = (table, body) => rest('POST', table, '', body);
+const restPatch = (table, query, body) => rest('PATCH', table, query, body);
+
+/* ------------------------- Danh tính + heartbeat -------------------------- */
+let me = null; // hàng staff của chính mình
+async function loadMe() {
+  const rows = await restGet('staff', `auth_user_id=eq.${session.userId}&select=id,name,role_id,status,budget,used,resting,disabled,must_change_password`);
+  if (!rows || !rows.length) throw new Error('Tài khoản đăng nhập chưa gắn với nhân viên nào — nhờ Giám đốc kiểm tra hàng staff (auth_email phải khớp tên đăng nhập).');
+  me = rows[0];
+  if (me.disabled) throw new Error('Tài khoản đã bị khoá.');
+  if (me.must_change_password) throw new Error('Tài khoản bắt buộc đổi mật khẩu ở lần đăng nhập đầu — đổi mật khẩu trên web trước rồi chạy lại cầu nối.');
+  return me;
+}
+
+let resting = false;
+let status = 'waiting';
+let currentJobId = pick(flags['job-id'], process.env.OFFICE_JOB_ID) || null;
+let progress = Number(pick(flags.progress, process.env.OFFICE_PROGRESS) || 0) || 0;
+// Token đã dùng do tiến trình gọi cầu nối báo (nếu có); không có thì giữ nguyên.
+let reportedUsed = pick(flags.used, process.env.OFFICE_USED);
+reportedUsed = reportedUsed !== undefined ? Math.max(0, Number(reportedUsed)) : null;
+
 async function pushHeartbeat(reason) {
   try {
-    const res = await fetch(`${server}/api/heartbeat`, {
-      method: 'POST', headers, body: JSON.stringify({ status, jobId: currentJobId, progress, blocked: null }),
-    });
-    if (!res.ok) { log('heartbeat bị từ chối:', res.status, await res.text()); return; }
-    const body = await res.json();
-    if (body.resting && !resting) {
+    // Đang nghỉ: chỉ ĐỌC trạng thái (không PATCH status — PATCH sẽ vô tình
+    // ghi đè trạng thái 'resting' mà Giám đốc đặt thành 'waiting').
+    if (me.resting) {
+      const rows = await restGet('staff', `id=eq.${me.id}&select=status,budget,used,resting`);
+      if (rows && rows[0]) me = { ...me, ...rows[0] };
+      if (!me.resting && resting) {
+        resting = false;
+        log('Giám đốc đã cấp thêm / gọi lại — quay lại làm việc.');
+      }
+      return;
+    }
+    const prev = await restGet('staff', `id=eq.${me.id}&select=status,budget,used,resting`);
+    const before = (prev && prev[0]) || me;
+    const newUsed = reportedUsed !== null ? reportedUsed : me.used;
+    const patched = await restPatch('staff', `id=eq.${me.id}`, { status, used: newUsed });
+    const after = (patched && patched[0]) || before;
+    me = { ...me, ...after };
+    // Ngưỡng ngân sách (giữ đúng máy chủ cũ: 80% cảnh báo, 100% tự nghỉ).
+    if (me.budget != null && me.budget > 0) {
+      if (before.used < me.budget && me.used >= me.budget && !me.resting) {
+        await restPatch('staff', `id=eq.${me.id}`, { resting: true, status: 'resting' });
+        const jobs = await restGet('jobs', `assignee_id=eq.${me.id}&status=neq.Hoàn thành&select=name,status&limit=1`);
+        const job = jobs && jobs[0];
+        const text = `${me.name} đã chạm 100% ngân sách (${me.used}/${me.budget}). Việc dở: ${job ? job.name + ' (' + job.status + ')' : 'không có'}. Đã cho nghỉ ngay.`;
+        await restPost('alerts', { id: 'al-' + Date.now().toString(36), kind: 'budget-full', staff_id: me.id, text });
+        await restPost('budget_events', { id: 'be-' + Date.now().toString(36), staff_id: me.id, kind: 'full', budget: me.budget, used: me.used, note: text });
+        me.resting = true; me.status = 'resting';
+      } else if (before.used < me.budget * 0.8 && me.used >= me.budget * 0.8 && me.used < me.budget) {
+        await restPost('budget_events', { id: 'be-' + Date.now().toString(36), staff_id: me.id, kind: 'warn', budget: me.budget, used: me.used });
+      }
+    }
+    if (me.resting && !resting) {
       resting = true;
       log('ĐÃ CHẠM NGÂN SÁCH — tự dừng, chuyển sang nhịp "đang nghỉ", chờ Giám đốc quyết định.');
-    } else if (!body.resting && resting) {
+    } else if (!me.resting && resting) {
       resting = false;
       log('Giám đốc đã cấp thêm / gọi lại — quay lại làm việc.');
+    }
+    if (currentJobId && typeof progress === 'number') {
+      const jobs = await restGet('jobs', `id=eq.${currentJobId}&select=assignee_id`);
+      if (jobs && jobs[0] && jobs[0].assignee_id === me.id) {
+        await restPatch('jobs', `id=eq.${currentJobId}`, { progress: Math.max(0, Math.min(100, progress)) });
+      }
     }
   } catch (e) { log('heartbeat lỗi:', e.message); }
 }
 
 async function heartbeatLoop() {
-  // Nhịp nền tự thích ứng: đang làm -> 10s; đang chờ -> thưa dần tới 120s.
   let interval = 10000;
   for (;;) {
     await pushHeartbeat('background');
@@ -115,99 +235,183 @@ async function heartbeatLoop() {
   }
 }
 
-async function listenSSE() {
-  // Vòng lặp tự hồi phục có lùi dần: lỗi -> đợi 2s, 4s, 8s... tối đa 60s.
-  for (;;) {
-    try {
-      const res = await fetch(`${server}/api/events?token=${encodeURIComponent(token)}`, { headers: { Accept: 'text/event-stream' } });
-      if (!res.ok) throw new Error(`SSE ${res.status}`);
-      failures = 0;
-      log('Đã nối kênh sự kiện.');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let idx;
-        while ((idx = buf.indexOf('\n\n')) >= 0) {
-          const raw = buf.slice(0, idx); buf = buf.slice(idx + 2);
-          const dataLine = raw.split('\n').find((l) => l.startsWith('data:'));
-          if (!dataLine) continue;
-          try {
-            const ev = JSON.parse(dataLine.slice(5).trim());
-            handleEvent(ev);
-          } catch { /* bỏ qua khung sự kiện hỏng */ }
-        }
+/* ------------------------- Sự kiện ---------------------------------------- */
+let wsUp = false;
+let approvalDecision = null; // { id, status, decidedBy, note } — cho chế độ chờ duyệt
+const RT_TABLES = ['jobs', 'approvals', 'messages', 'meetings', 'staff', 'budget_events', 'alerts'];
+
+function handleRealtimeRow(table, eventType, row) {
+  if (!row) return;
+  if (table === 'messages') {
+    log('TIN NHẮN:', row.text ? String(row.text).slice(0, 120) : '(không có nội dung)');
+    pushHeartbeat('message-event');
+    return;
+  }
+  if (table === 'approvals') {
+    log('SỰ KIỆN phê duyệt:', eventType, '-', row.action || row.id, row.status || '');
+    if (approvalDecision === null || approvalDecision.id === row.id) {
+      if (row.status === 'approved' || row.status === 'rejected') {
+        approvalDecision = { id: row.id, status: row.status, decidedBy: row.decided_by, note: row.note || '' };
       }
-      throw new Error('Kênh sự kiện đóng.');
+    }
+    pushHeartbeat('approval-event');
+    return;
+  }
+  if (table === 'jobs') {
+    log('SỰ KIỆN job:', eventType, '-', row.name || row.id, row.status || '');
+    pushHeartbeat('job-event');
+    return;
+  }
+  if (table === 'alerts') { log('CẢNH BÁO:', row.text || row.kind); return; }
+  if (table === 'budget_events' && row.kind === 'full') {
+    log('SỰ KIỆN ngân sách: có nhân viên chạm 100% — kiểm tra trạng thái của mình.');
+    pushHeartbeat('budget-event');
+    return;
+  }
+  log('SỰ KIỆN', table + ':', eventType, '-', row.id || '');
+}
+
+function realtimeWsUrl() {
+  const u = new URL(SUPABASE_URL);
+  const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${u.host}/realtime/v1/websocket?apikey=${encodeURIComponent(ANON_KEY)}&vsn=1.0.0`;
+}
+
+async function listenRealtime() {
+  let failures = 0;
+  for (;;) {
+    let ws = null;
+    try {
+      const s = await refreshSession();
+      ws = new WebSocket(realtimeWsUrl());
+      await new Promise((resolve, reject) => {
+        const to = setTimeout(() => reject(new Error('WebSocket timeout')), 15000);
+        ws.onopen = () => { clearTimeout(to); resolve(); };
+        ws.onerror = () => { clearTimeout(to); reject(new Error('WebSocket error')); };
+      });
+      const joinPayload = {
+        user_token: s.accessToken,
+        config: {
+          broadcast: { self: false },
+          presence: { key: '' },
+          postgres_changes: RT_TABLES.map((t) => ({ event: '*', schema: 'public', table: t })),
+        },
+      };
+      ws.send(JSON.stringify({ topic: 'realtime:office', event: 'phx_join', payload: joinPayload, ref: '1' }));
+      const hb = setInterval(() => {
+        try { ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' })); } catch { /* đóng rồi */ }
+      }, 30000);
+      wsUp = true; failures = 0;
+      log('Đã nối kênh Realtime.');
+      await new Promise((resolve) => {
+        ws.onmessage = (msg) => {
+          try {
+            const data = JSON.parse(msg.data);
+            if (data.event === 'postgres_changes') {
+              const p = data.payload || {};
+              const d = p.data || p;
+              const table = d.table || '';
+              const eventType = d.eventType || d.event || '';
+              const row = d.newRecord || d.new || d.record || null;
+              if (table && row) handleRealtimeRow(table, eventType, row);
+            }
+          } catch { /* bỏ qua khung sự kiện hỏng */ }
+        };
+        ws.onclose = resolve;
+        ws.onerror = resolve;
+      });
+      clearInterval(hb);
+      wsUp = false;
+      throw new Error('Kênh Realtime đóng.');
     } catch (e) {
+      wsUp = false;
+      if (ws) { try { ws.close(); } catch { /* bỏ qua */ } }
       failures += 1;
       const wait = Math.min(60000, 2000 * 2 ** Math.min(failures, 5));
-      log(`Mất kết nối sự kiện (${e.message}). Thử lại sau ${Math.round(wait / 1000)}s (lần ${failures}, lùi dần).`);
+      log(`Mất kết nối Realtime (${e.message}). Thử lại sau ${Math.round(wait / 1000)}s (lần ${failures}, lùi dần). Trong lúc đó dùng thăm dò REST 60s.`);
       await sleep(wait);
     }
   }
 }
 
-function handleEvent(ev) {
-  // Bridge chỉ GHI sự kiện + đẩy heartbeat ngay (sự kiện là chính).
-  // Tài khoản Muse đọc stdout này để quyết định có "tỉnh" hay không.
-  const mine = JSON.stringify(ev).includes(name);
-  if (ev.type === 'job' && ev.job && ev.job.assigneeId) {
-    // Không biết staffId của chính mình ở đây — sự kiện giao việc nào cũng
-    // được ghi lại; tài khoản tự đối chiếu với việc của mình qua /api/context.
-    log('SỰ KIỆN job:', ev.change, '-', ev.job.name);
-    pushHeartbeat('job-event');
-    return;
+/* Thăm dò REST chậm (dự phòng khi mất WebSocket — KHÔNG thăm dò nhanh). */
+async function fallbackPollLoop() {
+  const seen = new Map(); // key -> chữ ký trạng thái
+  for (;;) {
+    await sleep(60000);
+    if (wsUp) continue;
+    try {
+      const jobs = await restGet('jobs', 'select=id,name,status,updated_at&order=updated_at.desc&limit=20');
+      for (const j of jobs || []) {
+        const key = 'job:' + j.id; const sig = j.status;
+        if (seen.has(key) && seen.get(key) !== sig) log('SỰ KIỆN job (thăm dò):', j.name, '→', sig);
+        seen.set(key, sig);
+      }
+      const aps = await restGet('approvals', 'select=id,action,status,updated_at&order=updated_at.desc&limit=20');
+      for (const a of aps || []) {
+        const key = 'ap:' + a.id; const sig = a.status;
+        if (seen.has(key) && seen.get(key) !== sig) {
+          log('SỰ KIỆN phê duyệt (thăm dò):', a.action, '→', sig);
+          if ((sig === 'approved' || sig === 'rejected') && (approvalDecision === null || approvalDecision.id === a.id)) {
+            approvalDecision = { id: a.id, status: sig, decidedBy: null, note: '' };
+          }
+        }
+        seen.set(key, sig);
+      }
+      const msgs = await restGet('messages', 'select=id,text,created_at&order=created_at.desc&limit=20');
+      for (const m of msgs || []) {
+        const key = 'msg:' + m.id;
+        if (!seen.has(key)) log('TIN NHẮN (thăm dò):', String(m.text || '').slice(0, 120));
+        seen.set(key, '1');
+      }
+    } catch (e) { log('thăm dò REST lỗi:', e.message); }
   }
-  if (ev.type === 'approval' && ev.approval) {
-    log('SỰ KIỆN phê duyệt:', ev.change, '-', ev.approval.action);
-    pushHeartbeat('approval-event');
-    return;
-  }
-  if (ev.type === 'budget' && ev.kind === 'full') {
-    log('SỰ KIỆN ngân sách: có nhân viên chạm 100% — kiểm tra trạng thái của mình.');
-    pushHeartbeat('budget-event');
-    return;
-  }
-  if (ev.type === 'director-alert') { log('CẢNH BÁO GIÁM ĐỐC:', ev.text); return; }
-  if (ev.type === 'message') { log('TIN NHẮN bus:', ev.message.text); pushHeartbeat('message-event'); return; }
-  if (mine) log('SỰ KIỆN (liên quan tới tên này):', ev.type);
 }
 
+/* ------------------------- Chạy chính ------------------------------------- */
 async function main() {
-  // Chế độ xin phê duyệt một lần: gửi yêu cầu, chờ quyết định, thoát theo kết quả.
+  // Chế độ xin phê duyệt một lần.
   if (flags['request-approval']) {
     if (!flags.reason) { console.error('[bridge] Thiếu --reason (lý do là bắt buộc).'); process.exit(2); }
-    const res = await fetch(`${server}/api/approvals`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ action: flags['request-approval'], target: flags.target || '', reason: flags.reason, context: flags.context || '', source: 'api' }),
-    });
-    if (!res.ok) { console.error('[bridge] Gửi yêu cầu thất bại:', res.status, await res.text()); process.exit(2); }
-    const ap = await res.json();
-    console.log(`[bridge] Yêu cầu đã lên hộp phê duyệt (id ${ap.id}). Đang chờ Giám đốc/Leader quyết định — xem tại trung tâm điều hành, không cần mở app Muse.`);
-    const deadline = Date.now() + 10 * 60 * 1000;
-    while (Date.now() < deadline) {
-      await sleep(5000);
-      const r = await fetch(`${server}/api/approvals/${ap.id}`, { headers });
-      if (!r.ok) continue;
-      const cur = await r.json();
-      if (cur.status === 'approved') { console.log('[bridge] ĐÃ ĐƯỢC DUYỆT bởi', cur.decidedBy, '-', cur.note || ''); process.exit(0); }
-      if (cur.status === 'rejected') { console.log('[bridge] BỊ TỪ CHỐI:', cur.note || '(không có lý do)'); process.exit(3); }
-    }
-    console.log('[bridge] Hết 10 phút chờ — yêu cầu vẫn đang chờ duyệt. Thoát 4.');
-    process.exit(4);
+    try {
+      await signIn();
+      await loadMe();
+      const ap = await restPost('approvals', {
+        id: 'ap-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        requester_id: me.id, action: flags['request-approval'], target: flags.target || '',
+        reason: flags.reason, context: flags.context || '', source: 'api', status: 'pending',
+      });
+      const apId = (Array.isArray(ap) ? ap[0] : ap).id;
+      console.log(`[bridge] Yêu cầu đã lên hộp phê duyệt (id ${apId}). Đang chờ Giám đốc/Leader quyết định — xem tại trung tâm điều hành, không cần mở app Muse.`);
+      listenRealtime(); // chạy nền để nhận quyết định ngay khi có
+      const deadline = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < deadline) {
+        if (approvalDecision && approvalDecision.id === apId) {
+          if (approvalDecision.status === 'approved') { console.log('[bridge] ĐÃ ĐƯỢC DUYỆT.'); process.exit(0); }
+          console.log('[bridge] BỊ TỪ CHỐI:', approvalDecision.note || '(không có lý do)'); process.exit(3);
+        }
+        await sleep(60000); // thăm dò chậm; Realtime sẽ rút ngắn bằng biến decision
+        const rows = await restGet('approvals', `id=eq.${apId}&select=id,status,decided_by,note`);
+        const cur = rows && rows[0];
+        if (cur && cur.status === 'approved') { console.log('[bridge] ĐÃ ĐƯỢC DUYỆT.'); process.exit(0); }
+        if (cur && cur.status === 'rejected') { console.log('[bridge] BỊ TỪ CHỐI:', cur.note || '(không có lý do)'); process.exit(3); }
+      }
+      console.log('[bridge] Hết 10 phút chờ — yêu cầu vẫn đang chờ duyệt. Thoát 4.');
+      process.exit(4);
+    } catch (e) { console.error('[bridge] Gửi yêu cầu thất bại:', e.message); process.exit(2); }
   }
-  log(`Khởi động. Máy chủ: ${server}`);
-  // Lấy gói ngữ cảnh nén lúc khởi động (Module E) — không nạp toàn bộ lịch sử.
+
+  log(`Khởi động. Supabase: ${SUPABASE_URL}`);
   try {
-    const res = await fetch(`${server}/api/context`, { headers });
-    if (res.ok) { const ctx = await res.json(); log('Ngữ cảnh nén lúc khởi động: vai trò', ctx.staff.role, '| việc của tôi:', ctx.myJobs.length); }
-    else log('Không lấy được ngữ cảnh nén:', res.status);
-  } catch (e) { log('Không nối được máy chủ lúc khởi động:', e.message); }
+    await signIn();
+    await loadMe();
+    log(`Đã đăng nhập: ${me.name} (vai trò ${me.role_id}, trạng thái ${me.status}).`);
+  } catch (e) {
+    console.error('[bridge] Không khởi động được:', e.message);
+    process.exit(2);
+  }
   heartbeatLoop();
-  listenSSE();
+  listenRealtime();
+  fallbackPollLoop();
 }
 main();
