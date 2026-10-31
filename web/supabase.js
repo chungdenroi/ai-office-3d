@@ -222,6 +222,15 @@
       // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang): cho
       // đăng ký lại mã mới rồi xác minh — không kẹt tài khoản. Chưa có mã
       // thì không bắt nhập mã ở bước này.
+      // Xoá trước các factor TOTP chưa xác minh còn sót: mỗi lần đăng nhập
+      // dở dang đều tạo 1 factor, mà Supabase chỉ cho 1 factor mỗi
+      // friendly_name nên enroll mới sẽ lỗi "already exists" nếu không xoá.
+      const allTotp = (factors && factors.totp) || [];
+      for (const f of allTotp) {
+        if (f.status !== 'verified') {
+          await sb().auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+        }
+      }
       const { data: mfa, error: mfaErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
       if (mfaErr || !mfa || !mfa.totp) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Tài khoản chưa bật xác thực 2 lớp và không đăng ký lại được: ' + (mfaErr ? mfaErr.message : '')); }
       pendingFactorId = mfa.id;
