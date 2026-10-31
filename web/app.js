@@ -700,7 +700,7 @@ function bindLogin() {
     const fd = new FormData(e.target);
     try {
       if (tab === 'director') {
-        const r = await api.post('/api/director/login', { password: fd.get('password'), totp: fd.get('totp') });
+        const r = await api.post('/api/director/login', { password: fd.get('password') });
         if (r.needsMfaVerify) {
           // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang):
           // hiện lại mã mới để quét + xác minh trước khi vào hệ thống.
@@ -2324,7 +2324,7 @@ async function renderSettings(screen) {
     (Session.demo ? '<p class="hint">Tải kit cần nối máy chủ thật.</p>' : '') + '</div>' +
     '<div class="card"><h2>Xuất dữ liệu</h2><p class="hint">Xuất toàn bộ dữ liệu hệ thống thành một file JSON để sao lưu.</p><button class="btn" type="button" id="export-btn">Tải file JSON</button></div>' +
     (Session.demo ? '<div class="card"><h2>Bản demo</h2><p class="hint">Đổi danh tính để lái thử các vai trò.</p><div class="toolbar"><select id="demo-identity">' + DemoDB.load().staff.map((s) => '<option value="' + esc(s.id) + '" ' + (Session.me && s.id === Session.me.id ? 'selected' : '') + '>' + esc(s.name) + ' — ' + esc(demoRoleOf(DemoDB.data, s).name) + '</option>').join('') + '</select><button class="btn" type="button" id="demo-switch">Đổi danh tính</button><button class="btn danger" type="button" id="demo-reset">Đặt lại dữ liệu mẫu</button></div></div>' : '') +
-    '<div class="card"><h2>Phiên hiện tại</h2><dl class="kv"><div class="row"><dt>Người dùng</dt><dd>' + esc(Session.me ? Session.me.name : '—') + '</dd></div><div class="row"><dt>Vai trò</dt><dd>' + esc(myRole().name) + '</dd></div><div class="row"><dt>Loại phiên</dt><dd>' + (Session.demo ? 'Demo ngoại tuyến' : Session.meType === 'director' ? 'Giám đốc (mật khẩu + TOTP)' : 'Nhân viên') + '</dd></div></dl></div>';
+    '<div class="card"><h2>Phiên hiện tại</h2><dl class="kv"><div class="row"><dt>Người dùng</dt><dd>' + esc(Session.me ? Session.me.name : '—') + '</dd></div><div class="row"><dt>Vai trò</dt><dd>' + esc(myRole().name) + '</dd></div><div class="row"><dt>Loại phiên</dt><dd>' + (Session.demo ? 'Demo ngoại tuyến' : Session.meType === 'director' ? 'Giám đốc' : 'Nhân viên') + '</dd></div></dl></div>';
   const apiForm = $('#api-form');
   if (apiForm) apiForm.addEventListener('submit', async (e) => {
     e.preventDefault();
