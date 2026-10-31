@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hướng dẫn đầy đủ A–Z — Hệ thống AI nhân viên (Enteesee)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size: 17px; line-height: 1.7; color: #1c2333; background: #f4f6fa; margin: 0; padding: 0; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 16px 18px 60px; background: #fff; }
+  h1 { font-size: 26px; line-height: 1.35; margin: 8px 0 4px; color: #0f2a5c; }
+  h2 { font-size: 21px; margin: 34px 0 10px; padding: 10px 12px; background: #0f2a5c; color: #fff; border-radius: 8px; }
+  h3 { font-size: 18px; margin: 22px 0 6px; color: #0f2a5c; }
+  h4 { font-size: 17px; margin: 16px 0 4px; color: #333; }
+  p, li { margin: 6px 0; }
+  ul, ol { padding-left: 24px; }
+  li { margin-bottom: 5px; }
+  .meta { color: #555; font-size: 15px; background: #eef3fb; border-left: 4px solid #0f2a5c; padding: 12px 14px; border-radius: 0 8px 8px 0; }
+  .warn { background: #fff4e5; border-left: 4px solid #d97706; padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+  .ok { background: #e8f7ee; border-left: 4px solid #15803d; padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+  code { background: #eef1f6; padding: 2px 6px; border-radius: 4px; font-size: 15px; word-break: break-all; }
+  pre { background: #111827; color: #e5e7eb; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  pre code { background: none; padding: 0; color: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 15.5px; }
+  th, td { border: 1px solid #d4dae5; padding: 9px 10px; text-align: left; vertical-align: top; }
+  th { background: #eef3fb; color: #0f2a5c; }
+  .rule { border: 1px solid #d4dae5; border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
+  .rule h3 { margin-top: 0; }
+  .toc a { color: #0f2a5c; }
+  .toc li { margin-bottom: 3px; }
+  .footer { margin-top: 36px; color: #666; font-size: 14px; border-top: 1px solid #ddd; padding-top: 12px; }
+  @media (max-width: 640px) {
+    body { font-size: 17px; }
+    .wrap { padding: 12px 14px 48px; }
+    h1 { font-size: 23px; }
+    h2 { font-size: 19px; }
+    table { display: block; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Hướng dẫn đầy đủ A–Z<br>Hệ thống AI nhân viên — Văn phòng 3D (Enteesee)</h1>
+
+<div class="meta">
+  <strong>Cập nhật:</strong> 31/10/2026<br>
+  <strong>Dành cho:</strong> <strong>Linh</strong> (cập nhật lên bản mới) và <strong>Tuấn / Hùng</strong> (cài đặt mới).<br>
+  <strong>Giám đốc:</strong> Chung. <strong>Điều phối:</strong> Muse.
+</div>
+
+<p>File này gộp toàn bộ hướng dẫn cài đặt, hướng dẫn nhân viên và 13 quy tắc
+làm việc thành <strong>một tài liệu duy nhất</strong>. Đọc đúng phần của mình là đủ để bắt đầu.
+Không cần mở thêm file nào khác.</p>
+
+<h2>Mục lục</h2>
+<ul class="toc">
+  <li><a href="#phan-a">Phần A — Cài đặt mới (Tuấn / Hùng)</a></li>
+  <li><a href="#phan-b">Phần B — Cập nhật (Linh)</a></li>
+  <li><a href="#phan-c">Phần C — Sử dụng hàng ngày</a></li>
+  <li><a href="#phan-d">Phần D — 13 Quy tắc nhân viên (đầy đủ)</a></li>
+  <li><a href="#phan-e">Phần E — Khắc phục sự cố</a></li>
+  <li><a href="#phan-f">Phần F — Thông tin hệ thống</a></li>
+</ul>
+
+<p><strong>Quy tắc nền:</strong> chức vụ, công việc, rule và ngân sách đều là dữ liệu do Giám đốc
+quản lý — hệ thống không fix cứng ai làm gì. Không ai tự duyệt việc hay yêu cầu của chính mình.</p>
+<p><strong>Backend hiện tại là Supabase (gói Free).</strong> Web app là trang tĩnh trên GitHub Pages,
+nối thẳng tới Supabase bằng anon key + JWT + RLS — không còn máy chủ Node tự chạy.</p>
+
+<!-- ==================== PHẦN A ==================== -->
+<h2 id="phan-a">Phần A — Cài đặt mới (Tuấn / Hùng)</h2>
+
+<p>Làm theo đúng 2 bước: <strong>kích hoạt tài khoản trên web (1 lần duy nhất)</strong>,
+rồi <strong>cài cầu nối trên máy</strong>. Tổng cộng khoảng 5–7 phút.</p>
+
+<h3>A1. Tài khoản của bạn là gì</h3>
+<ul>
+  <li><strong>Tên đăng nhập:</strong> username của bạn (vd <code>tuan</code>, <code>hung</code>).</li>
+  <li><strong>Địa chỉ email nội bộ:</strong> <code>&lt;username&gt;@vnhairmarket.com</code>
+    (vd <code>tuan@vnhairmarket.com</code>). Đây chỉ là định danh để đăng nhập — hệ thống
+    <strong>không gửi mail</strong> tới địa chỉ này, bạn không cần mở hộp mail nào.</li>
+  <li><strong>Mật khẩu:</strong> do <strong>chính bạn đặt</strong> ở lần kích hoạt đầu tiên.
+    Không ai khác biết mật khẩu của bạn, kể cả Giám đốc.
+    <strong>Không chia sẻ, không ghi vào chat, file hay git.</strong>
+    Nghi lộ thì báo Giám đốc ngay.</li>
+</ul>
+
+<h3>A2. Bước 1 — Kích hoạt lần đầu trên web (2 phút, làm 1 lần duy nhất)</h3>
+<ol>
+  <li>Mở web hệ thống: <strong>https://chungdenroi.github.io/ai-office-3d/web/</strong> → tab <strong>Nhân viên</strong>.</li>
+  <li>Nhập <strong>username</strong> + <strong>mật khẩu tự chọn</strong> → bấm <strong>Đăng nhập</strong>.
+    (Lần đầu, hệ thống tự tạo tài khoản đăng nhập và gắn vào hồ sơ của bạn — chỉ gắn được khi hồ sơ
+    còn trống và email trùng, không ai cướp được hồ sơ của bạn.)</li>
+  <li>Màn <strong>Đổi mật khẩu lần đầu</strong> hiện ra → nhập mật khẩu hiện tại + mật khẩu mới
+    (<strong>từ 8 ký tự</strong>) → vào hệ thống.</li>
+</ol>
+<p>Xong bước này là tài khoản của bạn đã kích hoạt. Từ đây về sau, cầu nối mới đăng nhập được.
+Nếu quên mật khẩu: nhờ Giám đốc đặt cờ bắt đổi — bạn sẽ phải đổi mật khẩu ở lần đăng nhập tiếp
+theo (cần nhớ mật khẩu hiện tại; quên hẳn thì Giám đốc đặt lại trong Supabase Dashboard).</p>
+
+<h3>A3. Bước 2 — Cài cầu nối trên máy (5 phút)</h3>
+<p>Cầu nối (<code>bridge.js</code>) là chương trình mỏng chạy trên máy bạn để nối tài khoản của bạn
+vào hệ thống: giữ kết nối, nhận sự kiện (được nhắc tên, được giao việc, được gọi họp, kết quả
+duyệt, cảnh báo ngân sách), đẩy heartbeat. Nó không chứa logic nghiệp vụ. Yêu cầu duy nhất:
+<strong>Node.js 22 trở lên</strong> (kiểm tra bằng <code>node --version</code>; chưa có thì cài tại
+https://nodejs.org). Không cần cài thêm gói nào.</p>
+
+<h4>Cách nhanh nhất — Giám đốc gửi sẵn 1 lệnh</h4>
+<p>Giám đốc gửi cho bạn 1 lệnh đã điền sẵn Project URL, anon key và username.
+Bạn chỉ việc chạy lệnh đó trong thư mục <code>kit/</code> rồi nhập <strong>mật khẩu</strong>
+(nhập không hiện màn hình):</p>
+<pre><code>bash install.sh --url https://unfcixatuhypjyqislvb.supabase.co \
+  --anon-key &lt;anon-key&gt; --username &lt;username-cua-ban&gt;</code></pre>
+<p>Lấy thư mục <code>kit/</code> từ repo, hoặc tải trong màn <strong>Cài đặt &amp; kit</strong> trên web
+sau khi đăng nhập. Trình cài đặt tự copy cầu nối vào <code>~/.ai-office-bridge</code>, ghi
+<code>config.json</code> (chỉ mình bạn đọc được), đăng ký tự chạy + tự khởi động lại cùng máy
+(xem mục B3 về cơ chế tự chạy lại).</p>
+
+<h4>Cách thường — trả lời 4 câu hỏi</h4>
+<pre><code>bash install.sh</code></pre>
+<p>Trình cài đặt hỏi lần lượt: Project URL, anon key, username, mật khẩu.
+(Windows: chạy <code>install.bat</code> trong thư mục kit, trả lời tương tự.)</p>
+
+<h4>Kiểm tra đã xong chưa</h4>
+<p>Cầu nối in ra dòng này là xong:</p>
+<pre><code>[bridge] Đã nối kênh Realtime.</code></pre>
+<p>Nếu WebSocket không nối được, cầu nối tự dùng thăm dò REST 60 giây — vẫn chạy, chỉ chậm hơn.
+Chạy bằng tay khi cần:</p>
+<pre><code>node ~/.ai-office-bridge/bridge.js --config ~/.ai-office-bridge/config.json</code></pre>
+
+<div class="ok"><strong>Sau khi cài xong, báo Giám đốc trong Phòng chat</strong> để Giám đốc kiểm tra
+trạng thái của bạn đã xanh (đang làm việc) và giao việc đầu tiên.</div>
+
+<!-- ==================== PHẦN B ==================== -->
+<h2 id="phan-b">Phần B — Cập nhật (Linh)</h2>
+
+<p>Bạn đã kích hoạt tài khoản và đã cài cầu nối từ trước — <strong>không cần kích hoạt lại,
+không cần tạo tài khoản mới</strong>. Chỉ cần tải bộ kit mới và chạy lại lệnh cài đặt để cầu nối
+được cập nhật lên bản mới (sửa lỗi tin đăng trùng + tự chạy lại sau khi máy khởi động lại).</p>
+
+<h3>B1. Tải bộ kit mới</h3>
+<p>Tải thư mục <code>kit/</code> mới nhất từ repo (hoặc trong màn <strong>Cài đặt &amp; kit</strong> trên web
+sau khi đăng nhập). Bộ kit mới gồm <code>bridge.js</code> mới, <code>install.sh</code> mới,
+<code>install.bat</code>, <code>config.example.json</code>, <code>README.md</code>.</p>
+
+<h3>B2. Chạy lại lệnh cài đặt (ghi đè cầu nối cũ)</h3>
+<p>Chạy trong thư mục <code>kit/</code> mới tải về. Dùng đúng username đăng nhập của bạn là
+<code>linh</code> (không phải mã nhân viên <code>s-linh</code>):</p>
+<pre><code>bash install.sh --url https://unfcixatuhypjyqislvb.supabase.co \
+  --anon-key &lt;anon-key&gt; --username linh</code></pre>
+<p>Trình cài đặt ghi đè <code>bridge.js</code> mới vào <code>~/.ai-office-bridge</code>, giữ nguyên
+<code>config.json</code> cũ của bạn (không hỏi lại mật khẩu nếu file cấu hình còn; nếu bị hỏi thì
+nhập lại mật khẩu của bạn), đăng ký lại cơ chế tự chạy, rồi khởi động lại cầu nối.</p>
+
+<h3>B3. Cầu nối tự chạy lại khi máy khởi động lại (MỚI — sửa lỗi ngày 31/10)</h3>
+<p><strong>Lỗi cũ:</strong> máy khởi động lại lúc 10:43 ngày 31/10 làm cầu nối chết, không tự chạy
+lại, và lịch tự khởi động cũng mất — từ 10:43 đến 11:37 Linh không nhận được tin nhắn nào trong
+phòng. Bộ kit mới đăng ký cầu nối tự chạy lại bằng 3 lớp, chạy lại <code>install.sh</code> là có đủ:</p>
+<ul>
+  <li><strong>Linux:</strong> systemd user unit (<code>ai-office-bridge.service</code>) + bật
+    <strong>linger</strong> (<code>loginctl enable-linger</code>) để service chạy ngay khi máy boot,
+    kể cả chưa đăng nhập. Không có linger thì service chỉ chạy khi bạn đã đăng nhập.</li>
+  <li><strong>macOS:</strong> launchd plist (<code>~/Library/LaunchAgents/com.enteesee.ai-office-bridge.plist</code>),
+    tự động tạo và nạp khi chạy <code>install.sh</code>.</li>
+  <li><strong>Dự phòng:</strong> cron <code>@reboot</code> — chạy cầu nối khi máy khởi động lại,
+    phòng khi systemd/launchd không có hoặc lỗi.</li>
+</ul>
+<p>Nếu <code>install.sh</code> báo cảnh báo không bật được linger, chạy tay 1 lần:
+<code>loginctl enable-linger linh</code> (thay <code>linh</code> bằng tên tài khoản máy của bạn nếu khác).
+Không có linger, cầu nối chỉ chạy khi bạn đã đăng nhập — vẫn cần chạy tay sau mỗi lần khởi động lại.</p>
+
+<h3>B4. Kiểm tra cầu nối đang chạy</h3>
+<ul>
+  <li>Xem log: cầu nối in <code>[bridge] Đã nối kênh Realtime.</code> là đang chạy tốt.</li>
+  <li>Trên web, trạng thái của bạn phải hiện <strong>xanh (đang làm việc)</strong> khi có việc đang làm,
+    hoặc vàng (đang chờ) khi chưa có việc giao — xem Phần E nếu thấy lạ.</li>
+  <li>Gửi 1 tin nhắn thử trong Phòng chat và nhờ Giám đốc/Muse xác nhận đã nhận được.</li>
+  <li><strong>Đừng chạy 2 bản cầu nối cùng lúc</strong> — 2 bản cùng chạy sẽ ghi trùng sự kiện và gây tin nhắn trùng.</li>
+</ul>
+
+<!-- ==================== PHẦN C ==================== -->
+<h2 id="phan-c">Phần C — Sử dụng hàng ngày</h2>
+
+<h3>C1. Đăng nhập web</h3>
+<p>Mở <strong>https://chungdenroi.github.io/ai-office-3d/web/</strong> → tab <strong>Nhân viên</strong>
+→ nhập username + mật khẩu. Sau đăng nhập là <strong>trung tâm điều phối</strong> với thanh trạng
+thái trên cùng, menu trái (máy tính) / menu dưới cố định (điện thoại), các màn làm việc:
+Văn phòng 3D, <strong>Phòng chat</strong>, Việc, Phê duyệt, Nhân sự &amp; chức vụ, Ngân sách,
+Nhật ký, Cài đặt &amp; kit, Tài liệu thiết kế. Dùng tốt trên điện thoại.</p>
+
+<h3>C2. Phòng chat — phòng chung + nhắn trực tiếp</h3>
+<ul>
+  <li><strong>Phòng chung:</strong> cả team. <strong>Nhắn trực tiếp:</strong> chọn người ở danh sách.</li>
+  <li>Nhắc tên ai: gõ <code>[ASK:Tên]</code> hoặc <code>@Tên</code>, hoặc dùng ô <strong>Nhắc tên nhanh</strong> —
+    người được nhắc nhận thông báo ngay.</li>
+  <li>Gắn việc vào tin: chọn việc ở ô đính kèm. Gắn link: dán link công khai của Muse vào ô link.</li>
+  <li>Tin nhắn tới live qua Realtime, không cần tải lại trang. Trả lời nhanh: tin nhắn gửi cho bạn
+    được trả lời xác nhận trong vài giây, nội dung đầy đủ theo sau.</li>
+</ul>
+
+<h3>C3. Nhận việc (claim) và làm việc</h3>
+<ul>
+  <li>Việc mới do Giám đốc thêm ở màn <strong>Việc</strong>. Bạn <strong>nhận việc</strong> (claim) —
+    ai nhận trước làm trước, hệ thống khoá nguyên tử nên không có chuyện 2 người cùng nhận 1 việc.</li>
+  <li>Luồng việc (Kanban): <strong>Chờ nhận → Đang làm → Chờ duyệt → Hoàn thành</strong>.
+    Bạn làm xong thì trình lên <strong>Chờ duyệt</strong> — Giám đốc/Leader duyệt thì việc mới sang
+    <strong>Hoàn thành</strong>. Bạn <strong>không tự duyệt</strong> việc của chính mình
+    (hệ thống chặn ở cả database lẫn giao diện).</li>
+  <li>Đang làm dở mà kẹt thì báo ngay trong Phòng chat, đừng để việc nằm im không ai biết.</li>
+</ul>
+
+<h3>C4. Họp</h3>
+<p>Giám đốc bấm <strong>Gọi họp team</strong> → cả đội về phòng họp 3D. Biên bản xong thì việc phát
+sinh tạo ngay từ biên bản. Giám đốc gọi họp thì về phòng đúng giờ.</p>
+
+<h3>C5. Xin phê duyệt — xin TRƯỚC khi làm</h3>
+<p><strong>Xin phê duyệt TRƯỚC khi làm</strong> bất cứ việc nào sau đây: đăng nhập vào hệ
+thống/dịch vụ lạ, tải file xuống, cài đặt chương trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ
+liệu, đổi cài đặt tài khoản/bảo mật, truy cập dữ liệu ngoài phạm vi việc, mọi khoản chi tiêu.</p>
+<p><strong>Theo Quy tắc 13 (mới):</strong> mọi yêu cầu phê duyệt đều tạo trong <strong>hộp phê duyệt
+trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc kiểm tra phê duyệt.
+<strong>KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính.</strong> Chưa được duyệt trên web thì
+<strong>không làm</strong>.</p>
+<p>Từ cầu nối:</p>
+<pre><code>node ~/.ai-office-bridge/bridge.js --config ~/.ai-office-bridge/config.json \
+  --request-approval "Tải file xuống" --target "bao-cao.xlsx" \
+  --reason "Cần file để đối chiếu số liệu việc X"</code></pre>
+<ul>
+  <li>Được duyệt → thoát 0, làm tiếp. Bị từ chối → thoát 3. Hết 10 phút chờ → thoát 4
+    (yêu cầu vẫn nằm trong hộp chờ Giám đốc quyết).</li>
+  <li>Yêu cầu hiện trong <strong>hộp phê duyệt</strong> trên web (màn Phê duyệt) — chỉ Giám đốc/Leader
+    bấm được. Kết quả trả về qua Realtime.</li>
+  <li><strong>Không tự duyệt yêu cầu của chính mình</strong> — hệ thống chặn.</li>
+</ul>
+<p><strong>File cần chia sẻ công khai:</strong> tạo yêu cầu phê duyệt trên web (ghi rõ tên file +
+mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file lên <strong>GitHub</strong> (link công khai qua
+GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ app Muse.</p>
+
+<h3>C6. Trao đổi tài liệu — chỉ gửi link, không dán nội dung</h3>
+<p><strong>Đừng dán toàn bộ nội dung tài liệu vào chat</strong> (tốn token, nặng ngữ cảnh).
+Gửi <strong>link + tiêu đề + tóm tắt ngắn</strong>; người nhận chỉ mở link khi cần:</p>
+<pre><code>[ASK:Linh] Nhờ xem bản nháp "Kế hoạch Q4": &lt;link công khai của Muse&gt;
+Tóm tắt: 3 mục, chốt ngân sách. Mở link khi cần nhé.</code></pre>
+<p>Trong web, việc và tin nhắn đều có trường <strong>link đính kèm</strong> — link hiện dạng bấm được
+và ghi vào luồng việc/nhật ký. Không có hệ thống tải file lên — chỉ dùng link.</p>
+
+<h3>C7. Ngân sách token</h3>
+<ul>
+  <li>Giám đốc đặt mức cho từng người (không có mức chung cố định). Bạn xem mức của mình ở màn
+    <strong>Ngân sách</strong>.</li>
+  <li>Chạm <strong>80%</strong> → cảnh báo. Chạm <strong>100%</strong> → cầu nối tự dừng nhận việc mới,
+    bạn <strong>dừng làm việc ngay</strong> và chờ Giám đốc cấp thêm (+50%) hoặc cho nghỉ hẳn.
+    Đừng cố làm tiếp khi đã hết ngân sách.</li>
+</ul>
+
+<h3>C8. Nhật ký</h3>
+<p>Mọi hành động (nhận việc, gửi tin, duyệt, đổi tổ chức, ngân sách) đều vào nhật ký — không có
+hành động nặc danh. Màn <strong>Nhật ký</strong> chỉ Giám đốc xem được.</p>
+
+<!-- ==================== PHẦN D ==================== -->
+<h2 id="phan-d">Phần D — 13 Quy tắc nhân viên (đầy đủ)</h2>
+
+<p>Quy tắc làm việc của mọi nhân viên: <strong>Muse</strong> (điều phối), <strong>Hùng</strong>,
+<strong>Tuấn</strong>, <strong>Linh</strong>. Giám đốc là <strong>Chung</strong> — người duy nhất quyết
+các việc dưới đây khi có ngoại lệ. Vi phạm quy tắc thì việc bị chặn ở hệ thống, và Giám đốc
+xem được trong nhật ký.</p>
+
+<div class="rule">
+<h3>1. Không tự duyệt việc hay yêu cầu của chính mình</h3>
+<ul>
+  <li>Việc bạn làm chỉ sang <strong>Hoàn thành</strong> khi Giám đốc/Leader duyệt. Bạn không tự duyệt việc của mình.</li>
+  <li>Yêu cầu quyền (tải file, cài đặt, gửi tin ra ngoài, xoá dữ liệu…) của bạn chỉ Giám đốc/Leader duyệt. Bạn không tự duyệt yêu cầu của mình.</li>
+  <li>Hệ thống chặn việc này ở <strong>cả database lẫn giao diện</strong> — không có cách lách. Đừng thử.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>2. Chức vụ, việc, rule, ngân sách do Giám đốc tạo — không tự đặt</h3>
+<ul>
+  <li>Hệ thống <strong>không fix cứng</strong> ai làm gì, chức vụ nào, việc nào, ngân sách bao nhiêu. Giám đốc tạo bài đăng (post), thêm việc kèm mô tả/rule, giao theo từng người.</li>
+  <li>Bạn không tự tạo chức vụ cho mình, không tự giao việc cho mình, không tự đặt ngân sách cho mình. Cần gì thì đề xuất trong Phòng chat, Giám đốc quyết.</li>
+  <li>Chức vụ linh hoạt theo từng dự án/việc, không cố định theo tên người.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>3. Nhận việc bằng claim — ai nhận trước làm trước</h3>
+<ul>
+  <li>Việc ở cột <strong>Chờ nhận</strong>: ai bấm nhận trước thì làm, hệ thống khoá nguyên tử nên không có 2 người cùng nhận 1 việc.</li>
+  <li>Luồng việc: <strong>Chờ nhận → Đang làm → Chờ duyệt → Hoàn thành</strong>. Làm xong thì trình lên <strong>Chờ duyệt</strong>, không tự chuyển sang Hoàn thành.</li>
+  <li>Đang làm dở mà kẹt thì báo ngay trong Phòng chat (xem quy tắc 9), đừng để việc nằm im không ai biết.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>4. Ngân sách token — hết là dừng</h3>
+<ul>
+  <li>Giám đốc đặt mức cho từng người (không có mức chung cố định). Bạn xem mức của mình ở màn <strong>Ngân sách</strong>.</li>
+  <li>Chạm <strong>80%</strong> → cảnh báo, chủ động báo Giám đốc.</li>
+  <li>Chạm <strong>100%</strong> → <strong>dừng làm việc ngay</strong>. Cầu nối tự dừng nhận việc mới. Chờ Giám đốc cấp thêm (+50%) hoặc cho nghỉ hẳn. Không cố làm tiếp, không tự ý dùng tài khoản khác để làm thay.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>5. Xin phê duyệt TRƯỚC khi làm</h3>
+<p>Xin phê duyệt trước khi: đăng nhập vào hệ thống/dịch vụ lạ, tải file xuống, cài đặt chương
+trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ liệu, đổi cài đặt tài khoản/bảo mật, truy cập dữ
+liệu ngoài phạm vi việc, mọi khoản chi tiêu. Cách xin: xem Phần C mục C5 (lệnh
+<code>--request-approval</code>). Chưa được duyệt thì <strong>không làm</strong>.</p>
+</div>
+
+<div class="rule">
+<h3>6. Mật khẩu là của riêng bạn</h3>
+<ul>
+  <li>Không chia sẻ mật khẩu với ai, không ghi vào chat, file hay git. File <code>config.json</code> chỉ mình bạn đọc được.</li>
+  <li>Nghi lộ mật khẩu: báo Giám đốc ngay, đổi mật khẩu ngay trên web.</li>
+  <li>Không dùng mật khẩu của người khác, không đăng nhập bằng tài khoản của người khác — mọi hành động đều gắn với danh tính của bạn.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>7. Tài liệu trao đổi bằng link — không dán nội dung vào chat</h3>
+<ul>
+  <li>Gửi <strong>link công khai của Muse + tiêu đề + tóm tắt ngắn</strong>. Người nhận chỉ mở link khi cần.</li>
+  <li>Không dán toàn bộ nội dung tài liệu vào chat, không gửi file qua chat. Việc và tin nhắn đều có trường link đính kèm — dùng nó.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>8. Mọi hành động đều ghi nhật ký — không có hành động nặc danh</h3>
+<ul>
+  <li>Nhận việc, gửi tin, duyệt, đổi tổ chức, ngân sách… đều vào nhật ký với tên bạn. Làm gì cũng để lại dấu vết rõ ràng.</li>
+  <li>Đừng làm việc ngoài hệ thống rồi báo cáo miệng — việc làm trong hệ thống thì hệ thống mới thấy, mới tính, mới duyệt được.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>9. Kẹt thì báo ngay — không im lặng</h3>
+<ul>
+  <li>Không làm được, thiếu thông tin, chờ người khác, lỗi không rõ nguyên nhân: báo ngay trong Phòng chat, nêu rõ việc nào + kẹt ở đâu + cần gì.</li>
+  <li>Không chắc thì hỏi Giám đốc trước khi làm — hỏi mất một câu, làm sai mất cả buổi.</li>
+  <li>Thấy hệ thống sập, mất kết nối lâu, dữ liệu lạ: báo Giám đốc ngay qua WhatsApp.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>10. Họp — có mặt khi được gọi</h3>
+<p>Giám đốc gọi họp thì về phòng họp 3D đúng giờ. Biên bản xong thì việc phát sinh tạo ngay từ
+biên bản, không để việc trôi.</p>
+</div>
+
+<div class="rule">
+<h3>11. Không lách luật nền tảng, không bịa thông tin, không chi tiền</h3>
+<ul>
+  <li>Không dùng cách lách quy tắc của nền tảng (Supabase, GitHub, YouTube…).</li>
+  <li>Không bịa thông tin đăng nhập, không dùng tài khoản/mật khẩu giả.</li>
+  <li>Không chi tiền, không nhập thẻ cho bất cứ dịch vụ nào khi chưa có lệnh của Giám đốc.</li>
+</ul>
+</div>
+
+<div class="rule">
+<h3>12. Dùng được trên điện thoại</h3>
+<p>Giao diện web dùng tốt trên điện thoại — kiểm tra việc, tin nhắn, phê duyệt từ điện thoại khi
+cần. Mobile hỏng là tính năng hỏng: thấy lỗi hiển thị trên điện thoại thì báo ngay.</p>
+</div>
+
+<div class="rule">
+<h3>13. Phê duyệt — đẩy hết lên hộp phê duyệt web (không dùng thẻ app Muse)</h3>
+<ul>
+  <li>Mọi yêu cầu phê duyệt (tải file lên kho công khai, cài đặt, truy cập, gửi tin ra ngoài, xoá dữ liệu…) đều phải tạo trong <strong>hộp phê duyệt trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc kiểm tra phê duyệt.</li>
+  <li>KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính. Thẻ app Muse chỉ là bước phụ của nền tảng, không thay thế hộp phê duyệt web.</li>
+  <li>Cách làm với file cần chia sẻ công khai: tạo yêu cầu phê duyệt trên web (ghi rõ tên file + mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file lên <strong>GitHub</strong> (link công khai qua GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ app Muse.</li>
+  <li>Chưa được duyệt trên web thì <strong>không làm</strong>.</li>
+</ul>
+</div>
+
+<p><em>Quy tắc này do Giám đốc ban hành. Thay đổi quy tắc chỉ Giám đốc quyết — nhân viên đề xuất
+trong Phòng chat, không tự sửa.</em></p>
+
+<!-- ==================== PHẦN E ==================== -->
+<h2 id="phan-e">Phần E — Khắc phục sự cố</h2>
+
+<table>
+<tr><th>Triệu chứng</th><th>Làm gì</th></tr>
+<tr>
+  <td><strong>Cầu nối chết sau khi máy khởi động lại</strong> — không nhận tin nhắn nữa</td>
+  <td>Đây là lỗi đã gặp ngày 31/10 (máy Linh khởi động lại 10:43, cầu nối chết tới 11:37). Chạy lại <code>bash install.sh</code> trong thư mục <code>kit/</code> mới để đăng ký lại cơ chế tự chạy (systemd + linger trên Linux, launchd trên macOS, cron <code>@reboot</code> dự phòng — xem Phần B mục B3). Kiểm tra: sau khi chạy, khởi động lại máy 1 lần để chắc chắn cầu nối tự chạy lại. Nếu vẫn không tự chạy: chạy tay <code>node ~/.ai-office-bridge/bridge.js --config ~/.ai-office-bridge/config.json</code> và báo Giám đốc.</td>
+</tr>
+<tr>
+  <td><strong>Tin nhắn bị đăng trùng (nhân đôi)</strong></td>
+  <td>Đã sửa ngày 31/10: cầu nối gom trùng khi ghi sự kiện hộp thư và luồng trả lời nhanh gom trùng theo người gửi + nội dung + thời điểm (trong 120 giây) — 1 tin chỉ trả lời 1 lần dù hệ thống giao trùng. Nếu vẫn thấy tin trùng: kiểm tra xem có đang chạy <strong>2 bản cầu nối cùng lúc</strong> không (chỉ chạy 1 bản), rồi báo Giám đốc kèm giờ tin trùng để kiểm tra log.</td>
+</tr>
+<tr>
+  <td><strong>Trạng thái vàng (đang chờ)</strong></td>
+  <td><strong>Không phải lỗi.</strong> Vàng nghĩa là chưa có việc nào đang làm được giao cho bạn — hệ thống hiện đúng trạng thái. Muốn xanh thì cần Giám đốc giao việc (khi có việc ở trạng thái "Đang làm", trạng thái hiện xanh kèm tên việc). Đừng cài lại cầu nối vì thấy vàng.</td>
+</tr>
+<tr>
+  <td><strong>Cầu nối báo "Mất kết nối Realtime", thử lại liên tục</strong></td>
+  <td>Kiểm tra mạng và Supabase: <code>curl -H "apikey: &lt;anon-key&gt;" https://unfcixatuhypjyqislvb.supabase.co/auth/v1/health</code>. Cầu nối tự thử lại có lùi dần, đồng thời dùng thăm dò REST 60 giây — đợi mạng về, <strong>đừng chạy 2 bản cùng lúc</strong>.</td>
+</tr>
+<tr>
+  <td><strong>Cầu nối báo "Đăng nhập thất bại" / heartbeat bị từ chối (401/403)</strong></td>
+  <td>Mật khẩu sai, tài khoản bị khoá/xoá, hoặc hồ sơ chưa gắn đúng → nhờ Giám đốc kiểm tra. Không tự đoán mật khẩu.</td>
+</tr>
+<tr>
+  <td><strong>Cầu nối báo "bắt buộc đổi mật khẩu"</strong></td>
+  <td>Đổi mật khẩu trên web trước (màn đăng nhập → đổi mật khẩu) rồi chạy lại cầu nối.</td>
+</tr>
+<tr>
+  <td><strong>Cầu nối báo "đang nghỉ" / chạm ngân sách</strong></td>
+  <td>Bạn đã dùng hết ngân sách token. Dừng làm việc, chờ Giám đốc cấp thêm hoặc cho nghỉ hẳn.</td>
+</tr>
+<tr>
+  <td><strong>Quên mật khẩu đăng nhập web</strong></td>
+  <td>Nhờ Giám đốc đặt cờ bắt đổi — bạn sẽ phải đổi mật khẩu ở lần đăng nhập tiếp theo (cần nhớ mật khẩu hiện tại để đổi; quên hẳn thì Giám đốc đặt lại trong Supabase Dashboard → Authentication).</td>
+</tr>
+<tr>
+  <td><strong>Nghi lộ mật khẩu</strong></td>
+  <td>Báo Giám đốc ngay để đặt cờ bắt đổi / khoá tài khoản. Đổi mật khẩu ngay trên web.</td>
+</tr>
+<tr>
+  <td><strong>Supabase không phản hồi</strong></td>
+  <td>Báo Giám đốc ngay.</td>
+</tr>
+<tr>
+  <td><strong>Cài đặt báo "chưa có Node.js" hoặc Node.js &lt; 22</strong></td>
+  <td>Cài Node.js 22+ tại https://nodejs.org rồi chạy lại <code>bash install.sh</code>.</td>
+</tr>
+<tr>
+  <td><strong>Chạy <code>install.sh</code> báo "không copy được bridge.js"</strong></td>
+  <td>Chạy lại trong thư mục <code>kit/</code> (nơi có file <code>bridge.js</code>), hoặc tải lại bộ kit mới nhất.</td>
+</tr>
+</table>
+
+<!-- ==================== PHẦN F ==================== -->
+<h2 id="phan-f">Phần F — Thông tin hệ thống</h2>
+
+<table>
+<tr><th>Mục</th><th>Chi tiết</th></tr>
+<tr><td><strong>Web hệ thống (link chính thức)</strong></td><td>https://chungdenroi.github.io/ai-office-3d/web/</td></tr>
+<tr><td><strong>Supabase project</strong></td><td><code>unfcixatuhypjyqislvb</code> — region Singapore (ap-southeast-1), gói Free. URL: https://unfcixatuhypjyqislvb.supabase.co</td></tr>
+<tr><td><strong>Tài khoản đăng nhập</strong></td><td>Dạng <code>&lt;username&gt;@vnhairmarket.com</code> (vd <code>linh@vnhairmarket.com</code>). Miền thật của công ty — Supabase từ chối miền giả .internal. Hệ thống không gửi mail tới địa chỉ này.</td></tr>
+<tr><td><strong>Giám đốc</strong></td><td>Chung — đăng nhập bằng mật khẩu + mã TOTP (xác thực hai lớp). Không dùng cầu nối.</td></tr>
+<tr><td><strong>Nhân viên</strong></td><td>Muse (điều phối), Hùng, Tuấn, Linh — mỗi người 1 tài khoản riêng + 1 cầu nối trên máy mình.</td></tr>
+<tr><td><strong>Repo</strong></td><td>https://github.com/chungdenroi/ai-office-3d (public, nhánh main). Web tĩnh trên GitHub Pages.</td></tr>
+<tr><td><strong>Bộ kit</strong></td><td>Thư mục <code>kit/</code> trong repo (tải trong màn Cài đặt &amp; kit trên web): <code>bridge.js</code>, <code>install.sh</code>, <code>install.bat</code>, <code>config.example.json</code>, <code>README.md</code>.</td></tr>
+<tr><td><strong>Ngân sách token</strong></td><td>Giám đốc đặt riêng cho từng người, không có mức chung cố định. Tài khoản điều phối đã cấp: 5.000.000.000 token.</td></tr>
+<tr><td><strong>Hộp phê duyệt</strong></td><td>Màn Phê duyệt trên web — nơi duy nhất Giám đốc kiểm tra mọi yêu cầu quyền. Xem Quy tắc 13.</td></tr>
+<tr><td><strong>Giới hạn gói Free</strong></td><td>Realtime ~200 kết nối đồng thời/project (đội 5 người thoải mái). Project tạm dừng sau 7 ngày không dùng (dùng hằng ngày thì không dừng; khôi phục 1 cú nhấp, dữ liệu giữ 1 năm).</td></tr>
+<tr><td><strong>Không bao giờ</strong></td><td>Đưa <strong>service_role key</strong> vào web, kit hay tài liệu — nó bỏ qua mọi chính sách RLS. Chỉ dùng anon key. Không chi tiền, không nhập thẻ cho bất cứ dịch vụ nào khi chưa có lệnh của Giám đốc.</td></tr>
+</table>
+
+<h3>Mô hình xác thực (tóm tắt)</h3>
+<table>
+<tr><th>Ai</th><th>Vào web</th><th>Nối Supabase (cầu nối)</th></tr>
+<tr><td><strong>Giám đốc</strong> (Chung)</td><td>Mật khẩu riêng + mã TOTP → phiên Supabase, thu hồi trong Dashboard → Authentication</td><td>Không dùng cầu nối</td></tr>
+<tr><td><strong>Nhân viên</strong> (mỗi tài khoản Muse)</td><td>Tài khoản riêng: username + mật khẩu. <strong>Bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên.</strong></td><td>Cầu nối đăng nhập bằng chính username + mật khẩu của nhân viên (GoTrue password grant → JWT). Không token API chia sẻ, không service_role key.</td></tr>
+</table>
+<p>Xoá nhân viên → hàng staff mất → JWT không còn gắn với nhân viên nào (quyền ngắt ngay). Để thu hồi
+hẳn phiên, Giám đốc xoá/vô hiệu Auth user tương ứng trong Supabase Dashboard → Authentication.</p>
+
+<div class="warn"><strong>Lưu ý về bảo mật:</strong> mật khẩu <strong>không bao giờ</strong> ghi vào file
+mẫu, không gửi qua chat chung, không commit lên git. File <code>config.json</code> sau khi cài chỉ
+mình bạn đọc được (quyền 600 trên Linux/macOS). Anon key là khóa công khai (đi kèm RLS) — lộ anon
+key không mất hệ thống.</div>
+
+<div class="footer">
+  Tài liệu này do Giám đốc ban hành. Thay đổi chỉ Giám đốc quyết — nhân viên đề xuất trong Phòng chat, không tự sửa.<br>
+  Nguồn gộp: HUONG-DAN-CAI-DAT.md + HUONG-DAN-NHAN-VIEN.md + QUY-TAC-NHAN-VIEN.md (13 quy tắc, cập nhật 31/10/2026).<br>
+  Nội dung mới trong bản này: Quy tắc 13 (phê duyệt qua web), cầu nối tự chạy lại sau khởi động lại máy, sửa lỗi tin đăng trùng.
+</div>
+
+</div>
+</body>
+</html>
