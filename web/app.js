@@ -705,16 +705,34 @@ function bindLogin() {
       if (tab === 'director') {
         const r = await api.post('/api/director/login', { password: fd.get('password'), totp: fd.get('totp') });
         if (r.needsMfaVerify) {
-          // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang):
-          // hiện lại mã mới để quét + xác minh trước khi vào hệ thống.
+          // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang).
           sbDirectorContinue = true; sbMfaVerified = false;
           $('#login-form').hidden = true;
           $('#setup-view').hidden = false; $('#auth-view').hidden = true;
           $('#setup-form').hidden = true; $('#setup-result').hidden = false;
-          $('#setup-secret').value = r.totpSecret;
-          $('#setup-otpauth').textContent = r.otpauthUrl;
           const vw = $('#setup-verify-wrap'); if (vw) vw.hidden = false;
-          toast('Tài khoản chưa hoàn tất xác thực 2 lớp — quét mã mới và nhập mã 6 số để xác minh.');
+          const setText = (sel, txt) => { const el = $(sel); if (el) el.textContent = txt; };
+          const hideRow = (sel) => { const el = $(sel); if (el && el.closest('p')) el.closest('p').hidden = true; };
+          const showRow = (sel) => { const el = $(sel); if (el && el.closest('p')) el.closest('p').hidden = false; };
+          if (r.factorExists) {
+            // Mã đã quét từ trước vẫn còn chờ xác minh — KHÔNG cấp mã mới:
+            // chỉ nhập mã 6 số hiện tại trong ứng dụng là xong.
+            setText('#setup-title', 'Hoàn tất xác thực 2 lớp');
+            setText('#setup-hint', 'Tài khoản Giám đốc đã có — chỉ còn bước xác minh mã trên thiết bị của anh.');
+            setText('#setup-warn', 'Nhập mã 6 số hiện tại trong ứng dụng xác thực để hoàn tất. Không cần quét lại — mã anh đã quét vẫn dùng được.');
+            hideRow('#setup-secret'); hideRow('#setup-otpauth');
+            const rb = $('#setup-reenroll'); if (rb) rb.hidden = false;
+            toast('Nhập mã 6 số từ ứng dụng xác thực để hoàn tất — dùng mã anh đã quét trên điện thoại.');
+          } else {
+            setText('#setup-title', 'Cài đặt lần đầu');
+            setText('#setup-hint', 'Chưa có tài khoản Giám đốc. Đặt mật khẩu và quét mã xác thực — chỉ làm một lần duy nhất.');
+            const w0 = $('#setup-warn'); if (w0) w0.innerHTML = '<strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.';
+            showRow('#setup-secret'); showRow('#setup-otpauth');
+            const rb = $('#setup-reenroll'); if (rb) rb.hidden = true;
+            $('#setup-secret').value = r.totpSecret;
+            $('#setup-otpauth').textContent = r.otpauthUrl;
+            toast('Tài khoản chưa hoàn tất xác thực 2 lớp — quét mã mới và nhập mã 6 số để xác minh.');
+          }
           return;
         }
         Session.save(r.token || (isSb() ? 'supabase' : ''), false);
@@ -782,6 +800,24 @@ function bindLogin() {
       }
     } catch (ex) { toast(ex.message || 'Xác minh thất bại.'); }
   });
+  // "Quét mã mới" — chỉ khi người dùng tự bấm (mã cũ đã mất/không còn trong
+  // ứng dụng). Không tự gọi trong luồng đăng nhập (xem directorLogin).
+  const reBtn = $('#setup-reenroll');
+  if (reBtn) reBtn.addEventListener('click', async () => {
+    try {
+      const r = await api.post('/api/setup/re-enroll', {});
+      sbMfaVerified = false;
+      const t = $('#setup-title'); if (t) t.textContent = 'Cài đặt lần đầu';
+      const h = $('#setup-hint'); if (h) h.textContent = 'Chưa có tài khoản Giám đốc. Đặt mật khẩu và quét mã xác thực — chỉ làm một lần duy nhất.';
+      const w = $('#setup-warn'); if (w) w.innerHTML = '<strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.';
+      const sEl = $('#setup-secret'); if (sEl && sEl.closest('p')) sEl.closest('p').hidden = false;
+      const oEl = $('#setup-otpauth'); if (oEl) oEl.hidden = false;
+      $('#setup-secret').value = r.totpSecret;
+      $('#setup-otpauth').textContent = r.otpauthUrl;
+      reBtn.hidden = true;
+      toast('Đã tạo mã mới — quét mã này vào ứng dụng xác thực rồi nhập mã 6 số.');
+    } catch (ex) { toast(ex.message || 'Không tạo được mã mới.'); }
+  });
   $('#setup-done').addEventListener('click', () => {
     if (isSb() && !sbMfaVerified) { toast('Nhập mã 6 số từ ứng dụng xác thực và bấm “Xác minh mã” trước khi tới màn hình đăng nhập.'); return; }
     $('#setup-view').hidden = true; $('#auth-view').hidden = false;
@@ -789,6 +825,12 @@ function bindLogin() {
   });
   const sbLink = $('#sb-setup-link');
   if (sbLink) sbLink.addEventListener('click', () => {
+    const t = $('#setup-title'); if (t) t.textContent = 'Cài đặt lần đầu';
+    const h = $('#setup-hint'); if (h) h.textContent = 'Chưa có tài khoản Giám đốc. Đặt mật khẩu và quét mã xác thực — chỉ làm một lần duy nhất.';
+    const w = $('#setup-warn'); if (w) w.innerHTML = '<strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.';
+    const sEl = $('#setup-secret'); if (sEl && sEl.closest('p')) sEl.closest('p').hidden = false;
+    const oEl = $('#setup-otpauth'); if (oEl) oEl.hidden = false;
+    const rb = $('#setup-reenroll'); if (rb) rb.hidden = true;
     $('#setup-view').hidden = false; $('#auth-view').hidden = true;
     $('#setup-form').hidden = false; $('#setup-result').hidden = true;
   });
