@@ -36,8 +36,8 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
       <div id="server-state" class="server-state">Đang kiểm tra máy chủ…</div>
 
       <div id="setup-view" hidden>
-        <h1>Cài đặt lần đầu</h1>
-        <p class="hint">Chưa có tài khoản Giám đốc. Đặt mật khẩu và quét mã xác thực — chỉ làm một lần duy nhất.</p>
+        <h1 id="setup-title">Cài đặt lần đầu</h1>
+        <p class="hint" id="setup-hint">Chưa có tài khoản Giám đốc. Đặt mật khẩu và quét mã xác thực — chỉ làm một lần duy nhất.</p>
         <form id="setup-form">
           <label>Mật khẩu Giám đốc (từ 10 ký tự)
             <input type="password" name="password" autocomplete="new-password" required minlength="10"></label>
@@ -46,12 +46,13 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
           <button class="btn primary block" type="submit">Tạo tài khoản Giám đốc</button>
         </form>
         <div id="setup-result" hidden>
-          <p class="warnbox"><strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.</p>
+          <p class="warnbox" id="setup-warn"><strong>Đã tạo xong.</strong> Quét mã dưới đây vào ứng dụng xác thực (Google Authenticator / Microsoft Authenticator) NGAY — mã bí mật chỉ hiện một lần duy nhất.</p>
           <p><label>Mã bí mật (ghi lại cẩn thận)<input id="setup-secret" readonly></label></p>
           <p class="hint" id="setup-otpauth"></p>
           <div id="setup-verify-wrap" hidden>
             <p><label>Mã 6 số từ ứng dụng xác thực<input id="setup-code" inputmode="numeric" maxlength="6" placeholder="123456"></label></p>
             <button class="btn block" id="setup-verify" type="button">Xác minh mã</button>
+            <button class="btn ghost block" id="setup-reenroll" type="button" hidden>Quét mã mới (mã cũ mất rồi)</button>
             <p class="hint">Chế độ Supabase bắt xác minh mã ngay trong lượt cài đặt — chưa xác minh thì chưa tới được màn hình đăng nhập.</p>
           </div>
           <button class="btn primary block" id="setup-done" type="button">Tôi đã lưu mã — tới màn hình đăng nhập</button>
@@ -67,7 +68,7 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
           <div data-pane="director">
             <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" required></label>
             <label>Mã xác thực 6 số<input type="text" name="totp" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code"></label>
-            <p class="hint">Chưa có mã thì để trống — hệ thống sẽ hiện mã QR để quét lần đầu.</p>
+            <p class="hint">Nhập mã 6 số từ ứng dụng xác thực. Lần đầu chưa quét mã thì để trống ô mã.</p>
           </div>
           <div data-pane="staff" hidden>
             <label>Tên đăng nhập<input type="text" name="username" autocomplete="username"></label>
