@@ -104,8 +104,16 @@ const INBOX_EVENTS_FILE = path.join(BRIDGE_DIR, 'inbox-events.jsonl');
 /* PID file để watchdog (cron/hook) kiểm tra cầu nối còn sống không mà
  * không nhầm với tiến trình shell chứa chuỗi lệnh (pgrep -f hay bắt nhầm). */
 try { fs.writeFileSync(path.join(BRIDGE_DIR, 'bridge.pid'), String(process.pid)); } catch (_) { /* không chặn khởi động */ }
+// Gom trùng khi ghi sự kiện hộp thư (sửa lỗi tin đăng trùng): Realtime có thể
+// giao cùng 1 tin nhiều lần (nối lại, trùng sự kiện) — ghi trùng làm daemon
+// trả lời nhiều lần. Chỉ ghi mỗi id tin 1 lần trong 120 giây.
+const seenInboxIds = new Map();
 function writeInboxEvent(row) {
   if (!row || !row.id) return;
+  const now = Date.now();
+  for (const [k, t] of seenInboxIds) if (now - t > 120000) seenInboxIds.delete(k);
+  if (seenInboxIds.has(String(row.id))) return;
+  seenInboxIds.set(String(row.id), now);
   try {
     const ev = {
       id: String(row.id),
