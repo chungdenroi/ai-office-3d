@@ -62,9 +62,17 @@ umask 077
 node -e 'const fs=require("node:fs");const f=process.argv[1];fs.writeFileSync(f,JSON.stringify({supabaseUrl:process.argv[2],anonKey:process.argv[3],username:process.argv[4],password:process.argv[5]},null,2));fs.chmodSync(f,0o600);' "$DEST/config.json" "$SB_URL" "$SB_ANON" "$NAME" "$PASS"
 echo "Đã ghi cấu hình (chỉ bạn đọc được)."
 
-# 4. Đăng ký tự khởi động lại (systemd user unit; macOS: xem kit/README)
-UNIT_DIR="${HOME}/.config/systemd/user"
+# 4. Đăng ký tự chạy lại khi máy khởi động lại / cầu nối chết.
+#    Linux: systemd user unit + linger (để chạy ngay khi boot, chưa cần đăng
+#    nhập; không có linger thì service chỉ chạy khi đã đăng nhập — máy khởi
+#    động lại là cầu nối chết, đúng lỗi Linh gặp 31/10).
+#    macOS: launchd plist (systemd không có trên macOS; trước đây install.sh
+#    chỉ nhắc đọc README, không tự đăng ký — cầu nối chết sau mỗi lần khởi
+#    động lại máy).
+#    Còn lại: cron @reboot làm phương án dự phòng.
+AUTO_START_OK=0
 if command -v systemctl >/dev/null 2>&1; then
+  UNIT_DIR="${HOME}/.config/systemd/user"
   mkdir -p "$UNIT_DIR"
   cat > "$UNIT_DIR/ai-office-bridge.service" <<EOF
 [Unit]
@@ -87,14 +95,62 @@ EOF
   if systemctl --user daemon-reload 2>/dev/null && systemctl --user enable --now ai-office-bridge.service 2>/dev/null; then
     echo "Đã đăng ký tự chạy + tự khởi động lại (systemctl --user)."
     systemctl --user status ai-office-bridge.service --no-pager 2>/dev/null | head -8 || true
+    AUTO_START_OK=1
   else
-    echo "Không đăng ký được tự chạy (máy này không có systemd phiên người dùng) — tự chạy cầu nối bằng tay khi cần:"
-    echo "  node $DEST/bridge.js --config $DEST/config.json"
+    echo "Không đăng ký được tự chạy bằng systemctl --user."
   fi
-else
-  echo "Không thấy systemctl — tự chạy cầu nối bằng tay khi cần:"
+  # Linger: cho service chạy ngay khi boot, chưa cần đăng nhập.
+  if command -v loginctl >/dev/null 2>&1; then
+    if loginctl enable-linger "$USER" 2>/dev/null; then
+      echo "Đã bật linger — cầu nối tự chạy khi máy khởi động lại (kể cả chưa đăng nhập)."
+    else
+      echo "CẢNH BÁO: không bật được linger (cần chạy tay 1 lần: loginctl enable-linger $USER). Không có linger, cầu nối chỉ chạy khi bạn đã đăng nhập."
+    fi
+  fi
+fi
+if [ "$AUTO_START_OK" = 0 ] && [ "$(uname -s)" = "Darwin" ]; then
+  PLIST_DIR="${HOME}/Library/LaunchAgents"
+  mkdir -p "$PLIST_DIR"
+  cat > "$PLIST_DIR/com.enteesee.ai-office-bridge.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.enteesee.ai-office-bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(command -v node)</string>
+    <string>$DEST/bridge.js</string>
+    <string>--config</string>
+    <string>$DEST/config.json</string>
+  </array>
+  <key>WorkingDirectory</key><string>$DEST</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$DEST/bridge.log</string>
+  <key>StandardErrorPath</key><string>$DEST/bridge.log</string>
+</dict>
+</plist>
+EOF
+  if launchctl load "$PLIST_DIR/com.enteesee.ai-office-bridge.plist" 2>/dev/null; then
+    echo "Đã đăng ký tự chạy + tự khởi động lại (launchd, macOS)."
+    AUTO_START_OK=1
+  else
+    echo "CẢNH BÁO: không nạp được launchd plist. Chạy tay: launchctl load ~/Library/LaunchAgents/com.enteesee.ai-office-bridge.plist"
+  fi
+fi
+if [ "$AUTO_START_OK" = 0 ]; then
+  # Dự phòng cuối: cron @reboot (chạy khi máy khởi động lại).
+  if command -v crontab >/dev/null 2>&1; then
+    if (crontab -l 2>/dev/null | grep -v "ai-office-bridge"; echo "@reboot sleep 20 && $(command -v node) $DEST/bridge.js --config $DEST/config.json >> $DEST/bridge.log 2>&1") | crontab - 2>/dev/null; then
+      echo "Đã đăng ký tự chạy bằng cron @reboot (phương án dự phòng)."
+      AUTO_START_OK=1
+    fi
+  fi
+fi
+if [ "$AUTO_START_OK" = 0 ]; then
+  echo "Không đăng ký được tự chạy — tự chạy cầu nối bằng tay khi cần:"
   echo "  node $DEST/bridge.js --config $DEST/config.json"
-  echo "Trên macOS, xem kit/README (launchd) để đăng ký tự chạy."
 fi
 
 # 5. Thử nối Supabase (endpoint sức khoẻ của Auth — cần kèm anon key vì
