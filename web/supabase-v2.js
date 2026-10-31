@@ -223,12 +223,33 @@
     return { ok: true };
   }
 
+  // Quét mã mới (người dùng tự bấm — chỉ dùng khi mã cũ đã mất/không còn
+  // trong ứng dụng): huỷ mọi factor rồi đăng ký mới. KHÔNG tự gọi âm thầm
+  // trong luồng đăng nhập (xem directorLogin — đó chính là lỗi cũ).
+  async function reEnrollTotp() {
+    const { data: factors } = await sb().auth.mfa.listFactors();
+    for (const f of ((factors && factors.totp) || [])) {
+      await sb().auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+    }
+    const { data: enrolled, error: enrollErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
+    if (enrollErr || !enrolled || !enrolled.totp) throw err(500, 'Không đăng ký được mã xác thực: ' + (enrollErr ? enrollErr.message : 'không có dữ liệu'));
+    pendingFactorId = enrolled.id;
+    return { totpSecret: enrolled.totp.secret, otpauthUrl: enrolled.totp.uri };
+  }
+
   async function directorLogin(password, totp) {
     // KHÔI PHỤC đăng nhập mật khẩu + mã TOTP (Giám đốc lệnh 31/10 11:41:
     // trở lại trạng thái cũ — bỏ chế độ vào thẳng vì link public ai cũng
     // vào được). Mật khẩu do Giám đốc nhập; mã 6 số bắt buộc khi đã có
-    // factor TOTP đã xác minh; chưa có factor thì đăng ký mới và trả về để
-    // hiện QR quét lần đầu.
+    // factor TOTP đã xác minh.
+    //
+    // SỬA 31/10 (lỗi "Cài đặt lần đầu" hiện lại sau khi đã quét mã): trước
+    // đây khi chưa có factor đã xác minh, hàm này HUỶ factor chưa xác minh
+    // rồi đăng ký mới — mã người dùng đã quét vào điện thoại chết âm thầm,
+    // lần đăng nhập sau lại hiện mã mới, mã cũ nhập mãi không khớp. Giờ:
+    // factor chưa xác minh được GIỮ NGUYÊN để xác minh (nhập mã 6 số là
+    // xong, hoặc xác minh ngay trong lượt đăng nhập này); chỉ đăng ký mới
+    // khi chưa có factor nào, hoặc khi người dùng bấm "Quét mã mới".
     if (!password) throw err(400, 'Nhập mật khẩu.');
     await sb().auth.signOut().catch(() => {});
     const { error: signErr } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password });
@@ -236,26 +257,41 @@
     const { data: factors } = await sb().auth.mfa.listFactors();
     const totpList = (factors && factors.totp) || [];
     const verified = totpList.filter((f) => f.status === 'verified');
+    let alreadyVerifiedThisLogin = false;
     if (!verified.length) {
-      // Chưa có factor đã xác minh: xoá factor chưa xác minh cũ trước (tránh
-      // lỗi "factor with the friendly name '' already exists"), rồi đăng ký
-      // mới và trả về để app hiện QR.
-      for (const f of totpList.filter((x) => x.status !== 'verified')) {
-        await sb().auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+      const unverified = totpList.filter((f) => f.status !== 'verified');
+      const clean = String(totp || '').replace(/\s/g, '');
+      if (unverified.length && /^\d{6}$/.test(clean)) {
+        // Mã đã quét từ trước vẫn còn hiệu lực: xác minh factor đang chờ
+        // ngay trong lượt đăng nhập này — xong là từ sau chỉ cần pass + mã.
+        const factorId = unverified[0].id;
+        const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
+        if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
+        const { error: verifyErr } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: clean });
+        if (verifyErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Mã xác thực không khớp — kiểm tra lại ứng dụng xác thực.'); }
+        alreadyVerifiedThisLogin = true;
+      } else if (unverified.length) {
+        pendingFactorId = unverified[0].id;
+        return { needsMfaVerify: true, factorExists: true };
+      } else {
+        // Chưa có factor nào: đăng ký mới và trả về để app hiện QR quét lần đầu.
+        const { data: enrolled, error: enrollErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
+        if (enrollErr || !enrolled || !enrolled.totp) throw err(500, 'Không đăng ký được mã xác thực: ' + (enrollErr ? enrollErr.message : 'không có dữ liệu'));
+        pendingFactorId = enrolled.id;
+        return { needsMfaVerify: true, totpSecret: enrolled.totp.secret, otpauthUrl: enrolled.totp.uri };
       }
-      const { data: enrolled, error: enrollErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
-      if (enrollErr || !enrolled || !enrolled.totp) throw err(500, 'Không đăng ký được mã xác thực: ' + (enrollErr ? enrollErr.message : 'không có dữ liệu'));
-      pendingFactorId = enrolled.id;
-      return { needsMfaVerify: true, totpSecret: enrolled.totp.secret, otpauthUrl: enrolled.totp.uri };
     }
-    // Đã có factor đã xác minh: bắt buộc nhập mã 6 số.
-    const clean = String(totp || '').replace(/\s/g, '');
-    if (!/^\d{6}$/.test(clean)) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Nhập mã xác thực 6 số.'); }
-    const factorId = verified[0].id;
-    const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
-    if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
-    const { error: verifyErr } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: clean });
-    if (verifyErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
+    // Đã có factor đã xác minh: bắt buộc nhập mã 6 số (trừ khi vừa xác minh
+    // xong factor đang chờ ở trên — mã đó đã dùng rồi, không nhập lại).
+    if (!alreadyVerifiedThisLogin) {
+      const clean = String(totp || '').replace(/\s/g, '');
+      if (!/^\d{6}$/.test(clean)) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Nhập mã xác thực 6 số.'); }
+      const factorId = verified[0].id;
+      const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
+      if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
+      const { error: verifyErr } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: clean });
+      if (verifyErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
+    }
     const { staff, role } = await meContext();
     if (!role.canManage) { await sb().auth.signOut().catch(() => {}); throw err(403, 'Tài khoản này không có quyền Giám đốc.'); }
     await writeAudit('director-login', 'login', 'ok');
@@ -372,6 +408,7 @@
        Các route còn lại yêu cầu phiên — meContext() ném 401 nếu chưa đăng nhập. */
     if (method === 'POST' && path === '/api/setup') return setupDirector(b.password, b.confirmPassword);
     if (method === 'POST' && path === '/api/setup/verify') return verifyPendingTotp(b.code);
+    if (method === 'POST' && path === '/api/setup/re-enroll') return reEnrollTotp();
     if (method === 'POST' && path === '/api/director/login') return directorLogin(b.password, b.totp);
     if (method === 'POST' && path === '/api/staff/login') return staffLoginViaAuth(b.username, b.password);
     if (method === 'GET' && path === '/api/setup/status') return { needsSetup: false };
