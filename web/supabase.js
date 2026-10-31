@@ -224,33 +224,9 @@
   async function directorLogin(password, totp) {
     if (!password) throw err(400, 'Thiếu mật khẩu.');
     const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password });
-    if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
-    const { data: factors } = await sb().auth.mfa.listFactors();
-    const verified = (factors && factors.totp || []).filter((f) => f.status === 'verified');
-    if (!verified.length) {
-      // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang): cho
-      // đăng ký lại mã mới rồi xác minh — không kẹt tài khoản. Chưa có mã
-      // thì không bắt nhập mã ở bước này.
-      // Xoá trước các factor TOTP chưa xác minh còn sót: mỗi lần đăng nhập
-      // dở dang đều tạo 1 factor, mà Supabase chỉ cho 1 factor mỗi
-      // friendly_name nên enroll mới sẽ lỗi "already exists" nếu không xoá.
-      const allTotp = (factors && factors.totp) || [];
-      for (const f of allTotp) {
-        if (f.status !== 'verified') {
-          await sb().auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
-        }
-      }
-      const { data: mfa, error: mfaErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
-      if (mfaErr || !mfa || !mfa.totp) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Tài khoản chưa bật xác thực 2 lớp và không đăng ký lại được: ' + (mfaErr ? mfaErr.message : '')); }
-      pendingFactorId = mfa.id;
-      return { needsMfaVerify: true, totpSecret: mfa.totp.secret, otpauthUrl: mfa.totp.uri, factorId: mfa.id };
-    }
-    if (!totp) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Thiếu mã xác thực.'); }
-    const factorId = verified[0].id;
-    const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
-    if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
-    const { error: verErr } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: String(totp).replace(/\s/g, '') });
-    if (verErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
+    if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu.'); }
+    // Giám đốc yêu cầu bỏ hẳn xác thực 2 lớp (31/10 09:23): chỉ cần mật khẩu
+    // là vào, không hỏi mã nữa. (TOTP đã gây kẹt đăng nhập nhiều lần.)
     const { staff, role } = await meContext();
     if (!role.canManage) { await sb().auth.signOut().catch(() => {}); throw err(403, 'Tài khoản này không có quyền Giám đốc.'); }
     await writeAudit('director-login', 'login', 'ok');
