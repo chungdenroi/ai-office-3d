@@ -130,9 +130,12 @@
   async function writeAudit(action, target, result, extra) {
     try {
       const { staff } = await meContext();
-      const { error } = await sb().from('audit_log').insert({
-        id: sbUid(), action, actor_id: staff.id, actor_type: staff.roleId === 'r-giamdoc' ? 'director' : 'staff',
-        target: target || null, result, extra: extra || {},
+      // Ghi qua hàm SECURITY DEFINER log_audit (migration 006): INSERT trực
+      // tiếp vào audit_log bị RLS chặn 403 dù policy nhìn thì cho phép.
+      const { error } = await sb().rpc('log_audit', {
+        p_id: sbUid(), p_action: action, p_actor_id: staff.id,
+        p_actor_type: staff.roleId === 'r-giamdoc' ? 'director' : 'staff',
+        p_target: target || null, p_result: result, p_extra: extra || {},
       });
       if (error) console.warn('[supabase] Không ghi được nhật ký:', error.message);
     } catch (e) { console.warn('[supabase] Không ghi được nhật ký:', e && e.message); }
@@ -210,19 +213,21 @@
   }
 
   async function directorLogin(password, totp) {
-    if (!password || !totp) throw err(400, 'Thiếu mật khẩu hoặc mã xác thực.');
+    if (!password) throw err(400, 'Thiếu mật khẩu.');
     const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password });
     if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
     const { data: factors } = await sb().auth.mfa.listFactors();
     const verified = (factors && factors.totp || []).filter((f) => f.status === 'verified');
     if (!verified.length) {
       // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang): cho
-      // đăng ký lại mã mới rồi xác minh — không kẹt tài khoản.
+      // đăng ký lại mã mới rồi xác minh — không kẹt tài khoản. Chưa có mã
+      // thì không bắt nhập mã ở bước này.
       const { data: mfa, error: mfaErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
       if (mfaErr || !mfa || !mfa.totp) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Tài khoản chưa bật xác thực 2 lớp và không đăng ký lại được: ' + (mfaErr ? mfaErr.message : '')); }
       pendingFactorId = mfa.id;
       return { needsMfaVerify: true, totpSecret: mfa.totp.secret, otpauthUrl: mfa.totp.uri, factorId: mfa.id };
     }
+    if (!totp) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Thiếu mã xác thực.'); }
     const factorId = verified[0].id;
     const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
     if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(400, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
