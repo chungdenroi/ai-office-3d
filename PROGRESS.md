@@ -1,5 +1,12 @@
 # TIẾN ĐỘ — Hệ thống AI nhân viên, Trung tâm điều phối
 
+## (0i) MỚI NHẤT 31/10 22:08 — Sửa lỗi "Cài đặt lần đầu" hiện lại sau khi Giám đốc đã quét mã
+
+- Gốc: `directorLogin` trong `web/supabase-v2.js` — khi chưa có factor TOTP đã xác minh, hàm HUỶ factor chưa xác minh rồi đăng ký mới. Giám đốc quét mã trên điện thoại nhưng chưa hoàn tất xác minh → lần đăng nhập sau hệ thống thay mã mới âm thầm, mã trong điện thoại chết, nhập mãi không khớp, màn hình lại hiện "Cài đặt lần đầu" như chưa từng cài đặt.
+- Sửa: factor chưa xác minh được GIỮ NGUYÊN — đăng nhập bằng mật khẩu + mã 6 số sẽ xác minh luôn factor đang chờ trong lượt đó; chưa nhập mã thì hiện màn "Hoàn tất xác thực 2 lớp" (chỉ nhập mã, không hiện mã mới); chỉ đăng ký mới khi chưa có factor nào, hoặc khi người dùng tự bấm nút mới "Quét mã mới (mã cũ mất rồi)" → route `/api/setup/re-enroll`. Đổi chữ ở màn đăng nhập cho đúng ("Lần đầu chưa quét mã thì để trống ô mã"). Không đụng luồng nhân viên, không đụng máy chủ Node (không có lỗi này). `node --check` PASS cả 2 file JS.
+- Deploy: `web/supabase-v2.js`, `web/app.js`, `web/index.html` (+ PROGRESS.md) qua gh-api put-file lên main → kiểm chứng live.
+- Giám đốc thử lại: mở trang, nhập mật khẩu, để trống ô mã, bấm Đăng nhập → nhập mã 6 số trong ứng dụng; nếu mã trong điện thoại không khớp thì bấm "Quét mã mới", quét mã mới hiện ra, nhập mã 6 số, bấm "Xác minh mã". Xong một lần này, từ sau chỉ cần mật khẩu + mã.
+
 ## (0h) MỚI NHẤT 31/10 — Sửa email Auth: bỏ miền giả .internal → vnhairmarket.com
 
 - Lỗi: "Cài đặt lần đầu" báo `Email address "director@office.internal" is invalid` dù Giám đốc không nhập email nào — app tự điền miền giả `.internal`, Supabase Auth từ chối. Gốc: thiết kế migration dùng email giả làm định danh Auth, chưa từng thử tạo tài khoản thật.
