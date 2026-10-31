@@ -219,9 +219,10 @@ sinh tạo ngay từ biên bản. Giám đốc gọi họp thì về phòng đú
 thống/dịch vụ lạ, tải file xuống, cài đặt chương trình/ứng dụng, gửi tin ra ngoài nhóm, xoá dữ
 liệu, đổi cài đặt tài khoản/bảo mật, truy cập dữ liệu ngoài phạm vi việc, mọi khoản chi tiêu.</p>
 <p><strong>Theo Quy tắc 13 (mới):</strong> mọi yêu cầu phê duyệt đều tạo trong <strong>hộp phê duyệt
-trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc kiểm tra phê duyệt.
-<strong>KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính.</strong> Chưa được duyệt trên web thì
-<strong>không làm</strong>.</p>
+trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất ghi lại quyết định phê duyệt
+của hệ thống. <strong>Thẻ phê duyệt của app Muse là luật của nền tảng, không bỏ được:</strong> khi app
+Muse yêu cầu bấm "Cho phép" thì Giám đốc vẫn phải bấm cho phép trên thẻ đó thì việc mới chạy.
+Chưa được duyệt trên web thì <strong>không làm</strong>.</p>
 <p>Từ cầu nối:</p>
 <pre><code>node ~/.ai-office-bridge/bridge.js --config ~/.ai-office-bridge/config.json \
   --request-approval "Tải file xuống" --target "bao-cao.xlsx" \
@@ -234,8 +235,12 @@ trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là 
   <li><strong>Không tự duyệt yêu cầu của chính mình</strong> — hệ thống chặn.</li>
 </ul>
 <p><strong>File cần chia sẻ công khai:</strong> tạo yêu cầu phê duyệt trên web (ghi rõ tên file +
-mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file lên <strong>GitHub</strong> (link công khai qua
-GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ app Muse.</p>
+mục đích) — nhân viên chạy <code>bash request-share.sh &lt;file&gt; "&lt;mục đích&gt;"</code> trong thư mục
+<code>kit/</code>, cầu nối tạo yêu cầu lên hộp phê duyệt web và chờ Giám đốc/Leader duyệt. Sau khi
+duyệt, gửi file cho Muse trong phòng chat, Muse đẩy lên <strong>GitHub</strong> bằng công cụ
+<code>upload-to-github.sh</code> (link công khai qua GitHub Pages) và gửi lại link. Đẩy GitHub không
+kích hoạt thẻ app Muse. Nếu dùng kho của Muse thì thẻ app Muse sẽ hiện lên và Giám đốc phải bấm
+"Cho phép" thì file mới lên được.</p>
 
 <h3>C6. Trao đổi tài liệu — chỉ gửi link, không dán nội dung</h3>
 <p><strong>Đừng dán toàn bộ nội dung tài liệu vào chat</strong> (tốn token, nặng ngữ cảnh).
@@ -366,11 +371,11 @@ cần. Mobile hỏng là tính năng hỏng: thấy lỗi hiển thị trên đi
 </div>
 
 <div class="rule">
-<h3>13. Phê duyệt — đẩy hết lên hộp phê duyệt web (không dùng thẻ app Muse)</h3>
+<h3>13. Phê duyệt — hộp phê duyệt web là nơi quyết, thẻ app Muse vẫn cần bấm cho phép</h3>
 <ul>
-  <li>Mọi yêu cầu phê duyệt (tải file lên kho công khai, cài đặt, truy cập, gửi tin ra ngoài, xoá dữ liệu…) đều phải tạo trong <strong>hộp phê duyệt trên web</strong> trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc kiểm tra phê duyệt.</li>
-  <li>KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính. Thẻ app Muse chỉ là bước phụ của nền tảng, không thay thế hộp phê duyệt web.</li>
-  <li>Cách làm với file cần chia sẻ công khai: tạo yêu cầu phê duyệt trên web (ghi rõ tên file + mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file lên <strong>GitHub</strong> (link công khai qua GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ app Muse.</li>
+  <li>Mọi yêu cầu phê duyệt trong hệ thống (tải file, cài đặt, gửi tin ra ngoài, xoá dữ liệu…) đều phải tạo trong <strong>hộp phê duyệt trên web</strong> — Giám đốc/Leader xem và quyết ở đó. Đây là nơi duy nhất ghi lại quyết định phê duyệt của hệ thống.</li>
+  <li><strong>Thẻ phê duyệt của app Muse là luật của nền tảng, không bỏ được:</strong> khi app Muse yêu cầu bấm "Cho phép" (vd tải file lên kho công khai của Muse), Giám đốc vẫn phải bấm cho phép trên thẻ đó thì việc mới chạy. Quy tắc này không thay thế được cú bấm cho phép của người dùng.</li>
+  <li>Cách làm đúng với file cần chia sẻ công khai: tạo yêu cầu phê duyệt trên web trước (ghi rõ tên file + mục đích) để Giám đốc/Leader biết và quyết; khi thẻ app Muse hiện lên thì Giám đốc bấm "Cho phép". Muốn tránh thẻ app Muse hẳn thì đẩy file lên <strong>GitHub</strong> (link công khai qua GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ. Nhân viên dùng script <code>kit/request-share.sh</code> để xin phê duyệt; Muse đẩy file lên GitHub bằng công cụ <code>upload-to-github.sh</code>.</li>
   <li>Chưa được duyệt trên web thì <strong>không làm</strong>.</li>
 </ul>
 </div>
