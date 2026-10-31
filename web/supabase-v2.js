@@ -120,12 +120,15 @@
     // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08; RLS đã mở
     // cho anon ở migration 007 vì Auth bị chặn trên mạng công ty): nếu không
     // có phiên Auth thì mặc định là Giám đốc (s-chung) để app chạy được.
+    // Bắt MỌI lỗi khi lấy phiên (không chỉ 401): trên mạng công ty, yêu cầu
+    // tới Auth endpoint bị chặn nên getUser() lỗi mạng (không có status 401)
+    // chứ không trả 401 sạch — chỉ bắt 401 thì fallback không chạy và app
+    // đá ra màn đăng nhập.
     try {
       const st = await meStaff();
       const role = await meRole(st);
       return { staff: st, role, isDirector: !!role.canManage };
     } catch (e) {
-      if (e && e.status !== 401) throw e;
       const { data, error } = await sb().from('staff').select('*').eq('id', 's-chung').maybeSingle();
       if (error || !data) throw err(401, 'Không vào được hệ thống — thử tải lại trang.');
       const st = staffView(data);
