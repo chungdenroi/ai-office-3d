@@ -222,8 +222,12 @@
   }
 
   async function directorLogin(password, totp) {
-    if (!password) throw err(400, 'Thiếu mật khẩu.');
-    const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password });
+    // Giám đốc lệnh bỏ hẳn mật khẩu (31/10 09:33): không nhập mật khẩu thì
+    // tự dùng mật khẩu trong cấu hình để đăng nhập. (Mật khẩu đúng nhưng
+    // điện thoại báo sai — do tự điền/tự viết hoa trên bàn phím điện thoại.)
+    const pw = password || CFG.directorPassword;
+    if (!pw) throw err(400, 'Thiếu mật khẩu.');
+    const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
     if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu.'); }
     // Giám đốc yêu cầu bỏ hẳn xác thực 2 lớp (31/10 09:23): chỉ cần mật khẩu
     // là vào, không hỏi mã nữa. (TOTP đã gây kẹt đăng nhập nhiều lần.)
