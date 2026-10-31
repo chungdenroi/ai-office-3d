@@ -632,6 +632,11 @@ async function boot() {
   // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08): thử vào thẳng
   // hệ thống với vai trò Giám đốc trước (meContext tự mặc định s-chung khi
   // chưa có phiên Auth); chỉ hiện màn đăng nhập khi vào thẳng thất bại.
+  // Hiện ngay màn hình chờ (thương hiệu + "Đang kiểm tra máy chủ…") để
+  // không đen màn hình trong lúc tải; ẩn form đăng nhập (không còn nút
+  // đăng nhập ở chế độ vào thẳng) — chỉ hiện lại nếu vào thẳng thất bại.
+  showView('login');
+  const authView = $('#auth-view'); if (authView) authView.hidden = true;
   // Gắn lắng nghe form NGAY (đồng bộ) trước mọi lần fetch — tránh trường hợp
   // người dùng bấm Đăng nhập khi probe máy chủ còn đang chạy thì form gửi
   // theo cách truyền thống và tải lại trang.
@@ -642,7 +647,10 @@ async function boot() {
     try { const st = await api.get('/api/setup/status'); needsSetup = !!st.needsSetup; } catch { needsSetup = false; }
   }
   $('#setup-view').hidden = !needsSetup;
-  $('#auth-view').hidden = needsSetup;
+  // Chế độ vào thẳng: ẩn form đăng nhập (không còn nút đăng nhập); chỉ hiện
+  // lại ở cuối boot() nếu vào thẳng thất bại. Khi cần cài đặt lần đầu thì
+  // hiện setup-view thay cho auth-view.
+  $('#auth-view').hidden = true;
   if (needsSetup) $('#server-state').textContent = 'Máy chủ chưa có tài khoản Giám đốc — hoàn tất cài đặt lần đầu bên dưới.';
   // Chế độ Supabase: không thăm dò được "đã cài đặt chưa" khi chưa đăng
   // nhập (RLS chặn đọc khi chưa có phiên) nên luôn hiện nút cài đặt lần đầu
@@ -653,6 +661,9 @@ async function boot() {
     // Vào thẳng: khôi phục phiên (hoặc mặc định Giám đốc khi chưa đăng nhập).
     try { await restoreSession(); return; } catch { Session.clear(); }
   }
+  // Vào thẳng thất bại: hiện lại form đăng nhập để dùng cách cũ.
+  // (Khi cần cài đặt lần đầu thì giữ setup-view, không hiện auth-view.)
+  if (!needsSetup && authView) authView.hidden = false;
   showView('login');
 }
 async function restoreSession() {
