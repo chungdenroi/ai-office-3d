@@ -629,7 +629,9 @@ async function probeServer() {
   }
 }
 async function boot() {
-  showView('login');
+  // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08): thử vào thẳng
+  // hệ thống với vai trò Giám đốc trước (meContext tự mặc định s-chung khi
+  // chưa có phiên Auth); chỉ hiện màn đăng nhập khi vào thẳng thất bại.
   // Gắn lắng nghe form NGAY (đồng bộ) trước mọi lần fetch — tránh trường hợp
   // người dùng bấm Đăng nhập khi probe máy chủ còn đang chạy thì form gửi
   // theo cách truyền thống và tải lại trang.
@@ -647,11 +649,11 @@ async function boot() {
   // để Giám đốc tự mở khi cần — lần cài đặt thứ hai sẽ bị chặn ở máy chủ.
   const sbLink = $('#sb-setup-link');
   if (sbLink) sbLink.hidden = !isSb();
-  if (Session.token || isSb()) {
-    // Phiên cũ còn trong tab, hoặc phiên Supabase còn lưu ở trình duyệt:
-    // thử khôi phục danh tính, thất bại thì ở lại màn đăng nhập.
+  if (ok && isSb() && !needsSetup) {
+    // Vào thẳng: khôi phục phiên (hoặc mặc định Giám đốc khi chưa đăng nhập).
     try { await restoreSession(); return; } catch { Session.clear(); }
   }
+  showView('login');
 }
 async function restoreSession() {
   const staff = await api.get('/api/staff');
