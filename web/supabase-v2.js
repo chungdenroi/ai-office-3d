@@ -117,24 +117,11 @@
     return toCamel(data);
   }
   async function meContext() {
-    // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08; RLS đã mở
-    // cho anon ở migration 007 vì Auth bị chặn trên mạng công ty): nếu không
-    // có phiên Auth thì mặc định là Giám đốc (s-chung) để app chạy được.
-    // Bắt MỌI lỗi khi lấy phiên (không chỉ 401): trên mạng công ty, yêu cầu
-    // tới Auth endpoint bị chặn nên getUser() lỗi mạng (không có status 401)
-    // chứ không trả 401 sạch — chỉ bắt 401 thì fallback không chạy và app
-    // đá ra màn đăng nhập.
-    try {
-      const st = await meStaff();
-      const role = await meRole(st);
-      return { staff: st, role, isDirector: !!role.canManage };
-    } catch (e) {
-      const { data, error } = await sb().from('staff').select('*').eq('id', 's-chung').maybeSingle();
-      if (error || !data) throw err(401, 'Không vào được hệ thống — thử tải lại trang.');
-      const st = staffView(data);
-      const role = await meRole(st);
-      return { staff: st, role, isDirector: true };
-    }
+    // Trở lại trạng thái cũ (Giám đốc lệnh 31/10 11:41): bắt buộc có phiên
+    // Auth — không mặc định Giám đốc khi chưa đăng nhập nữa.
+    const st = await meStaff();
+    const role = await meRole(st);
+    return { staff: st, role, isDirector: !!role.canManage };
   }
 
   /* ------------------------- Nhật ký (ghi tốt nhất có thể) ----------------- */
@@ -237,25 +224,38 @@
   }
 
   async function directorLogin(password, totp) {
-    // Giám đốc lệnh BỎ HẾT CHECK MẬT KHẨU (31/10 09:49): không kiểm tra mật
-    // khẩu nữa — app tự đăng nhập bằng mật khẩu trong cấu hình, không báo
-    // lỗi mật khẩu. (Mật khẩu đúng nhưng điện thoại cứ báo sai do cache
-    // bản cũ / tự điền — đã kiểm chứng tam123456 đăng nhập OK qua API.)
-    // Fallback cứng: nếu config.js còn bản cũ (chưa có directorPassword)
-    // thì vẫn dùng được mật khẩu này để đăng nhập.
-    const pw = CFG.directorPassword || 'tam123456';
-    // Xoá phiên cũ sót lại trước (tránh phiên hỏng trong localStorage làm
-    // kẹt đăng nhập trên Edge/PC), rồi đăng nhập lại — thử lại tối đa 3 lần
-    // vì Supabase hay trả lỗi mạng chập chờn (IncompleteRead).
+    // KHÔI PHỤC đăng nhập mật khẩu + mã TOTP (Giám đốc lệnh 31/10 11:41:
+    // trở lại trạng thái cũ — bỏ chế độ vào thẳng vì link public ai cũng
+    // vào được). Mật khẩu do Giám đốc nhập; mã 6 số bắt buộc khi đã có
+    // factor TOTP đã xác minh; chưa có factor thì đăng ký mới và trả về để
+    // hiện QR quét lần đầu.
+    if (!password) throw err(400, 'Nhập mật khẩu.');
     await sb().auth.signOut().catch(() => {});
-    let lastErr = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
-      if (!error) { lastErr = null; break; }
-      lastErr = error;
-      await new Promise((r) => setTimeout(r, 1000));
+    const { error: signErr } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password });
+    if (signErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
+    const { data: factors } = await sb().auth.mfa.listFactors();
+    const totpList = (factors && factors.totp) || [];
+    const verified = totpList.filter((f) => f.status === 'verified');
+    if (!verified.length) {
+      // Chưa có factor đã xác minh: xoá factor chưa xác minh cũ trước (tránh
+      // lỗi "factor with the friendly name '' already exists"), rồi đăng ký
+      // mới và trả về để app hiện QR.
+      for (const f of totpList.filter((x) => x.status !== 'verified')) {
+        await sb().auth.mfa.unenroll({ factorId: f.id }).catch(() => {});
+      }
+      const { data: enrolled, error: enrollErr } = await sb().auth.mfa.enroll({ factorType: 'totp' });
+      if (enrollErr || !enrolled || !enrolled.totp) throw err(500, 'Không đăng ký được mã xác thực: ' + (enrollErr ? enrollErr.message : 'không có dữ liệu'));
+      pendingFactorId = enrolled.id;
+      return { needsMfaVerify: true, totpSecret: enrolled.totp.secret, otpauthUrl: enrolled.totp.uri };
     }
-    if (lastErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không vào được hệ thống — thử tải lại trang.'); }
+    // Đã có factor đã xác minh: bắt buộc nhập mã 6 số.
+    const clean = String(totp || '').replace(/\s/g, '');
+    if (!/^\d{6}$/.test(clean)) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Nhập mã xác thực 6 số.'); }
+    const factorId = verified[0].id;
+    const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
+    if (chalErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không tạo được thử thách xác thực: ' + chalErr.message); }
+    const { error: verifyErr } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: clean });
+    if (verifyErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu hoặc mã xác thực.'); }
     const { staff, role } = await meContext();
     if (!role.canManage) { await sb().auth.signOut().catch(() => {}); throw err(403, 'Tài khoản này không có quyền Giám đốc.'); }
     await writeAudit('director-login', 'login', 'ok');
