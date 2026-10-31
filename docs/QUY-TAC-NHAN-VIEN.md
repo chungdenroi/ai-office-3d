@@ -101,6 +101,20 @@ khoản chi tiêu. Cách xin: xem `HUONG-DAN-NHAN-VIEN.md` mục 5 (lệnh
   duyệt từ điện thoại khi cần. Mobile hỏng là tính năng hỏng: thấy lỗi
   hiển thị trên điện thoại thì báo ngay.
 
+## 13. Phê duyệt — đẩy hết lên hộp phê duyệt web (không dùng thẻ app Muse)
+
+- Mọi yêu cầu phê duyệt (tải file lên kho công khai, cài đặt, truy cập,
+  gửi tin ra ngoài, xoá dữ liệu…) đều phải tạo trong **hộp phê duyệt trên
+  web** trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc
+  kiểm tra phê duyệt.
+- KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính. Thẻ app Muse chỉ
+  là bước phụ của nền tảng, không thay thế hộp phê duyệt web.
+- Cách làm với file cần chia sẻ công khai: tạo yêu cầu phê duyệt trên web
+  (ghi rõ tên file + mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file
+  lên **GitHub** (link công khai qua GitHub Pages) thay vì kho của Muse —
+  đẩy GitHub không kích hoạt thẻ app Muse.
+- Chưa được duyệt trên web thì **không làm**.
+
 ---
 
 *Quy tắc này do Giám đốc ban hành. Thay đổi quy tắc chỉ Giám đốc quyết —
