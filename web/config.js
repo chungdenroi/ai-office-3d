@@ -20,4 +20,10 @@
 window.OFFICE_SUPABASE = {
   url: 'https://unfcixatuhypjyqislvb.supabase.co',
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZmNpeGF0dWh5cGp5cWlzbHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNzEyMjIsImV4cCI6MjEwODk0NzIyMn0.YigfXUaL9O_RMIxHag_ttT_dGsJuCMsLdYTwJBNPACw',
+  // Đăng nhập Giám đốc KHÔNG CẦN MẬT KHẨU (Giám đốc lệnh 31/10 09:33 — điện
+  // thoại báo sai mật khẩu dù mật khẩu đúng, do tự điền/tự viết hoa).
+  // App tự dùng mật khẩu này để đăng nhập khi Giám đốc bấm nút.
+  // CẢNH BÁO: mật khẩu nằm trong file công khai — ai có link cũng vào được
+  // tài khoản Giám đốc. Chỉ dùng khi Giám đốc chấp nhận rủi ro này.
+  directorPassword: 'tam123456',
 };
