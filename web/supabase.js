@@ -201,12 +201,21 @@
     return { totpSecret: mfa.totp.secret, otpauthUrl: mfa.totp.uri, factorId: mfa.id };
   }
   async function verifyPendingTotp(code) {
-    if (!pendingFactorId) throw err(400, 'Không có mã xác thực nào đang chờ xác minh.');
     const clean = String(code || '').replace(/\s/g, '');
     if (!/^\d{6}$/.test(clean)) throw err(400, 'Mã xác thực phải là 6 chữ số.');
-    const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId: pendingFactorId });
+    // Tìm factor đang chờ xác minh: ưu tiên pendingFactorId (trong bộ nhớ),
+    // nếu không có thì lấy factor TOTP chưa xác minh từ máy chủ — phòng khi
+    // tải lại trang / đổi thiết bị làm mất biến trong bộ nhớ.
+    let factorId = pendingFactorId;
+    if (!factorId) {
+      const { data: factors } = await sb().auth.mfa.listFactors();
+      const pending = ((factors && factors.totp) || []).filter((f) => f.status !== 'verified');
+      if (!pending.length) throw err(400, 'Không có mã xác thực nào đang chờ xác minh.');
+      factorId = pending[0].id;
+    }
+    const { data: chal, error: chalErr } = await sb().auth.mfa.challenge({ factorId });
     if (chalErr) throw err(400, 'Không tạo được thử thách xác thực: ' + chalErr.message);
-    const { error } = await sb().auth.mfa.verify({ factorId: pendingFactorId, challengeId: chal.id, code: clean });
+    const { error } = await sb().auth.mfa.verify({ factorId, challengeId: chal.id, code: clean });
     if (error) throw err(401, 'Mã xác thực không đúng.');
     pendingFactorId = null;
     return { ok: true };
