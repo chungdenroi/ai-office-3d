@@ -222,15 +222,17 @@
   }
 
   async function directorLogin(password, totp) {
-    // Giám đốc lệnh bỏ hẳn mật khẩu (31/10 09:33): không nhập mật khẩu thì
-    // tự dùng mật khẩu trong cấu hình để đăng nhập. (Mật khẩu đúng nhưng
-    // điện thoại báo sai — do tự điền/tự viết hoa trên bàn phím điện thoại.)
-    const pw = password || CFG.directorPassword;
-    if (!pw) throw err(400, 'Thiếu mật khẩu.');
-    const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
-    if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Sai mật khẩu.'); }
-    // Giám đốc yêu cầu bỏ hẳn xác thực 2 lớp (31/10 09:23): chỉ cần mật khẩu
-    // là vào, không hỏi mã nữa. (TOTP đã gây kẹt đăng nhập nhiều lần.)
+    // Giám đốc lệnh BỎ HẾT CHECK MẬT KHẨU (31/10 09:49): không kiểm tra mật
+    // khẩu nữa — app tự đăng nhập bằng mật khẩu trong cấu hình, không báo
+    // lỗi mật khẩu. (Mật khẩu đúng nhưng điện thoại cứ báo sai do cache
+    // bản cũ / tự điền — đã kiểm chứng tam123456 đăng nhập OK qua API.)
+    const pw = CFG.directorPassword;
+    if (pw) {
+      // Đăng nhập ngầm bằng mật khẩu trong cấu hình; không ném lỗi mật khẩu
+      // ra ngoài — nếu lỗi thì luồng dưới (meContext) sẽ tự báo.
+      const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
+      if (error) { await sb().auth.signOut().catch(() => {}); }
+    }
     const { staff, role } = await meContext();
     if (!role.canManage) { await sb().auth.signOut().catch(() => {}); throw err(403, 'Tài khoản này không có quyền Giám đốc.'); }
     await writeAudit('director-login', 'login', 'ok');
