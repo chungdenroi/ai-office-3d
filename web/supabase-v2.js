@@ -130,9 +130,12 @@
   async function writeAudit(action, target, result, extra) {
     try {
       const { staff } = await meContext();
-      const { error } = await sb().from('audit_log').insert({
-        id: sbUid(), action, actor_id: staff.id, actor_type: staff.roleId === 'r-giamdoc' ? 'director' : 'staff',
-        target: target || null, result, extra: extra || {},
+      // Ghi qua hàm SECURITY DEFINER log_audit (migration 006): INSERT trực
+      // tiếp vào audit_log bị RLS chặn 403 dù policy nhìn thì cho phép.
+      const { error } = await sb().rpc('log_audit', {
+        p_id: sbUid(), p_action: action, p_actor_id: staff.id,
+        p_actor_type: staff.roleId === 'r-giamdoc' ? 'director' : 'staff',
+        p_target: target || null, p_result: result, p_extra: extra || {},
       });
       if (error) console.warn('[supabase] Không ghi được nhật ký:', error.message);
     } catch (e) { console.warn('[supabase] Không ghi được nhật ký:', e && e.message); }
