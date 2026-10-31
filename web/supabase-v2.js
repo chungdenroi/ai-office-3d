@@ -117,9 +117,21 @@
     return toCamel(data);
   }
   async function meContext() {
-    const st = await meStaff();
-    const role = await meRole(st);
-    return { staff: st, role, isDirector: !!role.canManage };
+    // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08; RLS đã mở
+    // cho anon ở migration 007 vì Auth bị chặn trên mạng công ty): nếu không
+    // có phiên Auth thì mặc định là Giám đốc (s-chung) để app chạy được.
+    try {
+      const st = await meStaff();
+      const role = await meRole(st);
+      return { staff: st, role, isDirector: !!role.canManage };
+    } catch (e) {
+      if (e && e.status !== 401) throw e;
+      const { data, error } = await sb().from('staff').select('*').eq('id', 's-chung').maybeSingle();
+      if (error || !data) throw err(401, 'Không vào được hệ thống — thử tải lại trang.');
+      const st = staffView(data);
+      const role = await meRole(st);
+      return { staff: st, role, isDirector: true };
+    }
   }
 
   /* ------------------------- Nhật ký (ghi tốt nhất có thể) ----------------- */
