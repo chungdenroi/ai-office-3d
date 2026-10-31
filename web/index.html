@@ -65,7 +65,9 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
         </div>
         <form id="login-form">
           <div data-pane="director">
-            <p class="hint">Bấm “Đăng nhập” để vào hệ thống — không cần nhập mật khẩu.</p>
+            <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" required></label>
+            <label>Mã xác thực 6 số<input type="text" name="totp" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code"></label>
+            <p class="hint">Chưa có mã thì để trống — hệ thống sẽ hiện mã QR để quét lần đầu.</p>
           </div>
           <div data-pane="staff" hidden>
             <label>Tên đăng nhập<input type="text" name="username" autocomplete="username"></label>
@@ -169,9 +171,9 @@ window.addEventListener('unhandledrejection', function (e) { if (e && e.reason &
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="modal-root" hidden></div>
 <noscript><p style="padding:16px">Hệ thống này cần JavaScript. Hãy bật JavaScript rồi tải lại trang.</p></noscript>
-<script src="config.js?v=16"></script>
+<script src="config.js?v=17"></script>
 <script src="vendor/supabase.min.js"></script>
-<script src="supabase-v2.js?v=16"></script>
-<script src="app.js?v=16"></script>
+<script src="supabase-v2.js?v=17"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
