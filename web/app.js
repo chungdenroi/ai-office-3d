@@ -403,15 +403,9 @@ function opsCounts() {
 }
 const fmtClock = (d) => { try { return new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch { return ''; } };
 async function refreshAll() {
-  // Vào thẳng (mạng công ty chặn/chậm một số yêu cầu): từng bảng tải riêng,
-  // bảng nào lỗi thì để rỗng thay vì làm sập cả lần tải (Promise.all cũ chỉ
-  // cần 1 trong 5 bảng lỗi là ném, kéo theo enterApp/restoreSession thất bại
-  // và app đá ra màn đăng nhập).
-  const settled = await Promise.allSettled([
+  const [staff, roles, jobs, approvals, rules] = await Promise.all([
     api.get('/api/staff'), api.get('/api/roles'), api.get('/api/jobs'), api.get('/api/approvals'), api.get('/api/rules'),
   ]);
-  const val = (i) => (settled[i].status === 'fulfilled' ? settled[i].value : []);
-  const [staff, roles, jobs, approvals, rules] = [val(0), val(1), val(2), val(3), val(4)];
   S.staff = staff; S.roles = roles; S.jobs = jobs; S.approvals = approvals; S.rules = rules;
   try { S.budgets = await api.get('/api/budgets'); } catch { S.budgets = []; }
   try { S.messages = await api.get('/api/messages'); } catch { S.messages = []; }
@@ -635,14 +629,10 @@ async function probeServer() {
   }
 }
 async function boot() {
-  // Vào thẳng không cần đăng nhập (Giám đốc lệnh 31/10 10:08): thử vào thẳng
-  // hệ thống với vai trò Giám đốc trước (meContext tự mặc định s-chung khi
-  // chưa có phiên Auth); chỉ hiện màn đăng nhập khi vào thẳng thất bại.
-  // Hiện ngay màn hình chờ (thương hiệu + "Đang kiểm tra máy chủ…") để
-  // không đen màn hình trong lúc tải; ẩn form đăng nhập (không còn nút
-  // đăng nhập ở chế độ vào thẳng) — chỉ hiện lại nếu vào thẳng thất bại.
+  // Trở lại trạng thái cũ (Giám đốc lệnh 31/10 11:41): đăng nhập bằng mật
+  // khẩu + mã TOTP — bỏ chế độ vào thẳng. Hiện màn đăng nhập ngay để không
+  // đen màn hình trong lúc tải.
   showView('login');
-  const authView = $('#auth-view'); if (authView) authView.hidden = true;
   // Gắn lắng nghe form NGAY (đồng bộ) trước mọi lần fetch — tránh trường hợp
   // người dùng bấm Đăng nhập khi probe máy chủ còn đang chạy thì form gửi
   // theo cách truyền thống và tải lại trang.
@@ -653,32 +643,18 @@ async function boot() {
     try { const st = await api.get('/api/setup/status'); needsSetup = !!st.needsSetup; } catch { needsSetup = false; }
   }
   $('#setup-view').hidden = !needsSetup;
-  // Chế độ vào thẳng: ẩn form đăng nhập (không còn nút đăng nhập); chỉ hiện
-  // lại ở cuối boot() nếu vào thẳng thất bại. Khi cần cài đặt lần đầu thì
-  // hiện setup-view thay cho auth-view.
-  $('#auth-view').hidden = true;
+  $('#auth-view').hidden = needsSetup;
   if (needsSetup) $('#server-state').textContent = 'Máy chủ chưa có tài khoản Giám đốc — hoàn tất cài đặt lần đầu bên dưới.';
   // Chế độ Supabase: không thăm dò được "đã cài đặt chưa" khi chưa đăng
   // nhập (RLS chặn đọc khi chưa có phiên) nên luôn hiện nút cài đặt lần đầu
   // để Giám đốc tự mở khi cần — lần cài đặt thứ hai sẽ bị chặn ở máy chủ.
   const sbLink = $('#sb-setup-link');
   if (sbLink) sbLink.hidden = !isSb();
-  if (ok && isSb() && !needsSetup) {
-    // Vào thẳng: gán thẳng danh tính Giám đốc rồi vào app, KHÔNG qua
-    // restoreSession (nó gọi /api/staff + /api/context + detectSessionKind,
-    // chỉ cần 1 yêu cầu lỗi trên mạng công ty là cả chuỗi sập và app đá ra
-    // màn đăng nhập). Dữ liệu tải trong enterApp/refreshAll đã chịu lỗi
-    // từng bảng nên app vẫn hiện dù mạng chậm/chặn.
-    try {
-      Session.me = { id: 's-chung', name: 'Chung', roleId: 'r-giamdoc', status: 'working', used: 0, budget: 5000000000, mustChangePassword: false };
-      Session.meType = 'director';
-      await enterApp(); return;
-    } catch { Session.clear(); Session.me = null; }
+  if (Session.token || isSb()) {
+    // Phiên cũ còn trong tab, hoặc phiên Supabase còn lưu ở trình duyệt:
+    // thử khôi phục danh tính, thất bại thì ở lại màn đăng nhập.
+    try { await restoreSession(); return; } catch { Session.clear(); }
   }
-  // Vào thẳng thất bại: hiện lại form đăng nhập để dùng cách cũ.
-  // (Khi cần cài đặt lần đầu thì giữ setup-view, không hiện auth-view.)
-  if (!needsSetup && authView) authView.hidden = false;
-  showView('login');
 }
 async function restoreSession() {
   const staff = await api.get('/api/staff');
@@ -727,7 +703,7 @@ function bindLogin() {
     const fd = new FormData(e.target);
     try {
       if (tab === 'director') {
-        const r = await api.post('/api/director/login', { password: fd.get('password') });
+        const r = await api.post('/api/director/login', { password: fd.get('password'), totp: fd.get('totp') });
         if (r.needsMfaVerify) {
           // Tài khoản đã tạo nhưng chưa hoàn tất TOTP (cài đặt dở dang):
           // hiện lại mã mới để quét + xác minh trước khi vào hệ thống.
@@ -847,24 +823,15 @@ async function enterApp() {
   showView('app');
   // Luồng đổi mật khẩu lần đầu đi qua form riêng và chưa gán danh tính —
   // lấy danh tính của phiên hiện tại trước khi vẽ màn hình, nếu chưa có.
-  // (Ở chế độ vào thẳng, boot() đã gán Session.me = Giám đốc nên khối này
-  // thường được bỏ qua; chỉ chạy khi vào bằng phiên đăng nhập cũ.)
   if (!Session.me) {
-    try {
-      const ctx = await api.get('/api/context');
-      const staff = await api.get('/api/staff');
-      Session.me = staff.find((s) => s.id === ctx.staff.id) || null;
-      if (!Session.me) throw new Error('Không xác định được danh tính của phiên đăng nhập.');
-      Session.meType = Session.demo ? (Session.me.id === 's-chung' ? 'director' : 'staff') : await detectSessionKind();
-    } catch (e) {
-      // Không lấy được danh tính qua API (mạng công ty chặn/chậm): mặc định
-      // Giám đốc để vẫn vào được app, dữ liệu tải sau hiển thị theo thực tế.
-      Session.me = { id: 's-chung', name: 'Chung', roleId: 'r-giamdoc', status: 'working', used: 0, budget: 5000000000, mustChangePassword: false };
-      Session.meType = 'director';
-    }
+    const ctx = await api.get('/api/context');
+    const staff = await api.get('/api/staff');
+    Session.me = staff.find((s) => s.id === ctx.staff.id) || null;
+    if (!Session.me) throw new Error('Không xác định được danh tính của phiên đăng nhập.');
+    Session.meType = Session.demo ? (Session.me.id === 's-chung' ? 'director' : 'staff') : await detectSessionKind();
   }
-  try { await refreshAll(); } catch { /* dữ liệu lỗi thì app vẫn hiện, bảng rỗng */ }
-  try { await refreshHealth(); } catch { /* bỏ qua */ }
+  await refreshAll();
+  await refreshHealth();
   connectSSE();
   startPolling();
   /* Chỉ gọi renderScreen() trực tiếp khi hash đã đúng — nếu vừa gán hash
