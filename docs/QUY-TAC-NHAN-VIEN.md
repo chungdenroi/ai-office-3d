@@ -101,18 +101,21 @@ khoản chi tiêu. Cách xin: xem `HUONG-DAN-NHAN-VIEN.md` mục 5 (lệnh
   duyệt từ điện thoại khi cần. Mobile hỏng là tính năng hỏng: thấy lỗi
   hiển thị trên điện thoại thì báo ngay.
 
-## 13. Phê duyệt — đẩy hết lên hộp phê duyệt web (không dùng thẻ app Muse)
+## 13. Phê duyệt — hộp phê duyệt web là nơi quyết, thẻ app Muse vẫn cần bấm cho phép
 
-- Mọi yêu cầu phê duyệt (tải file lên kho công khai, cài đặt, truy cập,
-  gửi tin ra ngoài, xoá dữ liệu…) đều phải tạo trong **hộp phê duyệt trên
-  web** trước — Giám đốc/Leader duyệt ở đó. Đây là nơi duy nhất Giám đốc
-  kiểm tra phê duyệt.
-- KHÔNG dùng thẻ phê duyệt của app Muse làm kênh chính. Thẻ app Muse chỉ
-  là bước phụ của nền tảng, không thay thế hộp phê duyệt web.
-- Cách làm với file cần chia sẻ công khai: tạo yêu cầu phê duyệt trên web
-  (ghi rõ tên file + mục đích), chờ Giám đốc/Leader duyệt, rồi đẩy file
-  lên **GitHub** (link công khai qua GitHub Pages) thay vì kho của Muse —
-  đẩy GitHub không kích hoạt thẻ app Muse.
+- Mọi yêu cầu phê duyệt trong hệ thống (tải file, cài đặt, gửi tin ra
+  ngoài, xoá dữ liệu…) đều phải tạo trong **hộp phê duyệt trên web** —
+  Giám đốc/Leader xem và quyết ở đó. Đây là nơi duy nhất ghi lại quyết
+  định phê duyệt của hệ thống.
+- **Thẻ phê duyệt của app Muse là luật của nền tảng, không bỏ được:**
+  khi app Muse yêu cầu bấm "Cho phép" (vd tải file lên kho công khai của
+  Muse), Giám đốc vẫn phải bấm cho phép trên thẻ đó thì việc mới chạy.
+  Quy tắc này không thay thế được cú bấm cho phép của người dùng.
+- Cách làm đúng với file cần chia sẻ công khai: tạo yêu cầu phê duyệt
+  trên web trước (ghi rõ tên file + mục đích) để Giám đốc/Leader biết và
+  quyết; khi thẻ app Muse hiện lên thì Giám đốc bấm "Cho phép". Muốn
+  tránh thẻ app Muse hẳn thì đẩy file lên **GitHub** (link công khai qua
+  GitHub Pages) thay vì kho của Muse — đẩy GitHub không kích hoạt thẻ.
 - Chưa được duyệt trên web thì **không làm**.
 
 ---
