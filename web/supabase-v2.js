@@ -229,10 +229,18 @@
     // Fallback cứng: nếu config.js còn bản cũ (chưa có directorPassword)
     // thì vẫn dùng được mật khẩu này để đăng nhập.
     const pw = CFG.directorPassword || 'tam123456';
-    // Đăng nhập ngầm; nếu lỗi thì đăng xuất rồi để luồng dưới (meContext)
-    // báo — không ném lỗi mật khẩu ra ngoài.
-    const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
-    if (error) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không vào được hệ thống — thử tải lại trang.'); }
+    // Xoá phiên cũ sót lại trước (tránh phiên hỏng trong localStorage làm
+    // kẹt đăng nhập trên Edge/PC), rồi đăng nhập lại — thử lại tối đa 3 lần
+    // vì Supabase hay trả lỗi mạng chập chờn (IncompleteRead).
+    await sb().auth.signOut().catch(() => {});
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { error } = await sb().auth.signInWithPassword({ email: DIRECTOR_EMAIL, password: pw });
+      if (!error) { lastErr = null; break; }
+      lastErr = error;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    if (lastErr) { await sb().auth.signOut().catch(() => {}); throw err(401, 'Không vào được hệ thống — thử tải lại trang.'); }
     const { staff, role } = await meContext();
     if (!role.canManage) { await sb().auth.signOut().catch(() => {}); throw err(403, 'Tài khoản này không có quyền Giám đốc.'); }
     await writeAudit('director-login', 'login', 'ok');
